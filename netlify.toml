@@ -1,0 +1,11 @@
+# ============================================================
+# Netlify configuration for StreamQuiz (Next.js)
+# Docs: https://docs.netlify.com/frameworks/next-js/overview/
+# ============================================================
+
+[build]
+  command = "npm run build"
+
+# Netlify auto-detects Next.js output; this plugin handles App Router + API routes.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -1,0 +1,132 @@
+'use client';
+// ============================================================
+// CameraPanel — Single camera section (left or right)
+//
+// Shows either the local camera stream or the remote stream.
+// Includes a player label, connection indicator, and a
+// "speaking" pulse ring when that player is answering.
+//
+// Props:
+//   stream       — MediaStream to display
+//   label        — "HOST" or "STREAMER"
+//   isSpeaking   — true when this player is answering (adds pulse)
+//   mirrored     — true for local camera (looks more natural)
+//   error        — camera error message to display
+// ============================================================
+
+import React, { useEffect, useRef } from 'react';
+
+interface CameraPanelProps {
+  stream:     MediaStream | null;
+  label:      string;
+  isSpeaking: boolean;
+  mirrored?:  boolean;
+  error?:     string | null;
+  className?: string;
+}
+
+export default function CameraPanel({
+  stream,
+  label,
+  isSpeaking,
+  mirrored = false,
+  error,
+  className = '',
+}: CameraPanelProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Attach the stream to the <video> element whenever it changes
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  return (
+    <div
+      className={`relative flex flex-col h-full bg-[var(--bg-panel)] overflow-hidden ${className}`}
+      style={{
+        border: isSpeaking
+          ? '2px solid var(--buzz-red)'
+          : '2px solid var(--border)',
+        transition: 'border-color 0.2s ease',
+      }}
+    >
+      {/* ---- Camera video ---- */}
+      {stream ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={mirrored} // mute local video to avoid audio echo
+          className="w-full h-full object-cover"
+          style={{
+            transform: mirrored ? 'scaleX(-1)' : 'none',
+          }}
+        />
+      ) : (
+        /* Placeholder when camera isn't ready yet */
+        <div className="flex flex-col items-center justify-center h-full gap-3">
+          <div className="w-16 h-16 rounded-full bg-[var(--bg-card)] flex items-center justify-center">
+            {/* Simple camera icon made with CSS */}
+            <svg
+              className="w-8 h-8 text-[var(--text-muted)]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9A2.25 2.25 0 004.5 18.75z"
+              />
+            </svg>
+          </div>
+          <p className="text-[var(--text-muted)] text-sm text-center px-4">
+            {error ?? 'Waiting for camera…'}
+          </p>
+        </div>
+      )}
+
+      {/* ---- Speaking pulse overlay ---- */}
+      {isSpeaking && (
+        <div
+          className="absolute inset-0 pointer-events-none speaking-pulse"
+          style={{ border: '3px solid var(--buzz-red)', borderRadius: 'inherit' }}
+        />
+      )}
+
+      {/* ---- Player label badge at bottom ---- */}
+      <div
+        className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2"
+        style={{
+          background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
+        }}
+      >
+        <span className="text-xs font-bold tracking-widest uppercase text-[var(--text-primary)]">
+          {label}
+        </span>
+        {/* Live indicator dot */}
+        <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{
+              background: stream ? 'var(--correct)' : 'var(--text-muted)',
+              boxShadow: stream ? '0 0 6px var(--correct)' : 'none',
+            }}
+          />
+          {stream ? 'LIVE' : 'OFFLINE'}
+        </span>
+      </div>
+
+      {/* ---- Mic active indicator (top-right corner) ---- */}
+      {isSpeaking && (
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-[var(--buzz-red)] text-white text-xs font-bold px-2 py-1 rounded-full">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          ANSWERING
+        </div>
+      )}
+    </div>
+  );
+}

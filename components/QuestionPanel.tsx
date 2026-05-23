@@ -1,0 +1,256 @@
+'use client';
+// ============================================================
+// QuestionPanel — Middle 40% section
+//
+// Displays everything in the centre column:
+//   - Current question text
+//   - Countdown timer (circular)
+//   - Live scoreboard
+//   - BUZZ button OR multiple choice options
+//   - Voice transcript (live, shown to both players)
+//   - Judge buttons (correct/wrong, host only)
+//   - Result flash (correct/wrong outcome)
+//
+// This component receives all its data as props — no hooks here.
+// Easier for future developers to modify and test.
+// ============================================================
+
+import React from 'react';
+import BuzzButton from './BuzzButton';
+import MCOptions  from './MCOptions';
+import ScoreBoard from './ScoreBoard';
+import CountdownTimer from './CountdownTimer';
+import type { Game, PlayerRole } from '@/lib/types';
+import { QUESTION_TIME_SECONDS } from '@/hooks/useGameState';
+
+interface QuestionPanelProps {
+  game:          Game;
+  role:          PlayerRole;
+  timeLeft:      number;
+  buzzCountdown: number;
+  onBuzz:        () => void;
+  onJudge:       (correct: boolean) => void;
+  onMCSelect:    (index: number) => void;
+}
+
+export default function QuestionPanel({
+  game,
+  role,
+  timeLeft,
+  buzzCountdown,
+  onBuzz,
+  onJudge,
+  onMCSelect,
+}: QuestionPanelProps) {
+  const currentQuestion = game.questions[game.current_question_index];
+  const phase           = game.phase;
+  const isHost          = role === 'host';
+
+  // Determine BUZZ button state
+  type BuzzState = 'idle' | 'buzzed_me' | 'buzzed_them' | 'disabled';
+  function getBuzzState(): BuzzState {
+    if (phase !== 'question') return 'disabled';
+    if (game.buzz_player === null) return 'idle';
+    if (game.buzz_player === role) return 'buzzed_me';
+    return 'buzzed_them';
+  }
+
+  // Show a full-screen result overlay?
+  const showResult = phase === 'result';
+
+  // Was the last answer correct?
+  // For open-ended: determined by host's judge action
+  // For MC: stored in mc_answer_index vs correct_answer
+  const lastAnswerCorrect = (() => {
+    if (!currentQuestion) return false;
+    if (game.mc_mode && game.mc_answer_index !== null) {
+      return currentQuestion.options?.[game.mc_answer_index] === currentQuestion.correct_answer;
+    }
+    return false; // open-ended: we don't know until judging is done
+  })();
+
+  return (
+    <div
+      className="relative flex flex-col h-full"
+      style={{ background: 'var(--bg-base)', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}
+    >
+      {/* ======================================================
+          TOP BAR — topic + progress
+      ====================================================== */}
+      <div
+        className="flex items-center justify-between px-6 py-3"
+        style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}
+      >
+        <div>
+          <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">
+            Topic
+          </p>
+          <p className="text-sm font-semibold text-[var(--text-secondary)] truncate max-w-[180px]">
+            {game.topic}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">
+            Question
+          </p>
+          <p className="text-sm font-bold text-[var(--text-primary)]">
+            {game.current_question_index + 1} / {game.questions.length}
+          </p>
+        </div>
+      </div>
+
+      {/* ======================================================
+          SCORES — always visible
+      ====================================================== */}
+      <div className="px-6 pt-4 pb-2">
+        <ScoreBoard
+          hostScore={game.host_score}
+          playerScore={game.player_score}
+        />
+      </div>
+
+      {/* ======================================================
+          QUESTION TEXT + TIMER
+      ====================================================== */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-8 pb-4">
+
+        {/* Timer — only shown during question/buzzing phase */}
+        {(phase === 'question' || phase === 'buzzing' || phase === 'answering') && (
+          <CountdownTimer current={timeLeft} total={QUESTION_TIME_SECONDS} />
+        )}
+
+        {/* Buzz countdown overlay */}
+        {phase === 'buzzing' && (
+          <div className="text-center">
+            <p
+              className="text-4xl font-black"
+              style={{
+                color: 'var(--buzz-red)',
+                textShadow: '0 0 20px var(--buzz-glow)',
+              }}
+            >
+              {game.buzz_player === role ? 'SPEAK NOW!' : 'They\'re speaking…'}
+            </p>
+            <p className="text-[var(--text-secondary)] mt-1">
+              {buzzCountdown}s remaining
+            </p>
+          </div>
+        )}
+
+        {/* Question text — the big centrepiece */}
+        {currentQuestion && phase !== 'ended' && (
+          <div className="text-center">
+            <p
+              className="text-2xl font-bold leading-snug text-[var(--text-primary)]"
+              style={{ textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}
+            >
+              {currentQuestion.question}
+            </p>
+          </div>
+        )}
+
+        {/* ---- BUZZ button (open-ended mode) ---- */}
+        {!game.mc_mode && (phase === 'question' || phase === 'buzzing') && (
+          <BuzzButton
+            state={getBuzzState()}
+            countdown={buzzCountdown}
+            onBuzz={onBuzz}
+          />
+        )}
+
+        {/* ---- MC Options (multiple choice mode) ---- */}
+        {game.mc_mode && currentQuestion?.options && (phase === 'question' || phase === 'result') && (
+          <MCOptions
+            options={currentQuestion.options}
+            correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
+            lockedIn={phase === 'result' || game.mc_answer_index !== null}
+            selectedIndex={game.mc_answer_index}
+            onSelect={onMCSelect}
+          />
+        )}
+
+        {/* ---- Live voice transcript ---- */}
+        {(phase === 'answering' || phase === 'judging') && game.current_transcript && (
+          <div
+            className="w-full rounded-xl p-4 border"
+            style={{
+              background: 'var(--bg-card)',
+              borderColor: 'var(--border)',
+            }}
+          >
+            <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] mb-1 uppercase">
+              Live answer
+            </p>
+            <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
+              "{game.current_transcript}"
+            </p>
+          </div>
+        )}
+
+        {/* ---- Host judge buttons ---- */}
+        {isHost && phase === 'judging' && (
+          <div className="flex gap-4">
+            <button
+              onClick={() => onJudge(true)}
+              className="px-8 py-3 rounded-xl font-bold text-white text-lg transition-all hover:brightness-110 active:scale-95"
+              style={{
+                background: 'var(--correct)',
+                boxShadow: '0 0 20px #43a04760',
+              }}
+            >
+              ✓ Correct
+            </button>
+            <button
+              onClick={() => onJudge(false)}
+              className="px-8 py-3 rounded-xl font-bold text-white text-lg transition-all hover:brightness-110 active:scale-95"
+              style={{
+                background: 'var(--wrong)',
+                boxShadow: '0 0 20px #e5393560',
+              }}
+            >
+              ✗ Wrong
+            </button>
+          </div>
+        )}
+
+        {/* ---- Waiting for player message ---- */}
+        {phase === 'waiting' && (
+          <div className="text-center">
+            <p className="text-[var(--text-secondary)] text-base">
+              {isHost
+                ? 'Share the link with your opponent to start'
+                : 'Waiting for the host to start…'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================
+          RESULT OVERLAY — brief flash after each answer
+          (only for open-ended judging; MC uses MCOptions colours)
+      ====================================================== */}
+      {showResult && !game.mc_mode && (
+        <div
+          className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
+          style={{
+            background: lastAnswerCorrect
+              ? 'rgba(67,160,71,0.25)'
+              : 'rgba(229,57,53,0.25)',
+          }}
+        >
+          <span
+            className="text-7xl font-black"
+            style={{
+              color: lastAnswerCorrect ? 'var(--correct)' : 'var(--wrong)',
+              textShadow: lastAnswerCorrect
+                ? '0 0 40px var(--correct)'
+                : '0 0 40px var(--wrong)',
+            }}
+          >
+            {lastAnswerCorrect ? '✓' : '✗'}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
