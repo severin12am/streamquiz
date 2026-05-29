@@ -41,22 +41,57 @@ import type { PlayerRole, WebRTCSignal } from '@/lib/types';
 // -------------------------------------------------------
 // ICE servers.
 //   STUN  = helps peers discover their public address (free).
-//   TURN  = relays video when a direct connection is impossible
-//           (needed on ~10-20% of restrictive networks).
+//   TURN  = RELAYS the video through a server when a direct
+//           peer-to-peer link is impossible. This is REQUIRED
+//           when players are behind VPNs / proxies / strict NAT
+//           (e.g. different VPN exit countries). Without TURN you
+//           get the classic "remote camera is LIVE but black"
+//           symptom — the connection negotiates but no video flows.
 //
-// TO ADD A TURN SERVER (for maximum reliability), uncomment and
-// fill in credentials from a provider (e.g. Twilio, Metered, or
-// self-hosted coturn):
+// Default below uses freeturn.net — a free public TURN relay
+// (no signup, ~2 Mbit/s per peer, fine for a 2-player quiz).
 //
-//   { urls: 'turn:your-turn-server:3478',
-//     username: 'user', credential: 'pass' },
+// FOR BETTER RELIABILITY / SPEED (recommended for real use):
+//   Sign up for a free Metered account (20 GB/month free, global,
+//   firewall-friendly on ports 80/443):
+//     1. Create account at https://www.metered.ca/
+//     2. Copy your TURN credentials from their dashboard
+//     3. Add them via the env vars below (Netlify → Environment):
+//          NEXT_PUBLIC_TURN_URL
+//          NEXT_PUBLIC_TURN_USERNAME
+//          NEXT_PUBLIC_TURN_CREDENTIAL
+//   When those env vars are set, they're added automatically.
 // -------------------------------------------------------
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
+function buildIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
+    // --- STUN (public address discovery) ---
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    // { urls: 'turn:...', username: '...', credential: '...' },
-  ],
+
+    // --- Free public TURN relay (freeturn.net, no signup) ---
+    // Handles the VPN / strict-NAT case so video actually flows.
+    { urls: 'turn:freeturn.net:3478',  username: 'free', credential: 'free' },
+    { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' },
+  ];
+
+  // --- Optional: your own TURN server from env vars (preferred) ---
+  const turnUrl  = process.env.NEXT_PUBLIC_TURN_URL;
+  const turnUser = process.env.NEXT_PUBLIC_TURN_USERNAME;
+  const turnCred = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
+  if (turnUrl && turnUser && turnCred) {
+    servers.unshift({ urls: turnUrl, username: turnUser, credential: turnCred });
+  }
+
+  return servers;
+}
+
+const ICE_SERVERS: RTCConfiguration = {
+  iceServers: buildIceServers(),
+
+  // FORCE RELAY (debugging): uncomment the next line to route ALL
+  // traffic through TURN. Useful to confirm your TURN server works,
+  // but slower — leave it OFF for normal play.
+  // iceTransportPolicy: 'relay',
 };
 
 export interface UseWebRTCReturn {
@@ -153,14 +188,24 @@ export function useWebRTC(
     // ---- Connection state for the LIVE/OFFLINE indicator ----
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
+      console.log('[WebRTC] connectionState:', state);
       setIsConnected(state === 'connected');
       if (state === 'failed') {
         console.warn('[WebRTC] Connection failed — may need a TURN server on this network.');
         setCameraError(
-          'Could not establish a direct video link on this network. ' +
-          'A TURN server may be required (see useWebRTC.ts).'
+          'Could not establish a video link on this network. ' +
+          'Try without VPN, or add a TURN server (see useWebRTC.ts).'
         );
       }
+    };
+
+    // ---- ICE connection diagnostics (helps debug black video) ----
+    // Open the browser console (F12) to watch these during a call.
+    pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] iceConnectionState:', pc.iceConnectionState);
+    };
+    pc.onicegatheringstatechange = () => {
+      console.log('[WebRTC] iceGatheringState:', pc.iceGatheringState);
     };
 
     // ---- Trickle our ICE candidates to the other side ----

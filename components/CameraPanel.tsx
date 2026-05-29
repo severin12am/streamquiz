@@ -35,10 +35,19 @@ export default function CameraPanel({
 }: CameraPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Attach the stream to the <video> element whenever it changes
+  // Attach the stream to the <video> element whenever it changes.
+  // We also explicitly call play() because browsers can silently
+  // block autoplay of UNMUTED video (the remote feed has audio),
+  // which would otherwise show a frozen/black frame.
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+    const video = videoRef.current;
+    if (video && stream) {
+      video.srcObject = stream;
+      video.play().catch((err) => {
+        // Autoplay was blocked — log it; user interaction (clicking
+        // Start) usually unblocks it on the next attempt.
+        console.warn('[CameraPanel] video.play() blocked:', err?.message);
+      });
     }
   }, [stream]);
 
