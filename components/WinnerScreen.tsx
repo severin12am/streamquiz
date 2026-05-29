@@ -16,14 +16,18 @@ interface WinnerScreenProps {
   hostScore:   number;
   playerScore: number;
   clips:       AnswerClip[];
-  onPlayAgain?: () => void;
+  /** Host only: restart the SAME match (same questions, same link). */
+  onRematch?:  () => void;
+  /** Leave to the home page (available to everyone). */
+  onExit?:     () => void;
 }
 
 export default function WinnerScreen({
   hostScore,
   playerScore,
   clips,
-  onPlayAgain,
+  onRematch,
+  onExit,
 }: WinnerScreenProps) {
   const winner =
     hostScore > playerScore
@@ -107,16 +111,41 @@ export default function WinnerScreen({
         </div>
       )}
 
-      {/* ---- Play again ---- */}
-      {onPlayAgain && (
-        <button
-          onClick={onPlayAgain}
-          className="px-8 py-3 rounded-xl font-bold text-white transition-all hover:brightness-110 active:scale-95"
-          style={{ background: 'var(--accent)', boxShadow: '0 0 20px var(--accent-glow)' }}
-        >
-          Play Again
-        </button>
-      )}
+      {/* ---- Actions: Rematch (host) + Exit ---- */}
+      <div className="flex items-center gap-3">
+        {/* Rematch keeps the same questions and the same link, so the
+            opponent's tab will automatically return to the lobby. */}
+        {onRematch && (
+          <button
+            onClick={onRematch}
+            className="px-8 py-3 rounded-xl font-bold text-white transition-all hover:brightness-110 active:scale-95"
+            style={{ background: 'var(--accent)', boxShadow: '0 0 20px var(--accent-glow)' }}
+          >
+            🔄 Rematch
+          </button>
+        )}
+
+        {/* The player (no rematch control) sees a waiting hint instead. */}
+        {!onRematch && (
+          <p className="text-[var(--text-secondary)] text-sm">
+            Waiting for the host to start a rematch…
+          </p>
+        )}
+
+        {onExit && (
+          <button
+            onClick={onExit}
+            className="px-6 py-3 rounded-xl font-bold transition-all hover:brightness-110 active:scale-95"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Exit
+          </button>
+        )}
+      </div>
     </div>
   );
 }

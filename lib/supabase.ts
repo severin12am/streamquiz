@@ -79,6 +79,36 @@ export async function updateGame(gameId: string, patch: Partial<Game>) {
 }
 
 // -------------------------------------------------------
+// Helper: GUARDED update — only applies if the row is still in the
+// expected phase. Returns true if THIS call actually changed the row.
+//
+// This is the heart of the robust state machine: when a timed phase
+// ends, BOTH clients may try to advance it. Postgres guarantees only
+// the FIRST update (whose `phase = expectedPhase` still matches) takes
+// effect; the slower client's update matches zero rows and returns
+// false. No double-scoring, no race conditions, no host dependency.
+// -------------------------------------------------------
+export async function updateGameIfPhase(
+  gameId: string,
+  expectedPhase: string,
+  patch: Partial<Game>
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('games')
+    .update(patch)
+    .eq('id', gameId)
+    .eq('phase', expectedPhase)
+    .select('id');
+
+  if (error) {
+    console.error('[StreamQuiz] updateGameIfPhase error:', error.message);
+    return false;
+  }
+  // data is the array of rows that matched + were updated
+  return Array.isArray(data) && data.length > 0;
+}
+
+// -------------------------------------------------------
 // Helper: fetch a single game by ID
 // -------------------------------------------------------
 export async function fetchGame(gameId: string): Promise<Game | null> {

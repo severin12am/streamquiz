@@ -43,9 +43,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // ----------------------------------------------------------
   const {
     game, loading, error,
-    timeLeft, buzzCountdown,
+    timeLeft, timerTotal, buzzCountdown,
     buzz, submitMCAnswer,
-    startGame, updateTranscript,
+    startGame, updateTranscript, rematch,
   } = useGameState(gameId, role);
 
   // Determine whether the other player has joined
@@ -215,6 +215,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           game={game}
           role={role}
           timeLeft={timeLeft}
+          timerTotal={timerTotal}
           buzzCountdown={buzzCountdown}
           onBuzz={() => buzz(role)}
           onMCSelect={(i) => submitMCAnswer(role, i)}
@@ -285,7 +286,10 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           hostScore={game.host_score}
           playerScore={game.player_score}
           clips={clips}
-          onPlayAgain={() => window.location.href = '/'}
+          /* Rematch = same questions, same link, back to the lobby.
+             Only the host sees the button (they restart the match). */
+          onRematch={role === 'host' ? rematch : undefined}
+          onExit={() => (window.location.href = '/')}
         />
       )}
     </div>

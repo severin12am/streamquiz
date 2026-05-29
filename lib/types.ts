@@ -71,6 +71,23 @@ export interface Game {
   /** Result of the most recent answer (true=correct, false=wrong,
    *  null=not judged yet). Lets BOTH clients show the same ✓/✗. */
   answer_correct: boolean | null;
+
+  // ---- v2: robust transitions, steal mechanic, streaks ----
+  /** ISO timestamp when the current timed phase auto-advances.
+   *  Both clients watch this; either can drive the transition. */
+  phase_deadline: string | null;
+  /** True while the OTHER player gets a rebound/steal chance. */
+  is_steal: boolean;
+  /** Who answered first this round (during a steal only the OTHER
+   *  player may buzz). */
+  first_answerer: 'host' | 'player' | null;
+  /** Consecutive-correct streak counters (drive multipliers). */
+  streak_host: number;
+  streak_player: number;
+  /** Points awarded on the most recent correct answer + who scored
+   *  (used for the score pop animation). */
+  last_points: number;
+  last_scorer: 'host' | 'player' | null;
 }
 
 // -------------------------------------------------------

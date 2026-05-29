@@ -66,7 +66,31 @@ CREATE TABLE IF NOT EXISTS games (
 
   -- Result of the most recent answer so BOTH clients show the same
   -- ✓/✗ (TRUE=correct, FALSE=wrong, NULL=not judged yet).
-  answer_correct         BOOLEAN DEFAULT NULL
+  answer_correct         BOOLEAN DEFAULT NULL,
+
+  -- ---- v2: robust transitions, steal mechanic, streaks ----
+
+  -- When the current timed phase should auto-advance. Both clients
+  -- watch this; EITHER can drive the transition (robust to a host
+  -- disconnect). NULL = no timed deadline.
+  phase_deadline         TIMESTAMPTZ DEFAULT NULL,
+
+  -- Steal/rebound: TRUE while the OTHER player gets a second chance
+  -- after the first player answered wrong.
+  is_steal               BOOLEAN DEFAULT FALSE,
+
+  -- Who answered first this round (during a steal only the OTHER
+  -- player may buzz). 'host' | 'player' | NULL.
+  first_answerer         TEXT DEFAULT NULL,
+
+  -- Consecutive-correct streak counters (drive score multipliers).
+  streak_host            INTEGER DEFAULT 0,
+  streak_player          INTEGER DEFAULT 0,
+
+  -- Points awarded on the most recent correct answer + who scored
+  -- (used for the score pop animation). last_scorer: host|player|null.
+  last_points            INTEGER DEFAULT 0,
+  last_scorer            TEXT DEFAULT NULL
 );
 
 -- -------------------------------------------------------

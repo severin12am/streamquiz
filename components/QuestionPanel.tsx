@@ -21,12 +21,12 @@ import MCOptions  from './MCOptions';
 import ScoreBoard from './ScoreBoard';
 import CountdownTimer from './CountdownTimer';
 import type { Game, PlayerRole } from '@/lib/types';
-import { QUESTION_TIME_SECONDS } from '@/hooks/useGameState';
 
 interface QuestionPanelProps {
   game:          Game;
   role:          PlayerRole;
   timeLeft:      number;
+  timerTotal:    number;
   buzzCountdown: number;
   onBuzz:        () => void;
   onMCSelect:    (index: number) => void;
@@ -36,6 +36,7 @@ export default function QuestionPanel({
   game,
   role,
   timeLeft,
+  timerTotal,
   buzzCountdown,
   onBuzz,
   onMCSelect,
@@ -44,10 +45,14 @@ export default function QuestionPanel({
   const phase           = game.phase;
   const isHost          = role === 'host';
 
+  // During a steal, only the player who did NOT answer first may buzz.
+  const isStealLockedForMe = game.is_steal && game.first_answerer === role;
+
   // Determine BUZZ button state
   type BuzzState = 'idle' | 'buzzed_me' | 'buzzed_them' | 'disabled';
   function getBuzzState(): BuzzState {
     if (phase !== 'question') return 'disabled';
+    if (isStealLockedForMe) return 'disabled'; // can't steal from yourself
     if (game.buzz_player === null) return 'idle';
     if (game.buzz_player === role) return 'buzzed_me';
     return 'buzzed_them';
@@ -98,6 +103,8 @@ export default function QuestionPanel({
         <ScoreBoard
           hostScore={game.host_score}
           playerScore={game.player_score}
+          hostStreak={game.streak_host}
+          playerStreak={game.streak_player}
         />
       </div>
 
@@ -106,10 +113,25 @@ export default function QuestionPanel({
       ====================================================== */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4 lg:gap-6 px-4 lg:px-8 py-2 pb-4 overflow-y-auto">
 
+        {/* STEAL banner — big and obvious when a rebound is live. */}
+        {game.is_steal && (phase === 'question' || phase === 'buzzing') && (
+          <div
+            className="px-5 py-1.5 rounded-full font-black tracking-widest text-sm uppercase"
+            style={{
+              background: 'var(--buzz-red)',
+              color: 'white',
+              boxShadow: '0 0 24px var(--buzz-glow)',
+            }}
+          >
+            ⚡ STEAL CHANCE ⚡
+          </div>
+        )}
+
         {/* Timer — only while the question is open or someone is buzzing.
-            (Hidden during 'answering' so it doesn't sit frozen.) */}
+            (Hidden during 'answering' so it doesn't sit frozen.)
+            timerTotal adapts (15s question, 5s steal, 2s buzz). */}
         {(phase === 'question' || phase === 'buzzing') && (
-          <CountdownTimer current={timeLeft} total={QUESTION_TIME_SECONDS} />
+          <CountdownTimer current={timeLeft} total={timerTotal} />
         )}
 
         {/* Answering indicator — shown while a player is speaking */}
@@ -167,11 +189,18 @@ export default function QuestionPanel({
 
         {/* ---- BUZZ button (open-ended mode) ---- */}
         {!game.mc_mode && (phase === 'question' || phase === 'buzzing') && (
-          <BuzzButton
-            state={getBuzzState()}
-            countdown={buzzCountdown}
-            onBuzz={onBuzz}
-          />
+          isStealLockedForMe ? (
+            // The player who answered wrong watches the opponent steal
+            <p className="text-[var(--text-secondary)] text-base text-center">
+              Opponent can steal this one…
+            </p>
+          ) : (
+            <BuzzButton
+              state={getBuzzState()}
+              countdown={buzzCountdown}
+              onBuzz={onBuzz}
+            />
+          )
         )}
 
         {/* ---- MC Options (multiple choice mode) ---- */}
@@ -244,17 +273,29 @@ export default function QuestionPanel({
               : 'rgba(229,57,53,0.18)',
           }}
         >
-          <span
-            className="text-7xl font-black"
-            style={{
-              color: lastAnswerCorrect ? 'var(--correct)' : 'var(--wrong)',
-              textShadow: lastAnswerCorrect
-                ? '0 0 40px var(--correct)'
-                : '0 0 40px var(--wrong)',
-            }}
-          >
-            {lastAnswerCorrect ? '✓' : '✗'}
-          </span>
+          <div className="flex flex-col items-center gap-2">
+            <span
+              className="text-7xl font-black"
+              style={{
+                color: lastAnswerCorrect ? 'var(--correct)' : 'var(--wrong)',
+                textShadow: lastAnswerCorrect
+                  ? '0 0 40px var(--correct)'
+                  : '0 0 40px var(--wrong)',
+              }}
+            >
+              {lastAnswerCorrect ? '✓' : '✗'}
+            </span>
+            {/* Points earned (with streak multiplier hint) */}
+            {lastAnswerCorrect && game.last_points > 0 && (
+              <span
+                className="text-2xl font-black"
+                style={{ color: 'var(--gold)', textShadow: '0 0 20px var(--gold)' }}
+              >
+                +{game.last_points}
+                {game.last_points > 1 && ' 🔥'}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>
