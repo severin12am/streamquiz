@@ -114,9 +114,22 @@ export default function QuestionPanel({
       ====================================================== */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 px-8 pb-4">
 
-        {/* Timer — only shown during question/buzzing phase */}
-        {(phase === 'question' || phase === 'buzzing' || phase === 'answering') && (
+        {/* Timer — only while the question is open or someone is buzzing.
+            (Hidden during 'answering' so it doesn't sit frozen.) */}
+        {(phase === 'question' || phase === 'buzzing') && (
           <CountdownTimer current={timeLeft} total={QUESTION_TIME_SECONDS} />
+        )}
+
+        {/* Answering indicator — shown while a player is speaking */}
+        {phase === 'answering' && (
+          <div className="text-center">
+            <p
+              className="text-2xl font-black"
+              style={{ color: 'var(--buzz-red)', textShadow: '0 0 16px var(--buzz-glow)' }}
+            >
+              {game.buzz_player === role ? '🎤 You are answering…' : '🎤 Listening to answer…'}
+            </p>
+          </div>
         )}
 
         {/* Buzz countdown overlay */}
@@ -187,9 +200,17 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* ---- Host judge buttons ---- */}
-        {isHost && phase === 'judging' && (
-          <div className="flex gap-4">
+        {/* ---- Host judge buttons ----
+            Shown for the HOST during BOTH 'answering' and 'judging'.
+            This lets the host mark the answer the moment they've heard
+            enough — there is no separate "stop listening" step that
+            could leave the round stuck. */}
+        {isHost && (phase === 'answering' || phase === 'judging') && (
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">
+              Judge the answer
+            </p>
+            <div className="flex gap-4">
             <button
               onClick={() => onJudge(true)}
               className="px-8 py-3 rounded-xl font-bold text-white text-lg transition-all hover:brightness-110 active:scale-95"
@@ -210,6 +231,7 @@ export default function QuestionPanel({
             >
               ✗ Wrong
             </button>
+            </div>
           </div>
         )}
 
