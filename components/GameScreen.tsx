@@ -176,28 +176,41 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const playerSpeaking = game.phase === 'answering' && game.buzz_player === 'player';
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden">
+    /*
+      RESPONSIVE LAYOUT
+      ─────────────────
+      Desktop (lg ≥ 1024px): 3 columns side-by-side (flex-row).
+        [ Host cam 30% | Question 40% | Streamer cam 30% ]
+      Phone / portrait (< 1024px): 3 rows stacked (flex-col).
+        [ Host cam ]
+        [ Question ]
+        [ Streamer cam ]
+      The flex-[3]/[4]/[3] ratios apply to WIDTH on desktop and
+      to HEIGHT on phones automatically.
+      TO CHANGE THE BREAKPOINT: swap "lg:" for "md:" or "xl:".
+    */
+    <div className="relative flex flex-col lg:flex-row h-screen w-screen overflow-hidden">
 
       {/* =====================================================
-          LEFT COLUMN — Host camera (30% width)
+          HOST camera — 30% (left on desktop, top on phone)
           TO CHANGE: edit flex-[3] (ratio relative to 4 and 3)
       ===================================================== */}
-      <div className="flex-[3] min-w-0 h-full">
+      <div className="flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={hostCamera}
           label="HOST"
           isSpeaking={hostSpeaking}
           mirrored={role === 'host'}
           error={role === 'host' ? cameraError : null}
-          className="h-full"
+          className="h-full w-full"
         />
       </div>
 
       {/* =====================================================
-          MIDDLE COLUMN — Question / game content (40% width)
+          QUESTION panel — 40% (middle on desktop, center on phone)
           TO CHANGE: edit flex-[4]
       ===================================================== */}
-      <div className="flex-[4] min-w-0 h-full">
+      <div className="flex-[4] min-w-0 min-h-0">
         <QuestionPanel
           game={game}
           role={role}
@@ -210,17 +223,17 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       </div>
 
       {/* =====================================================
-          RIGHT COLUMN — Player camera (30% width)
+          STREAMER camera — 30% (right on desktop, bottom on phone)
           TO CHANGE: edit flex-[3]
       ===================================================== */}
-      <div className="flex-[3] min-w-0 h-full">
+      <div className="flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={playerCamera}
           label="STREAMER"
           isSpeaking={playerSpeaking}
           mirrored={role === 'player'}
           error={role === 'player' ? cameraError : null}
-          className="h-full"
+          className="h-full w-full"
         />
       </div>
 

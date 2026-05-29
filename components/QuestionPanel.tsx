@@ -112,7 +112,7 @@ export default function QuestionPanel({
       {/* ======================================================
           QUESTION TEXT + TIMER
       ====================================================== */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-8 pb-4">
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-8 pb-4 overflow-y-auto">
 
         {/* Timer — only while the question is open or someone is buzzing.
             (Hidden during 'answering' so it doesn't sit frozen.) */}

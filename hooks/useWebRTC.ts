@@ -42,57 +42,41 @@ import type { PlayerRole, WebRTCSignal } from '@/lib/types';
 // ICE servers.
 //   STUN  = helps peers discover their public address (free).
 //   TURN  = RELAYS the video through a server when a direct
-//           peer-to-peer link is impossible. This is REQUIRED
-//           when players are behind VPNs / proxies / strict NAT
-//           (e.g. different VPN exit countries). Without TURN you
-//           get the classic "remote camera is LIVE but black"
-//           symptom — the connection negotiates but no video flows.
+//           peer-to-peer link is impossible. REQUIRED when players
+//           are behind VPNs / proxies / strict NAT or an ISP that
+//           blocks peer-to-peer (common in Russia). Without a
+//           WORKING TURN server you get "remote camera LIVE but
+//           black" — the connection negotiates but no video flows.
 //
-// Default below uses freeturn.net — a free public TURN relay
-// (no signup, ~2 Mbit/s per peer, fine for a 2-player quiz).
-//
-// FOR BETTER RELIABILITY / SPEED (recommended for real use):
-//   Sign up for a free Metered account (20 GB/month free, global,
-//   firewall-friendly on ports 80/443):
-//     1. Create account at https://www.metered.ca/
-//     2. Copy your TURN credentials from their dashboard
-//     3. Add them via the env vars below (Netlify → Environment):
-//          NEXT_PUBLIC_TURN_URL
-//          NEXT_PUBLIC_TURN_USERNAME
-//          NEXT_PUBLIC_TURN_CREDENTIAL
-//   When those env vars are set, they're added automatically.
+// The actual server list is fetched at runtime from /api/ice-servers
+// so TURN credentials live in server env vars (not the JS bundle).
+// See app/api/ice-servers/route.ts for how to plug in a free TURN
+// provider (Metered / ExpressTURN). Until you do, the route returns
+// a public fallback that works on SOME networks but not all.
 // -------------------------------------------------------
-function buildIceServers(): RTCIceServer[] {
-  const servers: RTCIceServer[] = [
-    // --- STUN (public address discovery) ---
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
 
-    // --- Free public TURN relay (freeturn.net, no signup) ---
-    // Handles the VPN / strict-NAT case so video actually flows.
-    { urls: 'turn:freeturn.net:3478',  username: 'free', credential: 'free' },
-    { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' },
-  ];
+// Hardcoded last-resort fallback if the /api/ice-servers fetch fails
+const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'turn:freeturn.net:3478',  username: 'free', credential: 'free' },
+  { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' },
+];
 
-  // --- Optional: your own TURN server from env vars (preferred) ---
-  const turnUrl  = process.env.NEXT_PUBLIC_TURN_URL;
-  const turnUser = process.env.NEXT_PUBLIC_TURN_USERNAME;
-  const turnCred = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
-  if (turnUrl && turnUser && turnCred) {
-    servers.unshift({ urls: turnUrl, username: turnUser, credential: turnCred });
+// Fetch the ICE server list from our API route (with a safe fallback)
+async function fetchIceServers(): Promise<RTCIceServer[]> {
+  try {
+    const res = await fetch('/api/ice-servers', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
+        return data.iceServers as RTCIceServer[];
+      }
+    }
+  } catch (err) {
+    console.warn('[WebRTC] Could not fetch /api/ice-servers, using fallback:', err);
   }
-
-  return servers;
+  return FALLBACK_ICE_SERVERS;
 }
-
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: buildIceServers(),
-
-  // FORCE RELAY (debugging): uncomment the next line to route ALL
-  // traffic through TURN. Useful to confirm your TURN server works,
-  // but slower — leave it OFF for normal play.
-  // iceTransportPolicy: 'relay',
-};
 
 export interface UseWebRTCReturn {
   localStream:  MediaStream | null;
@@ -163,10 +147,19 @@ export function useWebRTC(
   useEffect(() => {
     if (!localStream || !gameId) return;
 
+    // cancelled guards against the async setup finishing after unmount
+    let cancelled = false;
+
     // Reset guards for this fresh connection attempt
     offerCreatedRef.current   = false;
     remoteDescSetRef.current  = false;
     pendingCandidates.current = [];
+
+    // Setup is async because we first fetch the ICE/TURN server list
+    async function setup() {
+    const iceServers = await fetchIceServers();
+    if (cancelled) return;
+    console.log('[WebRTC] using', iceServers.length, 'ICE servers');
 
     // One broadcast channel per game for all WebRTC signaling
     const channel = supabase.channel(`webrtc:${gameId}`, {
@@ -175,9 +168,9 @@ export function useWebRTC(
     channelRef.current = channel;
 
     // Create the peer connection and attach our local tracks
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
-    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+    localStream!.getTracks().forEach((track) => pc.addTrack(track, localStream!));
 
     // ---- Remote media arrives here ----
     pc.ontrack = (event) => {
@@ -327,13 +320,19 @@ export function useWebRTC(
         });
       }
     });
+    } // end setup()
+
+    setup();
 
     // ---- Cleanup on unmount / dependency change ----
     return () => {
-      pc.close();
-      supabase.removeChannel(channel);
+      cancelled = true;
+      pcRef.current?.close();
       pcRef.current = null;
-      channelRef.current = null;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [localStream, gameId, role]);
 
