@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS games (
   phase                  TEXT DEFAULT 'waiting'
                            CHECK (phase IN (
                              'waiting','question','buzzing',
-                             'answering','judging','result','ended'
+                             'answering','checking','judging','result','ended'
                            )),
 
   -- Who buzzed: 'host' | 'player' | NULL
@@ -62,7 +62,11 @@ CREATE TABLE IF NOT EXISTS games (
   current_transcript     TEXT DEFAULT '',
 
   -- MC answer picked by the winner: 0-3 index, or NULL
-  mc_answer_index        INTEGER DEFAULT NULL
+  mc_answer_index        INTEGER DEFAULT NULL,
+
+  -- Result of the most recent answer so BOTH clients show the same
+  -- ✓/✗ (TRUE=correct, FALSE=wrong, NULL=not judged yet).
+  answer_correct         BOOLEAN DEFAULT NULL
 );
 
 -- -------------------------------------------------------

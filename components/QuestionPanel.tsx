@@ -29,7 +29,6 @@ interface QuestionPanelProps {
   timeLeft:      number;
   buzzCountdown: number;
   onBuzz:        () => void;
-  onJudge:       (correct: boolean) => void;
   onMCSelect:    (index: number) => void;
 }
 
@@ -39,7 +38,6 @@ export default function QuestionPanel({
   timeLeft,
   buzzCountdown,
   onBuzz,
-  onJudge,
   onMCSelect,
 }: QuestionPanelProps) {
   const currentQuestion = game.questions[game.current_question_index];
@@ -58,16 +56,10 @@ export default function QuestionPanel({
   // Show a full-screen result overlay?
   const showResult = phase === 'result';
 
-  // Was the last answer correct?
-  // For open-ended: determined by host's judge action
-  // For MC: stored in mc_answer_index vs correct_answer
-  const lastAnswerCorrect = (() => {
-    if (!currentQuestion) return false;
-    if (game.mc_mode && game.mc_answer_index !== null) {
-      return currentQuestion.options?.[game.mc_answer_index] === currentQuestion.correct_answer;
-    }
-    return false; // open-ended: we don't know until judging is done
-  })();
+  // Was the last answer correct? Now read from the shared
+  // answer_correct flag (set by auto-judging) so BOTH players
+  // see the SAME result for both MC and open-ended modes.
+  const lastAnswerCorrect = game.answer_correct === true;
 
   return (
     <div
@@ -112,7 +104,7 @@ export default function QuestionPanel({
       {/* ======================================================
           QUESTION TEXT + TIMER
       ====================================================== */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-8 pb-4 overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 lg:gap-6 px-4 lg:px-8 py-2 pb-4 overflow-y-auto">
 
         {/* Timer — only while the question is open or someone is buzzing.
             (Hidden during 'answering' so it doesn't sit frozen.) */}
@@ -128,6 +120,16 @@ export default function QuestionPanel({
               style={{ color: 'var(--buzz-red)', textShadow: '0 0 16px var(--buzz-glow)' }}
             >
               {game.buzz_player === role ? '🎤 You are answering…' : '🎤 Listening to answer…'}
+            </p>
+          </div>
+        )}
+
+        {/* Checking indicator — AI is judging the answer */}
+        {phase === 'checking' && (
+          <div className="text-center flex flex-col items-center gap-2">
+            <div className="w-8 h-8 rounded-full border-4 border-t-[var(--accent)] border-[var(--border)] animate-spin" />
+            <p className="text-lg font-bold text-[var(--text-secondary)]">
+              Checking answer…
             </p>
           </div>
         )}
@@ -150,11 +152,12 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Question text — the big centrepiece */}
+        {/* Question text — the big centrepiece.
+            Responsive size so it fits on phones too. */}
         {currentQuestion && phase !== 'ended' && (
           <div className="text-center">
             <p
-              className="text-2xl font-bold leading-snug text-[var(--text-primary)]"
+              className="text-lg lg:text-2xl font-bold leading-snug text-[var(--text-primary)]"
               style={{ textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}
             >
               {currentQuestion.question}
@@ -183,7 +186,7 @@ export default function QuestionPanel({
         )}
 
         {/* ---- Live voice transcript ---- */}
-        {(phase === 'answering' || phase === 'judging') && game.current_transcript && (
+        {(phase === 'answering' || phase === 'checking') && game.current_transcript && (
           <div
             className="w-full rounded-xl p-4 border"
             style={{
@@ -195,43 +198,24 @@ export default function QuestionPanel({
               Live answer
             </p>
             <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
-              "{game.current_transcript}"
+              &ldquo;{game.current_transcript}&rdquo;
             </p>
           </div>
         )}
 
-        {/* ---- Host judge buttons ----
-            Shown for the HOST during BOTH 'answering' and 'judging'.
-            This lets the host mark the answer the moment they've heard
-            enough — there is no separate "stop listening" step that
-            could leave the round stuck. */}
-        {isHost && (phase === 'answering' || phase === 'judging') && (
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">
-              Judge the answer
+        {/* ---- Correct answer reveal (during result, open-ended) ----
+            MC mode shows the right option highlighted instead. */}
+        {phase === 'result' && !game.mc_mode && currentQuestion?.correct_answer && (
+          <div
+            className="w-full rounded-xl p-4 border text-center"
+            style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+          >
+            <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] mb-1 uppercase">
+              Correct answer
             </p>
-            <div className="flex gap-4">
-            <button
-              onClick={() => onJudge(true)}
-              className="px-8 py-3 rounded-xl font-bold text-white text-lg transition-all hover:brightness-110 active:scale-95"
-              style={{
-                background: 'var(--correct)',
-                boxShadow: '0 0 20px #43a04760',
-              }}
-            >
-              ✓ Correct
-            </button>
-            <button
-              onClick={() => onJudge(false)}
-              className="px-8 py-3 rounded-xl font-bold text-white text-lg transition-all hover:brightness-110 active:scale-95"
-              style={{
-                background: 'var(--wrong)',
-                boxShadow: '0 0 20px #e5393560',
-              }}
-            >
-              ✗ Wrong
-            </button>
-            </div>
+            <p className="text-xl font-bold text-[var(--correct)]">
+              {currentQuestion.correct_answer}
+            </p>
           </div>
         )}
 
@@ -248,16 +232,16 @@ export default function QuestionPanel({
       </div>
 
       {/* ======================================================
-          RESULT OVERLAY — brief flash after each answer
-          (only for open-ended judging; MC uses MCOptions colours)
+          RESULT OVERLAY — brief ✓/✗ flash after each answer.
+          Works for BOTH modes via the shared answer_correct flag.
       ====================================================== */}
-      {showResult && !game.mc_mode && (
+      {showResult && (
         <div
           className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
           style={{
             background: lastAnswerCorrect
-              ? 'rgba(67,160,71,0.25)'
-              : 'rgba(229,57,53,0.25)',
+              ? 'rgba(67,160,71,0.18)'
+              : 'rgba(229,57,53,0.18)',
           }}
         >
           <span

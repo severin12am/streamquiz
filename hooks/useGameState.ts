@@ -21,7 +21,8 @@ import type { Game, PlayerRole, GamePhase } from '@/lib/types';
 // -------------------------------------------------------
 const QUESTION_TIME_SECONDS = 15;   // seconds to answer before auto-move
 const BUZZ_WINDOW_SECONDS   = 2;    // seconds given to start speaking after buzz
-const RESULT_DISPLAY_MS     = 2500; // ms to show correct/wrong before next question
+const ANSWER_TIME_SECONDS   = 7;    // seconds the buzzer has to speak their answer
+const RESULT_DISPLAY_MS     = 3500; // ms to show correct/wrong + answer before next
 
 // -------------------------------------------------------
 // NETWORK RESILIENCE SETTINGS
@@ -42,7 +43,6 @@ export interface UseGameStateReturn {
 
   // Actions (only take effect if it's this player's turn / role)
   buzz: (role: PlayerRole) => Promise<void>;
-  judgeAnswer: (correct: boolean) => Promise<void>;
   submitMCAnswer: (role: PlayerRole, optionIndex: number) => Promise<void>;
   startGame: () => Promise<void>;
   updateTranscript: (text: string) => Promise<void>;
@@ -60,6 +60,8 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   const gameRef            = useRef<Game | null>(null);
   const questionTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const buzzTimerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const answerTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const evaluatingRef      = useRef(false); // guards against double-evaluation
 
   // Keep ref in sync with state
   useEffect(() => { gameRef.current = game; }, [game]);
@@ -204,6 +206,37 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   }, [game?.phase, game?.buzz_player]);
 
   // -------------------------------------------------------
+  // Answering window → AUTO-JUDGE (open-ended mode)
+  //
+  // When phase = 'answering', the buzzer speaks for ANSWER_TIME
+  // seconds (their transcript streams into game.current_transcript).
+  // Then the HOST (the single authority) calls /api/check-answer to
+  // decide correct/wrong automatically — no host clicking.
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (answerTimerRef.current) {
+      clearTimeout(answerTimerRef.current);
+      answerTimerRef.current = null;
+    }
+
+    if (!game || game.phase !== 'answering') return;
+    // Only the host drives evaluation, and only once per round
+    if (role !== 'host') return;
+    evaluatingRef.current = false;
+
+    answerTimerRef.current = setTimeout(() => {
+      if (gameRef.current?.phase === 'answering') {
+        evaluateOpenAnswer();
+      }
+    }, ANSWER_TIME_SECONDS * 1000);
+
+    return () => {
+      if (answerTimerRef.current) clearTimeout(answerTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.phase, game?.buzz_player, game?.current_question_index]);
+
+  // -------------------------------------------------------
   // ACTION: Start the game (host only)
   // Marks the game as playing and shows the first question.
   // -------------------------------------------------------
@@ -215,6 +248,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       current_question_index: 0,
       host_score: 0,
       player_score: 0,
+      answer_correct: null,
     });
   }, [gameId, role]);
 
@@ -239,25 +273,48 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   }, [game, gameId]);
 
   // -------------------------------------------------------
-  // ACTION: Host judges the spoken answer
+  // AUTO-JUDGE the spoken answer (open-ended). Host only.
+  // Calls /api/check-answer with the transcript + correct answer.
   // -------------------------------------------------------
-  const judgeAnswer = useCallback(async (correct: boolean) => {
-    if (!game || role !== 'host') return;
+  const evaluateOpenAnswer = useCallback(async () => {
+    const g = gameRef.current;
+    if (!g || role !== 'host') return;
+    if (evaluatingRef.current) return; // already judging this round
+    evaluatingRef.current = true;
 
-    const scorePatch: Partial<Game> = {
+    // Show a brief "checking" state while the AI decides
+    await updateGame(gameId, { phase: 'checking' }).catch(console.error);
+
+    const question = g.questions[g.current_question_index];
+    let correct = false;
+    try {
+      const res = await fetch('/api/check-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question:         question?.question,
+          correct_answer:   question?.correct_answer,
+          accepted_answers: question?.accepted_answers,
+          transcript:       g.current_transcript,
+        }),
+      });
+      const data = await res.json();
+      correct = !!data.correct;
+    } catch (err) {
+      console.error('[useGameState] check-answer failed:', err);
+      correct = false; // default to wrong so the game keeps moving
+    }
+
+    await updateGame(gameId, {
       phase: 'result',
-      // Add 1 point to the winner's score
-      host_score:   game.host_score   + (correct && game.buzz_player === 'host'   ? 1 : 0),
-      player_score: game.player_score + (correct && game.buzz_player === 'player' ? 1 : 0),
-    };
+      answer_correct: correct,
+      host_score:   g.host_score   + (correct && g.buzz_player === 'host'   ? 1 : 0),
+      player_score: g.player_score + (correct && g.buzz_player === 'player' ? 1 : 0),
+    });
 
-    await updateGame(gameId, scorePatch);
-
-    // Auto-advance to next question after showing the result
-    setTimeout(async () => {
-      await nextQuestion();
-    }, RESULT_DISPLAY_MS);
-  }, [game, gameId, role]);
+    // Auto-advance after showing the result + correct answer
+    setTimeout(() => { nextQuestion(); }, RESULT_DISPLAY_MS);
+  }, [gameId, role]);
 
   // -------------------------------------------------------
   // ACTION: MC answer picked (auto-scored)
@@ -278,6 +335,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       phase: 'result',
       buzz_player: answeringRole,
       mc_answer_index: optionIndex,
+      answer_correct: isCorrect,
       host_score:   game.host_score   + (isCorrect && answeringRole === 'host'   ? 1 : 0),
       player_score: game.player_score + (isCorrect && answeringRole === 'player' ? 1 : 0),
     };
@@ -319,6 +377,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         buzz_time: null,
         current_transcript: '',
         mc_answer_index: null,
+        answer_correct: null,
       });
     }
   }, [gameId]);
@@ -330,7 +389,6 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     timeLeft,
     buzzCountdown,
     buzz,
-    judgeAnswer,
     submitMCAnswer,
     startGame,
     updateTranscript,
@@ -339,4 +397,4 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
 }
 
 // Export timing constants so components can use them for visual calculations
-export { QUESTION_TIME_SECONDS, BUZZ_WINDOW_SECONDS };
+export { QUESTION_TIME_SECONDS, BUZZ_WINDOW_SECONDS, ANSWER_TIME_SECONDS };

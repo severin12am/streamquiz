@@ -70,14 +70,25 @@ export async function POST(req: NextRequest) {
       hard:   'difficult, expert-level trivia that would stump most people',
     }[difficulty];
 
-    // MC format instructions (included only when mc_mode is true)
+    // Format instructions differ by mode.
+    //   MC mode  → 4 options + correct_answer (one of the options).
+    //   Open mode → correct_answer (the canonical short answer) PLUS
+    //               accepted_answers (other phrasings/synonyms that
+    //               should also count). These power the AUTOMATIC
+    //               judging — no host clicking needed.
     const mcInstructions = mc_mode
-      ? `Each question must have exactly 4 answer choices ("options" array) and a "correct_answer" field matching one of the options exactly.`
-      : `Omit "options" and "correct_answer" — questions are open-ended.`;
+      ? `Each question must include:
+   - "options": an array of EXACTLY 4 short answer choices
+   - "correct_answer": the text of the correct option (must match one option exactly)`
+      : `Each question must include:
+   - "correct_answer": the single canonical correct answer, kept SHORT (1-5 words)
+   - "accepted_answers": an array of 2-5 alternative acceptable phrasings or synonyms
+     (e.g. for "Pacific Ocean" include "the Pacific", "Pacific"). Lowercase is fine.`;
 
     // ---- SYSTEM PROMPT — change this to adjust overall style ----
     const systemPrompt = `You are a professional quiz writer for a live TV quiz show.
-Generate crisp, unambiguous questions. Avoid trick questions or ambiguous answers.
+Generate crisp, unambiguous questions with a single clear correct answer.
+Avoid trick questions, opinion questions, or anything with multiple valid answers.
 You MUST return ONLY a valid JSON array — no markdown, no explanation, no code fences, no extra text.
 Start your response with [ and end with ].`;
 
@@ -87,16 +98,23 @@ Start your response with [ and end with ].`;
 ${mcInstructions}
 
 Return a JSON array where each item has this shape:
-{
+${mc_mode
+  ? `{
   "question": "string",
-  ${mc_mode ? '"options": ["string","string","string","string"],' : ''}
-  ${mc_mode ? '"correct_answer": "string"' : ''}
+  "options": ["string","string","string","string"],
+  "correct_answer": "string"
 }
 
-Example for ${mc_mode ? 'MC' : 'open-ended'} mode:
-${mc_mode
-  ? '{"question":"What is the capital of France?","options":["London","Paris","Berlin","Madrid"],"correct_answer":"Paris"}'
-  : '{"question":"What is the capital of France?"}'
+Example:
+{"question":"What is the capital of France?","options":["London","Paris","Berlin","Madrid"],"correct_answer":"Paris"}`
+  : `{
+  "question": "string",
+  "correct_answer": "string",
+  "accepted_answers": ["string","string"]
+}
+
+Example:
+{"question":"What is the largest ocean on Earth?","correct_answer":"Pacific Ocean","accepted_answers":["pacific","the pacific","pacific ocean"]}`
 }`;
 
     // -------------------------------------------------------

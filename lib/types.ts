@@ -17,8 +17,12 @@ export interface Question {
   question: string;
   /** MC only — 4 answer choices. Undefined for open-ended mode. */
   options?: [string, string, string, string];
-  /** MC only — the correct option text. Used for auto-scoring. */
+  /** The canonical correct answer. Present in BOTH modes now —
+   *  used for auto-scoring (MC) and AI answer-checking (open-ended). */
   correct_answer?: string;
+  /** Open-ended only — alternative acceptable phrasings/synonyms.
+   *  Used as a fast local check before falling back to the AI judge. */
+  accepted_answers?: string[];
 }
 
 // -------------------------------------------------------
@@ -29,7 +33,8 @@ export type GamePhase =
   | 'question'   // question is visible, waiting for buzz or MC click
   | 'buzzing'    // someone buzzed — 2-second countdown before speaking
   | 'answering'  // voice recognition running (open-ended only)
-  | 'judging'    // host sees Correct / Wrong buttons
+  | 'checking'   // AI is auto-judging the spoken answer
+  | 'judging'    // (legacy) kept for backwards compat; no longer used
   | 'result'     // brief flash of correct/wrong outcome
   | 'ended';     // all questions finished
 
@@ -63,6 +68,9 @@ export interface Game {
   player_score: number;
   current_transcript: string;
   mc_answer_index: number | null;
+  /** Result of the most recent answer (true=correct, false=wrong,
+   *  null=not judged yet). Lets BOTH clients show the same ✓/✗. */
+  answer_correct: boolean | null;
 }
 
 // -------------------------------------------------------

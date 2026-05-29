@@ -44,7 +44,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const {
     game, loading, error,
     timeLeft, buzzCountdown,
-    buzz, judgeAnswer, submitMCAnswer,
+    buzz, submitMCAnswer,
     startGame, updateTranscript,
   } = useGameState(gameId, role);
 
@@ -87,7 +87,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const { transcript, isListening, startListening, stopListening } =
     useSpeechRecognition(onTranscriptUpdate);
 
-  // Start/stop listening based on phase + who buzzed
+  // Start/stop the microphone for the player who buzzed.
+  // The host auto-judges on a timer (see useGameState), so here we
+  // ONLY manage the mic — no phase transitions.
   useEffect(() => {
     if (!game) return;
     const iAmAnswering =
@@ -97,10 +99,6 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       startListening();
     } else if (!iAmAnswering && isListening) {
       stopListening();
-      // When answering stops, transition to judging (host only)
-      if (role === 'host' && game.phase === 'answering') {
-        updateGame(gameId, { phase: 'judging' }).catch(console.error);
-      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.phase, game?.buzz_player]);
@@ -192,10 +190,11 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     <div className="relative flex flex-col lg:flex-row h-screen w-screen overflow-hidden">
 
       {/* =====================================================
-          HOST camera — 30% (left on desktop, top on phone)
-          TO CHANGE: edit flex-[3] (ratio relative to 4 and 3)
+          HOST camera — desktop: 30% width. Phone: smaller height
+          so the question/answers stay fully visible.
+          TO CHANGE: edit the flex-[..] values (phone | lg:desktop)
       ===================================================== */}
-      <div className="flex-[3] min-w-0 min-h-0">
+      <div className="flex-[2] lg:flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={hostCamera}
           label="HOST"
@@ -207,26 +206,26 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       </div>
 
       {/* =====================================================
-          QUESTION panel — 40% (middle on desktop, center on phone)
-          TO CHANGE: edit flex-[4]
+          QUESTION panel — desktop: 40% width. Phone: taller so the
+          question + answer controls never get clipped.
+          TO CHANGE: edit the flex-[..] values (phone | lg:desktop)
       ===================================================== */}
-      <div className="flex-[4] min-w-0 min-h-0">
+      <div className="flex-[5] lg:flex-[4] min-w-0 min-h-0">
         <QuestionPanel
           game={game}
           role={role}
           timeLeft={timeLeft}
           buzzCountdown={buzzCountdown}
           onBuzz={() => buzz(role)}
-          onJudge={judgeAnswer}
           onMCSelect={(i) => submitMCAnswer(role, i)}
         />
       </div>
 
       {/* =====================================================
-          STREAMER camera — 30% (right on desktop, bottom on phone)
-          TO CHANGE: edit flex-[3]
+          STREAMER camera — desktop: 30% width. Phone: smaller height.
+          TO CHANGE: edit the flex-[..] values (phone | lg:desktop)
       ===================================================== */}
-      <div className="flex-[3] min-w-0 min-h-0">
+      <div className="flex-[2] lg:flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={playerCamera}
           label="STREAMER"
