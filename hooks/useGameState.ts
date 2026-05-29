@@ -24,6 +24,13 @@ const BUZZ_WINDOW_SECONDS   = 2;    // seconds given to start speaking after buz
 const RESULT_DISPLAY_MS     = 2500; // ms to show correct/wrong before next question
 
 // -------------------------------------------------------
+// NETWORK RESILIENCE SETTINGS
+// -------------------------------------------------------
+const POLL_INTERVAL_MS   = 2500; // how often to poll the game row as a fallback
+const MAX_INIT_ATTEMPTS  = 5;    // retries for the very first load
+const INIT_RETRY_DELAY_MS = 1200; // wait between initial-load retries
+
+// -------------------------------------------------------
 // Hook return type
 // -------------------------------------------------------
 export interface UseGameStateReturn {
@@ -58,31 +65,60 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   useEffect(() => { gameRef.current = game; }, [game]);
 
   // -------------------------------------------------------
-  // Initial fetch + real-time subscription
+  // Initial fetch + real-time subscription + polling fallback
+  //
+  // RESILIENCE: On unstable networks (or where the realtime
+  // WebSocket is throttled/blocked, e.g. some ISPs/VPNs), the
+  // live push can fail. So we ALSO poll the game row over plain
+  // HTTPS every POLL_INTERVAL_MS as a safety net. When realtime
+  // works you get instant updates; when it doesn't, the game
+  // still stays in sync within a couple seconds.
+  //
+  // The initial load retries a few times before giving up, so a
+  // brief network blip doesn't show a false "game not found".
   // -------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
+    // Retry the first load up to MAX_INIT_ATTEMPTS times
+    async function tryInitialLoad(attempt = 0) {
       const data = await fetchGame(gameId);
-      if (!cancelled) {
-        if (!data) {
-          setError('Game not found. Check the link and try again.');
-        } else {
-          setGame(data);
-        }
+      if (cancelled) return;
+
+      if (data) {
+        setGame(data);
+        setError(null);
+        setLoading(false);
+      } else if (attempt < MAX_INIT_ATTEMPTS) {
+        // Network blip or row not visible yet — wait and retry
+        setTimeout(() => tryInitialLoad(attempt + 1), INIT_RETRY_DELAY_MS);
+      } else {
+        setError(
+          "Couldn't load the game. Check the link is correct. " +
+          'If your region blocks Supabase, connect to a VPN and reload.'
+        );
         setLoading(false);
       }
     }
-    init();
+    tryInitialLoad();
 
-    // Subscribe to all future updates on this game row
+    // Live updates (instant when the WebSocket is available)
     const channel = subscribeToGame(gameId, (updated) => {
       if (!cancelled) setGame(updated);
     });
 
+    // Polling fallback (works even when the WebSocket is blocked)
+    const pollTimer = setInterval(async () => {
+      const data = await fetchGame(gameId);
+      if (!cancelled && data) {
+        setGame(data);
+        setError(null);
+      }
+    }, POLL_INTERVAL_MS);
+
     return () => {
       cancelled = true;
+      clearInterval(pollTimer);
       supabase.removeChannel(channel);
     };
   }, [gameId]);
