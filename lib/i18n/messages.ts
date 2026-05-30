@@ -60,7 +60,7 @@ export const messages = {
       notFoundHint: "Check the link and try again. If you're the host, create a new game.",
       backHome: 'Back to home',
       host: 'Host',
-      streamer: 'Streamer',
+      streamer: 'Guest 1',
       live: 'Live',
       offline: 'Offline',
       waitingCamera: 'Waiting for camera',
@@ -103,6 +103,7 @@ export const messages = {
     },
     mc: {
       opponentSteal: 'Opponent can steal this one',
+      answerLocked: 'Answer locked in — waiting for your opponent',
     },
     score: {
       vs: 'VS',
@@ -175,7 +176,7 @@ export const messages = {
       notFoundHint: 'Проверьте ссылку. Если вы ведущий — создайте новую игру.',
       backHome: 'На главную',
       host: 'Ведущий',
-      streamer: 'Стример',
+      streamer: 'Гость 1',
       live: 'В эфире',
       offline: 'Не в сети',
       waitingCamera: 'Ожидание камеры',
@@ -218,6 +219,7 @@ export const messages = {
     },
     mc: {
       opponentSteal: 'Соперник может перехватить',
+      answerLocked: 'Ответ зафиксирован — ждём соперника',
     },
     score: {
       vs: 'VS',

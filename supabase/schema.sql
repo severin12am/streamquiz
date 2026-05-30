@@ -67,8 +67,14 @@ CREATE TABLE IF NOT EXISTS games (
   -- Voice transcript of the current answer (shown live to both players)
   current_transcript     TEXT DEFAULT '',
 
-  -- MC answer picked by the winner: 0-3 index, or NULL
+  -- MC answer picked by the winner: 0-3 index, or NULL (legacy single).
   mc_answer_index        INTEGER DEFAULT NULL,
+
+  -- Per-player MC picks (0-3 index, or NULL = not answered). Both can
+  -- answer within a short grace window so near-simultaneous correct
+  -- answers BOTH score (fair regardless of connection speed).
+  host_mc_index          INTEGER DEFAULT NULL,
+  player_mc_index        INTEGER DEFAULT NULL,
 
   -- Result of the most recent answer so BOTH clients show the same
   -- ✓/✗ (TRUE=correct, FALSE=wrong, NULL=not judged yet).

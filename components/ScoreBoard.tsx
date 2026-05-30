@@ -2,7 +2,7 @@
 // ============================================================
 // ScoreBoard — Live score display
 //
-// Shows HOST vs STREAMER scores with a "VS" divider.
+// Shows HOST vs GUEST scores with a "VS" divider.
 // Animates score changes with a brief flash.
 //
 // TO CHANGE SCORING: see judgeAnswer() in useGameState.ts
@@ -15,38 +15,15 @@ import { useLocale } from '@/context/LocaleProvider';
 interface ScoreBoardProps {
   hostScore:   number;
   playerScore: number;
-  hostStreak?:   number;  // consecutive correct answers (host)
-  playerStreak?: number;  // consecutive correct answers (player)
   hostLabel?:  string;    // default "HOST"
-  playerLabel?: string;   // default "STREAMER"
-}
-
-// Small badge shown under a score when that player is on a streak of
-// 2 or more correct answers. Flat, solid styling (no gradient/glow).
-function StreakBadge({ streak }: { streak: number }) {
-  const { t } = useLocale();
-  if (streak < 2) return null;
-  return (
-    <span
-      className="text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 uppercase tracking-wider"
-      style={{
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border-strong)',
-        color: 'var(--gold)',
-      }}
-    >
-      {t('score.streak', { n: streak })}
-    </span>
-  );
+  playerLabel?: string;   // default "GUEST"
 }
 
 export default function ScoreBoard({
   hostScore,
   playerScore,
-  hostStreak   = 0,
-  playerStreak = 0,
   hostLabel   = 'HOST',
-  playerLabel = 'STREAMER',
+  playerLabel = 'GUEST',
 }: ScoreBoardProps) {
   const { t } = useLocale();
   // Track previous scores to flash the changed one
@@ -87,7 +64,6 @@ export default function ScoreBoard({
         >
           {hostScore}
         </span>
-        <StreakBadge streak={hostStreak} />
       </div>
 
       {/* VS divider */}
@@ -114,7 +90,6 @@ export default function ScoreBoard({
         >
           {playerScore}
         </span>
-        <StreakBadge streak={playerStreak} />
       </div>
     </div>
   );

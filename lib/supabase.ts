@@ -109,6 +109,30 @@ export async function updateGameIfPhase(
 }
 
 // -------------------------------------------------------
+// Helper: GUARDED update with extra conditions.
+// Like updateGameIfPhase, but also lets you require certain columns
+// to currently be NULL (e.g. "only write my pick if I haven't picked
+// yet"). Returns true if THIS call changed the row. Used for the MC
+// grace window so each player writes their own pick exactly once.
+// -------------------------------------------------------
+export async function updateGameGuarded(
+  gameId: string,
+  patch: Partial<Game>,
+  guards: { phase?: string; nullColumns?: string[] }
+): Promise<boolean> {
+  let q = supabase.from('games').update(patch).eq('id', gameId);
+  if (guards.phase) q = q.eq('phase', guards.phase);
+  for (const col of guards.nullColumns ?? []) q = q.is(col, null);
+
+  const { data, error } = await q.select('id');
+  if (error) {
+    console.error('[StreamQuiz] updateGameGuarded error:', error.message);
+    return false;
+  }
+  return Array.isArray(data) && data.length > 0;
+}
+
+// -------------------------------------------------------
 // Helper: fetch a single game by ID
 // -------------------------------------------------------
 export async function fetchGame(gameId: string): Promise<Game | null> {

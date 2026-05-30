@@ -25,16 +25,19 @@
 //   result is skipped and we re-enter `question` with is_steal=true.
 //
 // ROUND FLOW (multiple choice):
-//   [thinking →] question → (click) → result → next   (+ steal on wrong)
+//   [thinking →] question → (first pick opens a grace window) → result → next
+//   BOTH players answer independently (host_mc_index / player_mc_index).
+//   Any correct pick within MC_GRACE_SECONDS of the first one scores,
+//   so near-simultaneous correct answers BOTH get the point (fair on
+//   any connection). No buzz/steal in MC mode.
 //
-// SCORING: consecutive correct answers build a STREAK; points per
-//   correct = min(streak, MAX_STREAK_POINTS). A wrong answer resets
-//   that player's streak.
+// SCORING: each correct answer = 1 point. (No streaks/multipliers.)
 // ============================================================
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  supabase, subscribeToGame, updateGame, updateGameIfPhase, fetchGame,
+  supabase, subscribeToGame, updateGame, updateGameIfPhase,
+  updateGameGuarded, fetchGame,
 } from '@/lib/supabase';
 import { isMcAnswerCorrect } from '@/lib/mc-utils';
 import type { Game, PlayerRole, Question } from '@/lib/types';
@@ -46,14 +49,19 @@ const THINK_TIME_SECONDS    = 4;    // (think mode) locked countdown before answ
 const QUESTION_TIME_SECONDS = 15;   // time to buzz / pick before auto-skip
 const BUZZ_WINDOW_SECONDS   = 2;    // "get ready" window after buzzing
 const ANSWER_TIME_SECONDS   = 7;    // time the buzzer has to speak
-const STEAL_TIME_SECONDS    = 5;    // time the OTHER player has to steal
+const STEAL_TIME_SECONDS    = 5;    // time the OTHER player has to steal (open-ended)
 const RESULT_TIME_SECONDS   = 4;    // how long the result screen shows
 const CHECK_TIMEOUT_SECONDS = 15;   // safety: max time to wait for AI judging
 
 // -------------------------------------------------------
-// SCORING — change to tweak the streak/multiplier feel
+// FAIRNESS — multiple-choice "grace window"
+// After the FIRST player picks, the other player still has this long
+// to also answer. Any correct pick inside the window scores, so two
+// players who answer at nearly the same time BOTH get the point.
+// INCREASE this if players on slow connections still lose unfairly
+// (costs a little pace); DECREASE for a snappier feel.
 // -------------------------------------------------------
-const MAX_STREAK_POINTS = 3;        // points cap: streak 1→1, 2→2, 3+→3
+const MC_GRACE_SECONDS = 1.5;
 
 // -------------------------------------------------------
 // NETWORK RESILIENCE SETTINGS
@@ -174,42 +182,34 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   }, [gameId]);
 
   // =======================================================
-  // 2. SCORING HELPER — award points for a correct answer
-  //    Returns the score/streak patch for the given player.
+  // 2. SCORING HELPER — award 1 point for a correct answer.
   // =======================================================
   const buildCorrectPatch = useCallback((g: Game, who: 'host' | 'player'): Partial<Game> => {
-    const prevStreak = who === 'host' ? g.streak_host : g.streak_player;
-    const newStreak  = prevStreak + 1;
-    const points     = Math.min(newStreak, MAX_STREAK_POINTS);
     return {
-      host_score:    g.host_score   + (who === 'host'   ? points : 0),
-      player_score:  g.player_score + (who === 'player' ? points : 0),
-      streak_host:   who === 'host'   ? newStreak : g.streak_host,
-      streak_player: who === 'player' ? newStreak : g.streak_player,
-      last_points:   points,
-      last_scorer:   who,
+      host_score:   g.host_score   + (who === 'host'   ? 1 : 0),
+      player_score: g.player_score + (who === 'player' ? 1 : 0),
+      last_points:  1,
+      last_scorer:  who,
     };
   }, []);
 
   // =======================================================
-  // 3. RESOLVE AN ANSWER (shared by open-ended + MC)
-  //    correct?  → award points, go to result
-  //    wrong?    → reset streak; give the OTHER player a STEAL,
+  // 3. RESOLVE AN OPEN-ENDED ANSWER (voice/buzz mode)
+  //    correct?  → award a point, go to result
+  //    wrong?    → give the OTHER player a STEAL chance,
   //                or end the round if the steal already happened.
   //    `fromPhase` is the phase we must still be in (guards races).
   // =======================================================
   const resolveAnswer = useCallback(async (
     correct: boolean,
     answerer: 'host' | 'player',
-    fromPhase: string,
-    extra: Partial<Game> = {}   // e.g. the picked MC option, written atomically
+    fromPhase: string
   ) => {
     const g = gameRef.current;
     if (!g) return;
 
     if (correct) {
       await updateGameIfPhase(gameId, fromPhase, {
-        ...extra,
         phase: 'result',
         answer_correct: true,
         phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
@@ -218,39 +218,57 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       return;
     }
 
-    // WRONG answer — reset this player's streak
-    const streakReset: Partial<Game> =
-      answerer === 'host' ? { streak_host: 0 } : { streak_player: 0 };
-
     if (!g.is_steal) {
       // First wrong answer → the OTHER player gets a steal chance.
       await updateGameIfPhase(gameId, fromPhase, {
-        ...extra,
         phase: 'question',
         is_steal: true,
         first_answerer: answerer,
         buzz_player: null,
-        mc_answer_index: null,
         current_transcript: '',
         answer_correct: null,
         last_points: 0,
         last_scorer: null,
         phase_deadline: deadlineIn(STEAL_TIME_SECONDS),
-        ...streakReset,
       });
     } else {
       // Steal also failed → round over, reveal answer, no points.
       await updateGameIfPhase(gameId, fromPhase, {
-        ...extra,
         phase: 'result',
         answer_correct: false,
         last_points: 0,
         last_scorer: null,
         phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
-        ...streakReset,
       });
     }
   }, [gameId, buildCorrectPatch]);
+
+  // =======================================================
+  // 3b. RESOLVE A MULTIPLE-CHOICE ROUND.
+  //    Reads BOTH players' picks and scores every correct one (+1).
+  //    Guarded on 'question' so exactly one client resolves it.
+  // =======================================================
+  const resolveMcRound = useCallback(async (g: Game) => {
+    const q = g.questions[g.current_question_index];
+    const optionAt = (idx: number | null) =>
+      idx != null ? (q?.options?.[idx] ?? '') : '';
+
+    const hostCorrect =
+      g.host_mc_index != null && isMcAnswerCorrect(optionAt(g.host_mc_index), q?.correct_answer);
+    const playerCorrect =
+      g.player_mc_index != null && isMcAnswerCorrect(optionAt(g.player_mc_index), q?.correct_answer);
+
+    await updateGameIfPhase(gameId, 'question', {
+      phase: 'result',
+      // Global flag kept for any shared consumers; QuestionPanel shows a
+      // per-player result using each side's own pick.
+      answer_correct: hostCorrect || playerCorrect,
+      host_score:   g.host_score   + (hostCorrect   ? 1 : 0),
+      player_score: g.player_score + (playerCorrect ? 1 : 0),
+      last_points:  hostCorrect || playerCorrect ? 1 : 0,
+      phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
+    });
+  }, [gameId]);
 
   // =======================================================
   // 4. AI ANSWER CHECK (open-ended). Runs on the ONE client that
@@ -308,6 +326,8 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         buzz_time: null,
         current_transcript: '',
         mc_answer_index: null,
+        host_mc_index: null,
+        player_mc_index: null,
         answer_correct: null,
         is_steal: false,
         first_answerer: null,
@@ -355,14 +375,21 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
             break;
 
           case 'question':
-            // Nobody buzzed / picked in time → reveal answer, move on.
-            await updateGameIfPhase(gameId, 'question', {
-              phase: 'result',
-              answer_correct: g.is_steal ? false : null,
-              last_points: 0,
-              last_scorer: null,
-              phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
-            });
+            if (g.mc_mode) {
+              // MC: the deadline is either the 15s no-answer timeout OR
+              // the grace window after the first pick. Either way, score
+              // whatever picks are in (none = nobody answered → reveal).
+              await resolveMcRound(g);
+            } else {
+              // Open-ended: nobody buzzed in time → reveal answer, move on.
+              await updateGameIfPhase(gameId, 'question', {
+                phase: 'result',
+                answer_correct: g.is_steal ? false : null,
+                last_points: 0,
+                last_scorer: null,
+                phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
+              });
+            }
             break;
 
           case 'buzzing':
@@ -404,7 +431,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameId, runAnswerCheck, resolveAnswer, advanceToNext]);
+  }, [gameId, runAnswerCheck, resolveAnswer, resolveMcRound, advanceToNext]);
 
   // =======================================================
   // 7. ACTIONS
@@ -418,9 +445,10 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       current_question_index: 0,
       host_score: 0,
       player_score: 0,
-      streak_host: 0,
-      streak_player: 0,
       buzz_player: null,
+      mc_answer_index: null,
+      host_mc_index: null,
+      player_mc_index: null,
       is_steal: false,
       first_answerer: null,
       answer_correct: null,
@@ -449,7 +477,10 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     });
   }, [gameId]);
 
-  // Pick a multiple-choice option (auto-scored, with steal support)
+  // Pick a multiple-choice option. Each player records their OWN pick;
+  // the round is scored when the grace window closes (see resolveMcRound).
+  // The FIRST pick opens the grace window (sets phase_deadline); a later
+  // pick just records itself without extending the window.
   const submitMCAnswer = useCallback(async (
     answeringRole: PlayerRole,
     optionIndex: number
@@ -457,22 +488,35 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     const g = gameRef.current;
     if (!g || !g.mc_mode) return;
     if (g.phase !== 'question') return;
-    if (g.is_steal && g.first_answerer === answeringRole) return; // not your steal
-    // Someone already picked (guard against double-click spam)
-    if (g.mc_answer_index !== null) return;
 
-    const question = g.questions[g.current_question_index];
-    const chosen   = question.options?.[optionIndex] ?? '';
-    const correct  = isMcAnswerCorrect(chosen, question.correct_answer);
+    const isHost = answeringRole === 'host';
+    const myColumn = isHost ? 'host_mc_index' : 'player_mc_index';
+    const alreadyAnswered = (isHost ? g.host_mc_index : g.player_mc_index) !== null;
+    if (alreadyAnswered) return; // can't change your pick
 
-    // Single guarded write: records the pick AND resolves it atomically,
-    // so a simultaneous double-click can't desync the highlighted choice
-    // from the scored answer (only the first writer wins the guard).
-    await resolveAnswer(correct, answeringRole, 'question', {
-      mc_answer_index: optionIndex,
-      buzz_player: answeringRole,
+    // Try to be the FIRST answerer: this opens the grace window. Guarded
+    // so it only succeeds while neither player has answered yet.
+    const firstPatch: Partial<Game> = isHost
+      ? { host_mc_index: optionIndex, phase_deadline: deadlineIn(MC_GRACE_SECONDS) }
+      : { player_mc_index: optionIndex, phase_deadline: deadlineIn(MC_GRACE_SECONDS) };
+
+    const wasFirst = await updateGameGuarded(gameId, firstPatch, {
+      phase: 'question',
+      nullColumns: ['host_mc_index', 'player_mc_index'],
     });
-  }, [gameId, resolveAnswer]);
+
+    if (!wasFirst) {
+      // Someone already answered → just record my pick inside the window,
+      // WITHOUT touching the deadline (so the window can't be extended).
+      const myPatch: Partial<Game> = isHost
+        ? { host_mc_index: optionIndex }
+        : { player_mc_index: optionIndex };
+      await updateGameGuarded(gameId, myPatch, {
+        phase: 'question',
+        nullColumns: [myColumn],
+      });
+    }
+  }, [gameId]);
 
   // Live transcript update (called by useSpeechRecognition)
   const updateTranscript = useCallback(async (text: string) => {
@@ -490,12 +534,12 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       current_question_index: 0,
       host_score: 0,
       player_score: 0,
-      streak_host: 0,
-      streak_player: 0,
       buzz_player: null,
       buzz_time: null,
       current_transcript: '',
       mc_answer_index: null,
+      host_mc_index: null,
+      player_mc_index: null,
       answer_correct: null,
       is_steal: false,
       first_answerer: null,
@@ -527,5 +571,5 @@ export {
   BUZZ_WINDOW_SECONDS,
   ANSWER_TIME_SECONDS,
   STEAL_TIME_SECONDS,
-  MAX_STREAK_POINTS,
+  MC_GRACE_SECONDS,
 };

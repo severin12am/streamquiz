@@ -21,6 +21,7 @@ import MCOptions  from './MCOptions';
 import ScoreBoard from './ScoreBoard';
 import CountdownTimer from './CountdownTimer';
 import { useLocale } from '@/context/LocaleProvider';
+import { isMcAnswerCorrect } from '@/lib/mc-utils';
 import type { Game, PlayerRole } from '@/lib/types';
 
 interface QuestionPanelProps {
@@ -47,8 +48,14 @@ export default function QuestionPanel({
   const phase           = game.phase;
   const isHost          = role === 'host';
 
-  // During a steal, only the player who did NOT answer first may buzz.
+  // During a steal (open-ended only), only the player who did NOT answer
+  // first may buzz.
   const isStealLockedForMe = game.is_steal && game.first_answerer === role;
+
+  // This viewer's own multiple-choice pick (each player answers separately).
+  const myMcPick = role === 'host' ? game.host_mc_index : game.player_mc_index;
+  const iHavePicked = myMcPick !== null;
+  const someonePicked = game.host_mc_index !== null || game.player_mc_index !== null;
 
   // Determine BUZZ button state
   type BuzzState = 'idle' | 'buzzed_me' | 'buzzed_them' | 'disabled';
@@ -63,10 +70,16 @@ export default function QuestionPanel({
   // Show a full-screen result overlay?
   const showResult = phase === 'result';
 
-  // Was the last answer correct? Now read from the shared
-  // answer_correct flag (set by auto-judging) so BOTH players
-  // see the SAME result for both MC and open-ended modes.
-  const lastAnswerCorrect = game.answer_correct === true;
+  // Did I personally score this round? For MC, each player has their own
+  // pick, so the ✓/✗ flash is per-viewer. For open-ended there's a single
+  // answerer, so we fall back to the shared answer_correct flag.
+  let iScored: boolean;
+  if (game.mc_mode) {
+    const opt = myMcPick !== null ? currentQuestion?.options?.[myMcPick] : undefined;
+    iScored = !!opt && isMcAnswerCorrect(opt, currentQuestion?.correct_answer);
+  } else {
+    iScored = game.answer_correct === true;
+  }
 
   return (
     <div
@@ -105,8 +118,6 @@ export default function QuestionPanel({
         <ScoreBoard
           hostScore={game.host_score}
           playerScore={game.player_score}
-          hostStreak={game.streak_host}
-          playerStreak={game.streak_player}
           hostLabel={t('game.host')}
           playerLabel={t('game.streamer')}
         />
@@ -133,8 +144,10 @@ export default function QuestionPanel({
 
         {/* Timer — during the locked think countdown, the open question,
             or the buzz window. (Hidden during 'answering' so it doesn't
-            sit frozen.) timerTotal adapts per phase. */}
-        {(phase === 'thinking' || phase === 'question' || phase === 'buzzing') && (
+            sit frozen, and hidden once an MC pick starts the short grace
+            window so the ring doesn't flicker.) timerTotal adapts per phase. */}
+        {(phase === 'thinking' || phase === 'question' || phase === 'buzzing') &&
+          !(game.mc_mode && someonePicked) && (
           <CountdownTimer current={timeLeft} total={timerTotal} />
         )}
 
@@ -218,23 +231,26 @@ export default function QuestionPanel({
 
         {/* ---- MC Options (multiple choice mode) ----
             Visible (but disabled) during 'thinking' so both players can
-            read the choices, then become clickable when the lock lifts. */}
+            read the choices, then become clickable when the lock lifts.
+            Each player answers independently; once I've picked, my choice
+            locks (the opponent still has the grace window to also answer). */}
         {game.mc_mode && currentQuestion?.options &&
           (phase === 'thinking' || phase === 'question' || phase === 'result') && (
-          isStealLockedForMe && phase === 'question' ? (
-            <p className="text-[var(--text-secondary)] text-base text-center">
-              {t('mc.opponentSteal')}
-            </p>
-          ) : (
-            <MCOptions
-              options={currentQuestion.options}
-              correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
-              lockedIn={phase === 'result' || game.mc_answer_index !== null}
-              selectedIndex={game.mc_answer_index}
-              disabled={isStealLockedForMe || phase === 'thinking'}
-              onSelect={onMCSelect}
-            />
-          )
+          <MCOptions
+            options={currentQuestion.options}
+            correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
+            lockedIn={phase === 'result' || iHavePicked}
+            selectedIndex={myMcPick}
+            disabled={phase === 'thinking'}
+            onSelect={onMCSelect}
+          />
+        )}
+
+        {/* Waiting-for-opponent hint while my MC pick is locked in. */}
+        {game.mc_mode && phase === 'question' && iHavePicked && (
+          <p className="text-[var(--text-secondary)] text-sm text-center">
+            {t('mc.answerLocked')}
+          </p>
         )}
 
         {/* ---- Live voice transcript ---- */}
@@ -291,7 +307,7 @@ export default function QuestionPanel({
         <div
           className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
           style={{
-            background: lastAnswerCorrect
+            background: iScored
               ? 'rgba(34,160,107,0.12)'
               : 'rgba(229,72,77,0.12)',
           }}
@@ -299,15 +315,13 @@ export default function QuestionPanel({
           <div className="flex flex-col items-center gap-2">
             <span
               className="text-7xl font-semibold"
-              style={{ color: lastAnswerCorrect ? 'var(--correct)' : 'var(--wrong)' }}
+              style={{ color: iScored ? 'var(--correct)' : 'var(--wrong)' }}
             >
-              {lastAnswerCorrect ? '✓' : '✗'}
+              {iScored ? '✓' : '✗'}
             </span>
-            {/* Points earned (with streak multiplier hint) */}
-            {lastAnswerCorrect && game.last_points > 0 && (
+            {iScored && (
               <span className="text-2xl font-semibold" style={{ color: 'var(--gold)' }}>
-                +{game.last_points}
-                {game.last_points > 1 ? ` ${t('game.pointsMultiplier', { n: game.last_points })}` : ''}
+                +1
               </span>
             )}
           </div>

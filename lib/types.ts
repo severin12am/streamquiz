@@ -79,6 +79,10 @@ export interface Game {
   player_score: number;
   current_transcript: string;
   mc_answer_index: number | null;
+  /** Per-player MC picks (0-3 index or null). Both players may answer
+   *  within a grace window so near-simultaneous correct answers score. */
+  host_mc_index: number | null;
+  player_mc_index: number | null;
   /** Result of the most recent answer (true=correct, false=wrong,
    *  null=not judged yet). Lets BOTH clients show the same ✓/✗. */
   answer_correct: boolean | null;
