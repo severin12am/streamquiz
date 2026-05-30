@@ -19,7 +19,7 @@
 //   - Who drives the timer (host only)
 // ============================================================
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import CameraPanel    from './CameraPanel';
 import QuestionPanel  from './QuestionPanel';
 import WinnerScreen   from './WinnerScreen';
@@ -31,7 +31,7 @@ import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
 import { updateGame }   from '@/lib/supabase';
 import { useLocale }    from '@/context/LocaleProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-import type { PlayerRole } from '@/lib/types';
+import type { PlayerRole, CreateGamePayload } from '@/lib/types';
 
 interface GameScreenProps {
   gameId: string;
@@ -39,7 +39,10 @@ interface GameScreenProps {
 }
 
 export default function GameScreen({ gameId, role }: GameScreenProps) {
-  const { t, speechLang } = useLocale();
+  const { t, locale, speechLang } = useLocale();
+
+  // True while a rematch is regenerating a fresh set of questions.
+  const [rematchLoading, setRematchLoading] = useState(false);
 
   // ----------------------------------------------------------
   // 1. Game state (synced via Supabase Realtime)
@@ -126,6 +129,46 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   }, [game?.phase, game?.buzz_player]);
 
   // ----------------------------------------------------------
+  // Rematch — generate a FRESH set of questions using the SAME
+  // settings (topic/difficulty/count/mode), then reset to the lobby.
+  // Falls back to reusing the old questions if generation fails so
+  // the rematch never gets stuck. Host-only (button is host-only).
+  // ----------------------------------------------------------
+  const handleRematch = useCallback(async () => {
+    if (!game || rematchLoading) return;
+    setRematchLoading(true);
+    try {
+      const payload: CreateGamePayload = {
+        topic: game.topic,
+        difficulty: game.difficulty,
+        num_questions: game.num_questions,
+        mc_mode: game.mc_mode,
+        game_mode: game.game_mode,
+        locale,
+      };
+      const res = await fetch('/api/generate-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const { questions } = await res.json();
+        if (Array.isArray(questions) && questions.length > 0) {
+          await rematch(questions);
+          return;
+        }
+      }
+      // Generation failed → reuse the existing questions so we don't stall.
+      await rematch();
+    } catch (err) {
+      console.error('[GameScreen] rematch generation failed:', err);
+      await rematch();
+    } finally {
+      setRematchLoading(false);
+    }
+  }, [game, rematchLoading, locale, rematch]);
+
+  // ----------------------------------------------------------
   // Loading / error states
   // ----------------------------------------------------------
   if (loading) {
@@ -182,12 +225,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       Desktop (lg ≥ 1024px): 3 columns side-by-side (flex-row).
         [ Host cam 30% | Question 40% | Streamer cam 30% ]
       Phone / portrait (< 1024px): 3 rows stacked (flex-col).
-        [ Host cam ]
-        [ Question ]
-        [ Streamer cam ]
-      The flex-[3]/[4]/[3] ratios apply to WIDTH on desktop and
-      to HEIGHT on phones automatically.
+        [ Host cam    — fixed 16vh ]
+        [ Question    — fills the rest (flex-1) ]
+        [ Streamer cam — fixed 16vh ]
+      On phones the cameras are kept short so the question + all four
+      answer options are fully visible WITHOUT scrolling. On desktop
+      the flex-[3]/[4]/[3] ratios set the column WIDTHS instead.
       TO CHANGE THE BREAKPOINT: swap "lg:" for "md:" or "xl:".
+      TO CHANGE PHONE CAMERA SIZE: edit the h-[16vh] values.
     */
     <div className="relative flex flex-col lg:flex-row h-screen w-screen overflow-hidden">
       {/* Language switcher — top-right corner during a game */}
@@ -200,7 +245,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           so the question/answers stay fully visible.
           TO CHANGE: edit the flex-[..] values (phone | lg:desktop)
       ===================================================== */}
-      <div className="flex-[2] lg:flex-[3] min-w-0 min-h-0">
+      <div className="h-[16vh] shrink-0 lg:h-full lg:flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={hostCamera}
           label={t('game.host')}
@@ -216,7 +261,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           question + answer controls never get clipped.
           TO CHANGE: edit the flex-[..] values (phone | lg:desktop)
       ===================================================== */}
-      <div className="flex-[5] lg:flex-[4] min-w-0 min-h-0">
+      <div className="flex-1 lg:flex-[4] min-w-0 min-h-0">
         <QuestionPanel
           game={game}
           role={role}
@@ -232,7 +277,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           STREAMER camera — desktop: 30% width. Phone: smaller height.
           TO CHANGE: edit the flex-[..] values (phone | lg:desktop)
       ===================================================== */}
-      <div className="flex-[2] lg:flex-[3] min-w-0 min-h-0">
+      <div className="h-[16vh] shrink-0 lg:h-full lg:flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={playerCamera}
           label={t('game.streamer')}
@@ -316,9 +361,10 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           hostScore={game.host_score}
           playerScore={game.player_score}
           clips={clips}
-          /* Rematch = same questions, same link, back to the lobby.
-             Only the host sees the button (they restart the match). */
-          onRematch={role === 'host' ? rematch : undefined}
+          /* Rematch = FRESH questions (same settings), same link, back to
+             the lobby. Only the host sees the button. */
+          onRematch={role === 'host' ? handleRematch : undefined}
+          rematchLoading={rematchLoading}
           onExit={() => (window.location.href = '/')}
         />
       )}

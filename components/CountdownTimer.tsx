@@ -33,12 +33,10 @@ export default function CountdownTimer({ current, total }: CountdownTimerProps) 
     :               'var(--timer-urgent)'; // red    ≤5s
 
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 120, height: 120 }}>
+    <div className="relative flex items-center justify-center w-[84px] h-[84px] lg:w-[120px] lg:h-[120px]">
       {/* Background track */}
       <svg
-        className="absolute inset-0 -rotate-90"
-        width={120}
-        height={120}
+        className="absolute inset-0 -rotate-90 w-full h-full"
         viewBox="0 0 110 110"
       >
         {/* Grey background ring */}
@@ -65,7 +63,7 @@ export default function CountdownTimer({ current, total }: CountdownTimerProps) 
 
       {/* Number in the centre */}
       <span
-        className="relative z-10 text-3xl font-bold tabular-nums"
+        className="relative z-10 text-2xl lg:text-3xl font-bold tabular-nums"
         style={{ color: colour, transition: 'color 0.3s ease' }}
       >
         {current}

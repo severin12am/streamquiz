@@ -37,7 +37,7 @@ import {
   supabase, subscribeToGame, updateGame, updateGameIfPhase, fetchGame,
 } from '@/lib/supabase';
 import { isMcAnswerCorrect } from '@/lib/mc-utils';
-import type { Game, PlayerRole } from '@/lib/types';
+import type { Game, PlayerRole, Question } from '@/lib/types';
 
 // -------------------------------------------------------
 // TIMING SETTINGS — change these to adjust game pacing (seconds)
@@ -114,7 +114,7 @@ export interface UseGameStateReturn {
   submitMCAnswer: (role: PlayerRole, optionIndex: number) => Promise<void>;
   startGame: () => Promise<void>;
   updateTranscript: (text: string) => Promise<void>;
-  rematch: () => Promise<void>;
+  rematch: (newQuestions?: Question[]) => Promise<void>;
 }
 
 export function useGameState(gameId: string, role: PlayerRole): UseGameStateReturn {
@@ -479,9 +479,12 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     await updateGame(gameId, { current_transcript: text });
   }, [gameId]);
 
-  // Rematch — reset the SAME game with the SAME questions, back to start.
-  const rematch = useCallback(async () => {
+  // Rematch — reset the game back to the lobby. If `newQuestions` is
+  // passed (freshly generated with the same settings) they REPLACE the
+  // old set; otherwise the same questions are reused.
+  const rematch = useCallback(async (newQuestions?: Question[]) => {
     await updateGame(gameId, {
+      ...(newQuestions ? { questions: newQuestions } : {}),
       status: 'ready',
       phase: 'waiting',
       current_question_index: 0,

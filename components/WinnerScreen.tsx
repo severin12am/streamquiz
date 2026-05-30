@@ -17,8 +17,10 @@ interface WinnerScreenProps {
   hostScore:   number;
   playerScore: number;
   clips:       AnswerClip[];
-  /** Host only: restart the SAME match (same questions, same link). */
+  /** Host only: restart with FRESH questions (same settings, same link). */
   onRematch?:  () => void;
+  /** True while the rematch is generating new questions. */
+  rematchLoading?: boolean;
   /** Leave to the home page (available to everyone). */
   onExit?:     () => void;
 }
@@ -28,6 +30,7 @@ export default function WinnerScreen({
   playerScore,
   clips,
   onRematch,
+  rematchLoading = false,
   onExit,
 }: WinnerScreenProps) {
   const { t } = useLocale();
@@ -114,17 +117,21 @@ export default function WinnerScreen({
 
       {/* ---- Actions: Rematch (host) + Exit ---- */}
       <div className="flex items-center gap-3">
-        {/* Rematch keeps the same questions and the same link, so the
-            opponent's tab will automatically return to the lobby. */}
+        {/* Rematch generates fresh questions (same settings) and reuses
+            the link, so the opponent's tab returns to the lobby. */}
         {onRematch && (
           <button
             onClick={onRematch}
-            className="px-8 py-3 rounded-xl font-semibold text-white transition-colors"
+            disabled={rematchLoading}
+            className="flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-white transition-colors disabled:opacity-70"
             style={{ background: 'var(--accent)' }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
+            onMouseEnter={(e) => { if (!rematchLoading) e.currentTarget.style.background = 'var(--accent-hover)'; }}
+            onMouseLeave={(e) => { if (!rematchLoading) e.currentTarget.style.background = 'var(--accent)'; }}
           >
-            {t('winner.rematch')}
+            {rematchLoading && (
+              <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+            )}
+            {rematchLoading ? t('create.generating') : t('winner.rematch')}
           </button>
         )}
 

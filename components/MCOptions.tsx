@@ -34,7 +34,7 @@ export default function MCOptions({
   const canSelect = !lockedIn && !disabled;
 
   return (
-    <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
+    <div className="grid grid-cols-2 gap-2 lg:gap-3 w-full max-w-lg">
       {options.map((option, i) => {
         const isSelected = selectedIndex === i;
         const isCorrect  = lockedIn && option === correctAnswer;
@@ -65,7 +65,7 @@ export default function MCOptions({
             onClick={() => canSelect && onSelect(i)}
             disabled={!canSelect}
             className={[
-              'flex items-center gap-3 p-4 rounded-xl text-left',
+              'flex items-center gap-2.5 lg:gap-3 p-2.5 lg:p-4 rounded-xl text-left',
               'font-medium transition-colors duration-150 border',
               canSelect ? 'cursor-pointer' : 'cursor-default opacity-60',
             ].join(' ')}
@@ -85,7 +85,7 @@ export default function MCOptions({
           >
             {/* Letter badge */}
             <span
-              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold"
+              className="flex-shrink-0 w-7 h-7 lg:w-8 lg:h-8 rounded-lg flex items-center justify-center text-sm font-semibold"
               style={{
                 background: badgeColour,
                 color: isCorrect || isWrong ? 'white' : 'var(--text-secondary)',

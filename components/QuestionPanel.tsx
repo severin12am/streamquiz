@@ -77,7 +77,7 @@ export default function QuestionPanel({
           TOP BAR — topic + progress
       ====================================================== */}
       <div
-        className="flex items-center justify-between px-6 py-3"
+        className="flex items-center justify-between px-6 py-2 lg:py-3"
         style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}
       >
         <div>
@@ -101,7 +101,7 @@ export default function QuestionPanel({
       {/* ======================================================
           SCORES — always visible
       ====================================================== */}
-      <div className="px-6 pt-4 pb-2">
+      <div className="px-6 pt-2 pb-1 lg:pt-4 lg:pb-2">
         <ScoreBoard
           hostScore={game.host_score}
           playerScore={game.player_score}
@@ -115,7 +115,7 @@ export default function QuestionPanel({
       {/* ======================================================
           QUESTION TEXT + TIMER
       ====================================================== */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 lg:gap-6 px-4 lg:px-8 py-2 pb-4 overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-start lg:justify-center gap-2.5 lg:gap-6 px-4 lg:px-8 py-2 lg:py-2 pb-4 overflow-y-auto">
 
         {/* STEAL banner — clear when a rebound is live (flat styling). */}
         {game.is_steal && (phase === 'question' || phase === 'buzzing') && (
