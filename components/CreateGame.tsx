@@ -34,6 +34,7 @@ export default function CreateGame() {
   const [error,         setError]         = useState<string | null>(null);
   const [shareLink,     setShareLink]     = useState<string | null>(null);
   const [gameId,        setGameId]        = useState<string | null>(null);
+  const [copied,        setCopied]        = useState(false);
 
   // -------------------------------------------------------
   async function handleCreate(e: React.FormEvent) {
@@ -145,10 +146,15 @@ export default function CreateGame() {
               {shareLink}
             </span>
             <button
-              onClick={() => navigator.clipboard.writeText(shareLink)}
-              className="flex-shrink-0 text-xs font-bold text-[var(--accent)] hover:underline"
+              onClick={() => {
+                navigator.clipboard.writeText(shareLink);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className="flex-shrink-0 text-xs font-bold hover:underline"
+              style={{ color: copied ? 'var(--correct)' : 'var(--accent)' }}
             >
-              Copy
+              {copied ? '✓ Copied' : 'Copy'}
             </button>
           </div>
         </div>

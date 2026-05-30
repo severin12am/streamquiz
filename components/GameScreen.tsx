@@ -243,19 +243,52 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           but not yet 'playing'. Host-only.
       ===================================================== */}
       {game.status === 'ready' && role === 'host' && (
-        <div
-          className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
-        >
-          <button
-            onClick={startGame}
-            className="pointer-events-auto px-12 py-5 rounded-2xl font-black text-2xl text-white transition-all hover:brightness-110 active:scale-95"
+        <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm p-6">
+          <div
+            className="flex flex-col items-center gap-5 px-10 py-9 rounded-3xl text-center max-w-sm w-full"
             style={{
-              background: 'var(--accent)',
-              boxShadow: '0 0 40px var(--accent-glow), 0 8px 32px rgba(0,0,0,0.6)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
             }}
           >
-            ▶ START QUIZ
-          </button>
+            <span className="text-5xl">🎬</span>
+            <div>
+              <h2 className="text-2xl font-black text-[var(--text-primary)]">
+                Both players are in!
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                {game.questions.length} questions ·{' '}
+                {game.mc_mode ? 'Multiple choice' : 'Speak your answer'}
+              </p>
+            </div>
+            <button
+              onClick={startGame}
+              className="w-full px-10 py-4 rounded-2xl font-black text-xl text-white transition-all hover:brightness-110 active:scale-95"
+              style={{
+                background: 'var(--accent)',
+                boxShadow: '0 0 36px var(--accent-glow)',
+              }}
+            >
+              ▶ START QUIZ
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Player's "waiting for host to start" — clear, not a frozen screen */}
+      {game.status === 'ready' && role === 'player' && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/60 backdrop-blur-sm p-6 pointer-events-none">
+          <div
+            className="flex flex-col items-center gap-3 px-8 py-6 rounded-3xl text-center"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+          >
+            <div className="w-8 h-8 rounded-full border-4 border-t-[var(--accent)] border-[var(--border)] animate-spin" />
+            <p className="text-[var(--text-primary)] font-bold">You&apos;re in!</p>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Waiting for the host to start…
+            </p>
+          </div>
         </div>
       )}
 

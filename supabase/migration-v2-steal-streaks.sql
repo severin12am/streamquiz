@@ -2,9 +2,23 @@
 -- StreamQuiz — Migration v2: Steal mechanic, streaks, and
 --                            deadline-based robust transitions
 -- ============================================================
--- Run this ONCE in your Supabase SQL Editor.
+-- Run this ONCE in your Supabase SQL Editor (Dashboard → SQL Editor
+-- → New query → paste ALL of this → Run).
 -- Safe to run multiple times (uses IF NOT EXISTS).
+--
+-- This single file brings ANY older `games` table fully up to date,
+-- including the `answer_correct` column from v1 (so you only ever
+-- need to run THIS file).
 -- ============================================================
+
+-- v1: result of the most recent answer so BOTH clients show the
+-- same ✓/✗ (TRUE=correct, FALSE=wrong, NULL=not judged yet).
+ALTER TABLE games
+  ADD COLUMN IF NOT EXISTS answer_correct BOOLEAN DEFAULT NULL;
+
+-- v1: MC answer index picked by the winner (0-3) or NULL.
+ALTER TABLE games
+  ADD COLUMN IF NOT EXISTS mc_answer_index INTEGER DEFAULT NULL;
 
 -- When the current timed phase should auto-advance. Both clients
 -- watch this and either one can drive the transition (robust to
