@@ -40,52 +40,41 @@ export default function WinnerScreen({
     <div
       className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-8 p-8"
       style={{
-        background: 'rgba(10,10,15,0.97)',
+        background: 'rgba(13,13,16,0.97)',
         backdropFilter: 'blur(8px)',
       }}
     >
-      {/* ---- Trophy icon ---- */}
-      <div
-        className="text-8xl"
-        style={{ textShadow: '0 0 40px var(--gold)' }}
-      >
-        🏆
-      </div>
-
       {/* ---- Winner label ---- */}
       <div className="text-center">
-        <p className="text-[var(--text-muted)] text-sm font-bold tracking-widest uppercase mb-2">
-          Winner
+        <p className="text-[var(--text-muted)] text-xs font-semibold tracking-wider uppercase mb-3">
+          {winner === 'TIE' ? 'Result' : 'Winner'}
         </p>
         <p
-          className="text-6xl font-black tracking-wider"
-          style={{
-            color: 'var(--gold)',
-            textShadow: '0 0 30px var(--gold)',
-          }}
+          className="text-6xl font-bold tracking-tight"
+          style={{ color: winner === 'TIE' ? 'var(--text-primary)' : 'var(--gold)' }}
         >
-          {winner}
+          {winner === 'TIE' ? 'Tie' : winner === 'HOST' ? 'Host' : 'Streamer'}
         </p>
       </div>
 
       {/* ---- Final scores ---- */}
       <div className="flex items-center gap-8 text-center">
         <div>
-          <p className="text-[var(--text-muted)] text-xs uppercase tracking-widest">Host</p>
-          <p className="text-4xl font-black text-[var(--text-primary)]">{hostScore}</p>
+          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider">Host</p>
+          <p className="text-4xl font-bold text-[var(--text-primary)] tabular-nums">{hostScore}</p>
         </div>
-        <span className="text-[var(--text-muted)] text-2xl font-bold">—</span>
+        <span className="text-[var(--border-strong)] text-2xl">—</span>
         <div>
-          <p className="text-[var(--text-muted)] text-xs uppercase tracking-widest">Streamer</p>
-          <p className="text-4xl font-black text-[var(--text-primary)]">{playerScore}</p>
+          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider">Streamer</p>
+          <p className="text-4xl font-bold text-[var(--text-primary)] tabular-nums">{playerScore}</p>
         </div>
       </div>
 
       {/* ---- Download video clips ---- */}
       {clips.length > 0 && (
         <div className="w-full max-w-md">
-          <p className="text-[var(--text-secondary)] text-sm font-bold tracking-widest uppercase mb-3 text-center">
-            Download Answer Clips
+          <p className="text-[var(--text-muted)] text-xs font-semibold tracking-wider uppercase mb-3 text-center">
+            Download answer clips
           </p>
           <div className="flex flex-col gap-2">
             {clips.map((clip, i) => (
@@ -93,18 +82,20 @@ export default function WinnerScreen({
                 key={i}
                 href={clip.url}
                 download={`streamquiz-q${clip.questionIndex + 1}-${clip.role}.webm`}
-                className="flex items-center justify-between px-4 py-3 rounded-xl border hover:brightness-110 transition-all"
+                className="flex items-center justify-between px-4 py-3 rounded-xl border transition-colors"
                 style={{
                   background: 'var(--bg-card)',
                   borderColor: 'var(--border)',
                   color: 'var(--text-primary)',
                   textDecoration: 'none',
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
               >
                 <span className="text-sm">
-                  Q{clip.questionIndex + 1} · {clip.role.toUpperCase()} answer
+                  Q{clip.questionIndex + 1} · {clip.role === 'host' ? 'Host' : 'Streamer'} answer
                 </span>
-                <span className="text-xs text-[var(--accent)]">↓ Download</span>
+                <span className="text-xs text-[var(--accent)]">Download</span>
               </a>
             ))}
           </div>
@@ -118,29 +109,33 @@ export default function WinnerScreen({
         {onRematch && (
           <button
             onClick={onRematch}
-            className="px-8 py-3 rounded-xl font-bold text-white transition-all hover:brightness-110 active:scale-95"
-            style={{ background: 'var(--accent)', boxShadow: '0 0 20px var(--accent-glow)' }}
+            className="px-8 py-3 rounded-xl font-semibold text-white transition-colors"
+            style={{ background: 'var(--accent)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
           >
-            🔄 Rematch
+            Rematch
           </button>
         )}
 
         {/* The player (no rematch control) sees a waiting hint instead. */}
         {!onRematch && (
           <p className="text-[var(--text-secondary)] text-sm">
-            Waiting for the host to start a rematch…
+            Waiting for the host to start a rematch
           </p>
         )}
 
         {onExit && (
           <button
             onClick={onExit}
-            className="px-6 py-3 rounded-xl font-bold transition-all hover:brightness-110 active:scale-95"
+            className="px-6 py-3 rounded-xl font-semibold transition-colors"
             style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border)',
               color: 'var(--text-primary)',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
           >
             Exit
           </button>

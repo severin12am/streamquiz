@@ -11,32 +11,24 @@ import { isMisconfigured } from '@/lib/supabase';
 export default function SetupBanner() {
   if (!isMisconfigured) return null;
 
+  const codeStyle = { background: 'var(--bg-base)', color: 'var(--gold)' };
+
   return (
     <div
-      className="w-full max-w-md mb-8 rounded-2xl p-5 border text-sm"
-      style={{
-        background: '#1a1200',
-        borderColor: '#f57f17',
-        color: '#ffcc80',
-      }}
+      className="card w-full max-w-md mb-8 p-5 text-sm"
+      style={{ borderColor: 'var(--gold)', color: 'var(--text-secondary)' }}
     >
-      <p className="font-bold text-base mb-3" style={{ color: '#ffa726' }}>
-        ⚙️ Setup required before you can play
+      <p className="font-semibold text-base mb-3" style={{ color: 'var(--gold)' }}>
+        Setup required before you can play
       </p>
-      <ol className="list-decimal list-inside space-y-2 text-[#ffcc80]">
+      <ol className="list-decimal list-inside space-y-2">
         <li>
           Copy{' '}
-          <code
-            className="px-1.5 py-0.5 rounded text-xs"
-            style={{ background: '#2a1f00', color: '#ffb74d' }}
-          >
+          <code className="px-1.5 py-0.5 rounded text-xs" style={codeStyle}>
             .env.local.example
           </code>{' '}
-          →{' '}
-          <code
-            className="px-1.5 py-0.5 rounded text-xs"
-            style={{ background: '#2a1f00', color: '#ffb74d' }}
-          >
+          to{' '}
+          <code className="px-1.5 py-0.5 rounded text-xs" style={codeStyle}>
             .env.local
           </code>
         </li>
@@ -47,7 +39,7 @@ export default function SetupBanner() {
             target="_blank"
             rel="noreferrer"
             className="underline"
-            style={{ color: '#ffa726' }}
+            style={{ color: 'var(--gold)' }}
           >
             Supabase URL + Anon Key
           </a>
@@ -59,17 +51,14 @@ export default function SetupBanner() {
             target="_blank"
             rel="noreferrer"
             className="underline"
-            style={{ color: '#ffa726' }}
+            style={{ color: 'var(--gold)' }}
           >
             OpenAI API key
           </a>
         </li>
         <li>
           Run{' '}
-          <code
-            className="px-1.5 py-0.5 rounded text-xs"
-            style={{ background: '#2a1f00', color: '#ffb74d' }}
-          >
+          <code className="px-1.5 py-0.5 rounded text-xs" style={codeStyle}>
             supabase/schema.sql
           </code>{' '}
           in your Supabase SQL Editor

@@ -1,68 +1,43 @@
 'use client';
 // ============================================================
-// useWebRTC — Peer-to-peer camera streaming
+// useWebRTC — Peer-to-peer camera streaming (robust edition)
 //
-// Uses the browser's built-in WebRTC API.
-// Signaling (offer/answer/ICE exchange) happens over Supabase
-// Realtime Broadcast channels — no third-party service needed.
+// Signaling (SDP + ICE exchange) happens over a Supabase Realtime
+// Broadcast channel — no third-party signaling service needed.
 //
-// ---- HOW THE CONNECTION IS ESTABLISHED (robust handshake) ----
-//   Problem we solve: a plain "host sends offer when player joins"
-//   approach has a RACE — the offer can be broadcast before the
-//   other side has finished subscribing, so it's lost forever and
-//   the cameras never connect.
+// WHY THIS VERSION IS ROBUST (fixes "worked a few times, then black"):
+//   It implements the standard WebRTC "Perfect Negotiation" pattern:
+//     • One peer is "polite" (player), one is "impolite" (host).
+//     • Either side can (re)start negotiation at any time; if their
+//       offers collide (glare), the polite peer rolls back and the
+//       impolite peer's offer wins. No more dead connections from a
+//       signaling race.
+//   Plus two recovery mechanisms that the old version lacked:
+//     • ICE RESTART: if the media link drops ('failed'/'disconnected'),
+//       the impolite peer automatically renegotiates a new path
+//       instead of staying black forever.
+//     • WATCHDOG: if we aren't connected a few seconds after both
+//       sides are present, we re-announce and re-offer.
 //
-//   Fix: a "hello" handshake.
-//     1. Each side broadcasts "hello" the moment its channel is
-//        SUBSCRIBED (guaranteed ready to send/receive).
-//     2. HOST: whenever it hears the player's "hello", it creates
-//        and sends the WebRTC offer (guarded so it only fires once).
-//     3. PLAYER: whenever it hears the host's "hello", it replies
-//        with its own "hello" so the host is guaranteed to hear it
-//        regardless of who subscribed first.
-//   This makes connection setup deterministic in both join orders.
-//
-//   We also QUEUE incoming ICE candidates that arrive before the
-//   remote description is set, then flush them — another common
-//   cause of one-directional / black remote video.
-//
-// TROUBLESHOOTING:
-//   - Works best on Chrome / Edge.
-//   - Both players must grant camera + mic permission.
-//   - STUN alone works on most home networks. If players are on
-//     restrictive/corporate networks (symmetric NAT), you may need
-//     a TURN server — see the ICE_SERVERS comment below.
+// Without a working TURN server, restrictive networks (VPN/proxy/
+// strict NAT, common in Russia) still can't relay video — configure
+// one via env vars (see app/api/ice-servers/route.ts).
 // ============================================================
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { PlayerRole, WebRTCSignal } from '@/lib/types';
 
-// -------------------------------------------------------
-// ICE servers.
-//   STUN  = helps peers discover their public address (free).
-//   TURN  = RELAYS the video through a server when a direct
-//           peer-to-peer link is impossible. REQUIRED when players
-//           are behind VPNs / proxies / strict NAT or an ISP that
-//           blocks peer-to-peer (common in Russia). Without a
-//           WORKING TURN server you get "remote camera LIVE but
-//           black" — the connection negotiates but no video flows.
-//
-// The actual server list is fetched at runtime from /api/ice-servers
-// so TURN credentials live in server env vars (not the JS bundle).
-// See app/api/ice-servers/route.ts for how to plug in a free TURN
-// provider (Metered / ExpressTURN). Until you do, the route returns
-// a public fallback that works on SOME networks but not all.
-// -------------------------------------------------------
-
-// Hardcoded last-resort fallback if the /api/ice-servers fetch fails
+// Last-resort fallback if /api/ice-servers can't be reached.
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'turn:freeturn.net:3478',  username: 'free', credential: 'free' },
   { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' },
 ];
 
-// Fetch the ICE server list from our API route (with a safe fallback)
+// How often the watchdog checks whether we still need to (re)connect.
+const WATCHDOG_INTERVAL_MS = 4000;
+
 async function fetchIceServers(): Promise<RTCIceServer[]> {
   try {
     const res = await fetch('/api/ice-servers', { cache: 'no-store' });
@@ -86,14 +61,13 @@ export interface UseWebRTCReturn {
   startCamera:  () => Promise<void>;
 }
 
-// Shape of the lightweight "hello" handshake message
 interface HelloMessage { from: PlayerRole }
 
 export function useWebRTC(
   gameId: string,
   role: PlayerRole,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _otherPlayerJoined: boolean  // kept for API compatibility; no longer used
+  _otherPlayerJoined: boolean
 ): UseWebRTCReturn {
 
   const [localStream,  setLocalStream]  = useState<MediaStream | null>(null);
@@ -105,20 +79,12 @@ export function useWebRTC(
   const localStreamRef = useRef<MediaStream | null>(null);
   const channelRef     = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Connection-state guards (reset on every (re)connection setup)
-  const offerCreatedRef     = useRef(false); // host: ensure offer sent only once
-  const remoteDescSetRef    = useRef(false); // true once remote description applied
-  const pendingCandidates   = useRef<RTCIceCandidateInit[]>([]); // ICE arrived early
-
   // -------------------------------------------------------
-  // startCamera — requests getUserMedia and stores the stream
+  // startCamera — request the webcam + mic once
   // -------------------------------------------------------
   const startCamera = useCallback(async () => {
-    // Avoid requesting the camera twice
     if (localStreamRef.current) return;
     try {
-      // Camera constraints: 16:9 HD, front-facing.
-      // CHANGE THESE to adjust video quality / bandwidth.
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width:      { ideal: 1280 },
@@ -126,9 +92,8 @@ export function useWebRTC(
           facingMode: 'user',
           frameRate:  { ideal: 30 },
         },
-        audio: true, // mic is needed for voice-recognition answers too
+        audio: true,
       });
-
       localStreamRef.current = stream;
       setLocalStream(stream);
     } catch (err) {
@@ -141,192 +106,198 @@ export function useWebRTC(
   }, []);
 
   // -------------------------------------------------------
-  // Main effect: set up the peer connection + signaling channel
-  // Runs once we have a local stream.
+  // Main effect: peer connection + signaling (Perfect Negotiation)
   // -------------------------------------------------------
   useEffect(() => {
     if (!localStream || !gameId) return;
 
-    // cancelled guards against the async setup finishing after unmount
     let cancelled = false;
 
-    // Reset guards for this fresh connection attempt
-    offerCreatedRef.current   = false;
-    remoteDescSetRef.current  = false;
-    pendingCandidates.current = [];
+    // ---- Perfect Negotiation roles ----
+    // The PLAYER is "polite" — it yields when offers collide.
+    const polite = role === 'player';
 
-    // Setup is async because we first fetch the ICE/TURN server list
+    // Negotiation state machine flags (closure-scoped per setup)
+    let makingOffer   = false; // we're in the middle of creating an offer
+    let ignoreOffer   = false; // we chose to ignore a colliding remote offer
+    let channelReady  = false; // Supabase channel is subscribed & sendable
+    let peerPresent   = false; // we've heard the other side's "hello"
+    let watchdog: ReturnType<typeof setInterval> | null = null;
+
     async function setup() {
-    const iceServers = await fetchIceServers();
-    if (cancelled) return;
-    console.log('[WebRTC] using', iceServers.length, 'ICE servers');
+      const iceServers = await fetchIceServers();
+      if (cancelled) return;
+      console.log('[WebRTC] using', iceServers.length, 'ICE servers');
 
-    // One broadcast channel per game for all WebRTC signaling
-    const channel = supabase.channel(`webrtc:${gameId}`, {
-      config: { broadcast: { self: false } },
-    });
-    channelRef.current = channel;
+      const channel = supabase.channel(`webrtc:${gameId}`, {
+        config: { broadcast: { self: false } },
+      });
+      channelRef.current = channel;
 
-    // Create the peer connection and attach our local tracks
-    const pc = new RTCPeerConnection({ iceServers });
-    pcRef.current = pc;
-    localStream!.getTracks().forEach((track) => pc.addTrack(track, localStream!));
+      const pc = new RTCPeerConnection({ iceServers });
+      pcRef.current = pc;
 
-    // ---- Remote media arrives here ----
-    pc.ontrack = (event) => {
-      const [stream] = event.streams;
-      if (stream) setRemoteStream(stream);
-    };
+      // Attach our local tracks (both audio + video, sendrecv).
+      localStream!.getTracks().forEach((t) => pc.addTrack(t, localStream!));
 
-    // ---- Connection state for the LIVE/OFFLINE indicator ----
-    pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      console.log('[WebRTC] connectionState:', state);
-      setIsConnected(state === 'connected');
-      if (state === 'failed') {
-        console.warn('[WebRTC] Connection failed — may need a TURN server on this network.');
-        setCameraError(
-          'Could not establish a video link on this network. ' +
-          'Try without VPN, or add a TURN server (see useWebRTC.ts).'
-        );
-      }
-    };
+      // ---- small signal sender ----
+      const sendSignal = (signal: WebRTCSignal) =>
+        channel.send({ type: 'broadcast', event: 'signal', payload: signal });
 
-    // ---- ICE connection diagnostics (helps debug black video) ----
-    // Open the browser console (F12) to watch these during a call.
-    pc.oniceconnectionstatechange = () => {
-      console.log('[WebRTC] iceConnectionState:', pc.iceConnectionState);
-    };
-    pc.onicegatheringstatechange = () => {
-      console.log('[WebRTC] iceGatheringState:', pc.iceGatheringState);
-    };
+      const sendHello = () =>
+        channel.send({ type: 'broadcast', event: 'hello', payload: { from: role } satisfies HelloMessage });
 
-    // ---- Trickle our ICE candidates to the other side ----
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        channel.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: {
-            type: 'ice-candidate',
-            from: role,
-            payload: event.candidate.toJSON(),
-          } satisfies WebRTCSignal,
-        });
-      }
-    };
+      // ---- remote media ----
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+        if (stream) setRemoteStream(stream);
+      };
 
-    // Helper: small wrapper to send any signal
-    const sendSignal = (signal: WebRTCSignal) =>
-      channel.send({ type: 'broadcast', event: 'signal', payload: signal });
-
-    // Helper: HOST creates + sends the offer (guarded to fire once)
-    const createAndSendOffer = async () => {
-      if (role !== 'host') return;
-      if (offerCreatedRef.current) return;        // already offered
-      if (pc.signalingState !== 'stable') return; // mid-negotiation
-      offerCreatedRef.current = true;
-      try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        sendSignal({ type: 'offer', from: 'host', payload: offer });
-      } catch (err) {
-        offerCreatedRef.current = false; // allow a retry on failure
-        console.error('[WebRTC] createOffer failed:', err);
-      }
-    };
-
-    // Helper: apply any ICE candidates that arrived before the
-    // remote description was ready.
-    const flushPendingCandidates = async () => {
-      for (const c of pendingCandidates.current) {
+      // ---- Perfect Negotiation: create an offer when needed ----
+      const negotiate = async () => {
+        // Only proceed once the channel can deliver the offer AND we
+        // know the peer is present (avoids firing into the void).
+        if (cancelled || !channelReady || !peerPresent) return;
+        if (pc.signalingState !== 'stable') return; // already negotiating
         try {
-          await pc.addIceCandidate(new RTCIceCandidate(c));
+          makingOffer = true;
+          await pc.setLocalDescription(); // implicit createOffer()
+          if (pc.localDescription) {
+            sendSignal({ type: pc.localDescription.type as 'offer', from: role, payload: pc.localDescription.toJSON() });
+          }
         } catch (err) {
-          console.error('[WebRTC] addIceCandidate (flush) failed:', err);
+          console.error('[WebRTC] negotiate failed:', err);
+        } finally {
+          makingOffer = false;
         }
-      }
-      pendingCandidates.current = [];
-    };
+      };
+      pc.onnegotiationneeded = () => { negotiate(); };
 
-    // ---- Handle incoming offer / answer / ICE ----
-    channel.on('broadcast', { event: 'signal' }, async ({ payload }) => {
-      const signal = payload as WebRTCSignal;
-      if (signal.from === role) return; // ignore our own (safety)
-
-      try {
-        if (signal.type === 'offer') {
-          // PLAYER side: accept the host's offer and answer it
-          await pc.setRemoteDescription(
-            new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit)
-          );
-          remoteDescSetRef.current = true;
-          await flushPendingCandidates();
-
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          sendSignal({ type: 'answer', from: role, payload: answer });
+      // ---- trickle ICE ----
+      pc.onicecandidate = ({ candidate }) => {
+        if (candidate) {
+          sendSignal({ type: 'ice-candidate', from: role, payload: candidate.toJSON() });
         }
+      };
 
-        else if (signal.type === 'answer') {
-          // HOST side: apply the player's answer
-          await pc.setRemoteDescription(
-            new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit)
-          );
-          remoteDescSetRef.current = true;
-          await flushPendingCandidates();
-        }
+      // ---- connection state + auto-recovery ----
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        console.log('[WebRTC] connectionState:', state);
+        setIsConnected(state === 'connected');
+        if (state === 'connected') setCameraError(null);
 
-        else if (signal.type === 'ice-candidate') {
-          const candidate = signal.payload as RTCIceCandidateInit;
-          if (remoteDescSetRef.current) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } else {
-            // Remote description not set yet — queue it for later
-            pendingCandidates.current.push(candidate);
+        if (state === 'failed') {
+          // The media path broke. The impolite peer renegotiates a
+          // fresh one (ICE restart) instead of giving up.
+          console.warn('[WebRTC] connection failed — attempting ICE restart');
+          if (!polite) {
+            try { pc.restartIce(); } catch (err) { console.error(err); }
           }
         }
-      } catch (err) {
-        console.error('[WebRTC] Signal handling error:', err);
-      }
-    });
+      };
 
-    // ---- Handle the "hello" handshake ----
-    channel.on('broadcast', { event: 'hello' }, ({ payload }) => {
-      const { from } = payload as HelloMessage;
-      if (from === role) return;
+      pc.oniceconnectionstatechange = () => {
+        console.log('[WebRTC] iceConnectionState:', pc.iceConnectionState);
+        // 'disconnected' is often transient; give it a moment, then
+        // recover via ICE restart if it hasn't healed itself.
+        if (pc.iceConnectionState === 'disconnected' && !polite) {
+          setTimeout(() => {
+            if (!cancelled && pc.iceConnectionState === 'disconnected') {
+              try { pc.restartIce(); } catch (err) { console.error(err); }
+            }
+          }, 2000);
+        }
+      };
 
-      if (role === 'host') {
-        // Player announced itself → host initiates the offer
-        createAndSendOffer();
-      } else {
-        // Host announced itself → player replies so host is sure
-        // to hear us (covers the "host subscribed last" ordering).
-        channel.send({
-          type: 'broadcast',
-          event: 'hello',
-          payload: { from: role } satisfies HelloMessage,
-        });
-      }
-    });
+      // ---- incoming signals (Perfect Negotiation core) ----
+      channel.on('broadcast', { event: 'signal' }, async ({ payload }) => {
+        const signal = payload as WebRTCSignal;
+        if (signal.from === role) return; // ignore our own
 
-    // ---- Subscribe, then announce ourselves ----
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        channel.send({
-          type: 'broadcast',
-          event: 'hello',
-          payload: { from: role } satisfies HelloMessage,
-        });
-      }
-    });
-    } // end setup()
+        try {
+          if (signal.type === 'offer' || signal.type === 'answer') {
+            const description = signal.payload as RTCSessionDescriptionInit;
+
+            // Glare detection: an incoming OFFER conflicts if we're
+            // also offering or aren't in a stable state.
+            const offerCollision =
+              description.type === 'offer' &&
+              (makingOffer || pc.signalingState !== 'stable');
+
+            ignoreOffer = !polite && offerCollision;
+            if (ignoreOffer) {
+              // Impolite peer ignores the colliding offer; its own wins.
+              return;
+            }
+
+            // Polite peer rolls back automatically here if colliding.
+            await pc.setRemoteDescription(description);
+
+            if (description.type === 'offer') {
+              await pc.setLocalDescription(); // implicit createAnswer()
+              if (pc.localDescription) {
+                sendSignal({ type: pc.localDescription.type as 'answer', from: role, payload: pc.localDescription.toJSON() });
+              }
+            }
+          } else if (signal.type === 'ice-candidate') {
+            const candidate = signal.payload as RTCIceCandidateInit;
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (err) {
+              // Safe to swallow if we deliberately ignored an offer
+              if (!ignoreOffer) console.error('[WebRTC] addIceCandidate failed:', err);
+            }
+          }
+        } catch (err) {
+          console.error('[WebRTC] signal handling error:', err);
+        }
+      });
+
+      // ---- "hello" handshake: learn the other side is present ----
+      channel.on('broadcast', { event: 'hello' }, ({ payload }) => {
+        const { from } = payload as HelloMessage;
+        if (from === role) return;
+
+        const wasPresent = peerPresent;
+        peerPresent = true;
+
+        // Reply so the other side definitely hears us regardless of
+        // who subscribed first.
+        sendHello();
+
+        // First time we learn the peer is here: the impolite peer
+        // kicks off negotiation. (negotiationneeded already fired
+        // earlier but bailed because peerPresent was false.)
+        if (!wasPresent && !polite) negotiate();
+      });
+
+      // ---- subscribe, then announce ourselves ----
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          channelReady = true;
+          sendHello();
+        }
+      });
+
+      // ---- WATCHDOG: re-announce / re-offer if still not connected ----
+      watchdog = setInterval(() => {
+        if (cancelled) return;
+        if (pc.connectionState === 'connected') return;
+        // Keep nudging: re-hello (cheap) so a peer that joined late
+        // is discovered, and let the impolite peer re-offer.
+        if (channelReady) sendHello();
+        if (peerPresent && !polite && pc.connectionState !== 'connecting') {
+          negotiate();
+        }
+      }, WATCHDOG_INTERVAL_MS);
+    }
 
     setup();
 
-    // ---- Cleanup on unmount / dependency change ----
     return () => {
       cancelled = true;
+      if (watchdog) clearInterval(watchdog);
       pcRef.current?.close();
       pcRef.current = null;
       if (channelRef.current) {
@@ -337,7 +308,7 @@ export function useWebRTC(
   }, [localStream, gameId, role]);
 
   // -------------------------------------------------------
-  // Stop all camera/mic tracks when the hook fully unmounts
+  // Stop camera/mic tracks when the hook unmounts
   // -------------------------------------------------------
   useEffect(() => {
     return () => {

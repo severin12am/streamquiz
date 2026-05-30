@@ -130,9 +130,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
           <div
-            className="w-12 h-12 rounded-full border-4 border-t-[var(--accent)] border-[var(--border)] animate-spin mx-auto mb-4"
+            className="w-10 h-10 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin mx-auto mb-4"
           />
-          <p className="text-[var(--text-secondary)]">Joining game…</p>
+          <p className="text-[var(--text-secondary)]">Joining game</p>
         </div>
       </div>
     );
@@ -141,20 +141,19 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   if (error || !game) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          <p className="text-5xl mb-4">😕</p>
-          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">
+        <div className="card elevated text-center max-w-md px-8 py-10 mx-4">
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
             {error ?? 'Game not found'}
           </h2>
           <p className="text-[var(--text-secondary)] text-sm">
-            Check the link and try again. If you're the host, create a new game.
+            Check the link and try again. If you&apos;re the host, create a new game.
           </p>
           <a
             href="/"
-            className="inline-block mt-6 px-6 py-2 rounded-xl font-bold text-white"
+            className="inline-block mt-6 px-6 py-2.5 rounded-xl font-semibold text-white transition-colors"
             style={{ background: 'var(--accent)' }}
           >
-            ← Back to Home
+            Back to home
           </a>
         </div>
       </div>
@@ -244,33 +243,25 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       ===================================================== */}
       {game.status === 'ready' && role === 'host' && (
         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm p-6">
-          <div
-            className="flex flex-col items-center gap-5 px-10 py-9 rounded-3xl text-center max-w-sm w-full"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-            }}
-          >
-            <span className="text-5xl">🎬</span>
+          <div className="card elevated flex flex-col items-center gap-6 px-10 py-9 text-center max-w-sm w-full">
             <div>
-              <h2 className="text-2xl font-black text-[var(--text-primary)]">
-                Both players are in!
+              <h2 className="text-2xl font-bold text-[var(--text-primary)]">
+                Both players are in
               </h2>
-              <p className="text-sm text-[var(--text-secondary)] mt-1">
-                {game.questions.length} questions ·{' '}
+              <p className="text-sm text-[var(--text-secondary)] mt-1.5">
+                {game.questions.length} questions
+                <span className="mx-2 text-[var(--border-strong)]">·</span>
                 {game.mc_mode ? 'Multiple choice' : 'Speak your answer'}
               </p>
             </div>
             <button
               onClick={startGame}
-              className="w-full px-10 py-4 rounded-2xl font-black text-xl text-white transition-all hover:brightness-110 active:scale-95"
-              style={{
-                background: 'var(--accent)',
-                boxShadow: '0 0 36px var(--accent-glow)',
-              }}
+              className="w-full px-10 py-3.5 rounded-xl font-semibold text-lg text-white transition-colors"
+              style={{ background: 'var(--accent)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
             >
-              ▶ START QUIZ
+              Start quiz
             </button>
           </div>
         </div>
@@ -279,14 +270,11 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       {/* Player's "waiting for host to start" — clear, not a frozen screen */}
       {game.status === 'ready' && role === 'player' && (
         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/60 backdrop-blur-sm p-6 pointer-events-none">
-          <div
-            className="flex flex-col items-center gap-3 px-8 py-6 rounded-3xl text-center"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-          >
-            <div className="w-8 h-8 rounded-full border-4 border-t-[var(--accent)] border-[var(--border)] animate-spin" />
-            <p className="text-[var(--text-primary)] font-bold">You&apos;re in!</p>
+          <div className="card flex flex-col items-center gap-3 px-8 py-6 text-center">
+            <div className="w-7 h-7 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
+            <p className="text-[var(--text-primary)] font-semibold">You&apos;re in</p>
             <p className="text-sm text-[var(--text-secondary)]">
-              Waiting for the host to start…
+              Waiting for the host to start
             </p>
           </div>
         </div>
@@ -301,11 +289,11 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           className="absolute inset-0 flex items-center justify-center z-10 bg-black/60 backdrop-blur-sm pointer-events-none"
         >
           <div className="text-center pointer-events-auto">
-            <div className="w-10 h-10 rounded-full border-4 border-t-[var(--accent)] border-[var(--border)] animate-spin mx-auto mb-4" />
+            <div className="w-9 h-9 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin mx-auto mb-4" />
             <p className="text-[var(--text-secondary)]">
               {role === 'host'
-                ? 'Waiting for your opponent to join…'
-                : 'Connecting to game…'}
+                ? 'Waiting for your opponent to join'
+                : 'Connecting to game'}
             </p>
           </div>
         </div>

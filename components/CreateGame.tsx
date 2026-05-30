@@ -114,12 +114,11 @@ export default function CreateGame() {
       <div className="flex flex-col items-center gap-8 text-center">
         {/* Success heading */}
         <div>
-          <div className="text-4xl mb-2">✅</div>
-          <h2 className="text-2xl font-black text-[var(--text-primary)]">
-            Quiz Created!
+          <h2 className="text-2xl font-bold text-[var(--text-primary)]">
+            Quiz created
           </h2>
           <p className="text-[var(--text-secondary)] mt-1">
-            Share this link with your opponent, then click Enter Quiz.
+            Share this link with your opponent, then enter the quiz.
           </p>
         </div>
 
@@ -133,8 +132,8 @@ export default function CreateGame() {
 
         {/* Shareable link */}
         <div className="w-full max-w-md">
-          <p className="text-[var(--text-muted)] text-xs uppercase tracking-widest mb-2">
-            Shareable Link
+          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider mb-2 font-semibold">
+            Shareable link
           </p>
           <div
             className="flex items-center gap-2 rounded-xl border p-3"
@@ -151,10 +150,10 @@ export default function CreateGame() {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}
-              className="flex-shrink-0 text-xs font-bold hover:underline"
+              className="flex-shrink-0 text-xs font-semibold hover:underline"
               style={{ color: copied ? 'var(--correct)' : 'var(--accent)' }}
             >
-              {copied ? '✓ Copied' : 'Copy'}
+              {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
         </div>
@@ -162,13 +161,12 @@ export default function CreateGame() {
         {/* Enter the game */}
         <button
           onClick={handleGoToGame}
-          className="px-12 py-4 rounded-2xl font-black text-xl text-white transition-all hover:brightness-110 active:scale-95"
-          style={{
-            background: 'var(--accent)',
-            boxShadow: '0 0 30px var(--accent-glow)',
-          }}
+          className="px-12 py-4 rounded-xl font-semibold text-lg text-white transition-colors"
+          style={{ background: 'var(--accent)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
         >
-          Enter Quiz →
+          Enter quiz
         </button>
       </div>
     );
@@ -178,23 +176,26 @@ export default function CreateGame() {
   // Creation form
   // -------------------------------------------------------
   return (
-    <form onSubmit={handleCreate} className="flex flex-col gap-6 w-full max-w-md">
+    <form
+      onSubmit={handleCreate}
+      className="card elevated flex flex-col gap-6 w-full max-w-md p-7"
+    >
 
       {/* ---- Topic ---- */}
       <div>
-        <label className="block text-sm font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-widest">
+        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
           Topic
         </label>
         <input
           type="text"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="e.g. 90s Cartoons, Science, Football…"
+          placeholder="e.g. 90s Cartoons, Science, Football"
           maxLength={100}
-          className="w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base outline-none transition-all"
+          className="w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base outline-none transition-colors"
           style={{
-            background: 'var(--bg-card)',
-            border: '2px solid var(--border)',
+            background: 'var(--bg-base)',
+            border: '1px solid var(--border)',
           }}
           onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
           onBlur={(e)  => (e.target.style.borderColor = 'var(--border)')}
@@ -204,19 +205,19 @@ export default function CreateGame() {
 
       {/* ---- Difficulty ---- */}
       <div>
-        <label className="block text-sm font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-widest">
+        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
           Difficulty
         </label>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
             <button
               key={d}
               type="button"
               onClick={() => setDifficulty(d)}
-              className="flex-1 py-2.5 rounded-xl font-bold capitalize transition-all"
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium capitalize transition-colors"
               style={{
-                background: difficulty === d ? 'var(--accent)' : 'var(--bg-card)',
-                border: `2px solid ${difficulty === d ? 'var(--accent)' : 'var(--border)'}`,
+                background: difficulty === d ? 'var(--accent)' : 'var(--bg-base)',
+                border: `1px solid ${difficulty === d ? 'var(--accent)' : 'var(--border)'}`,
                 color: difficulty === d ? 'white' : 'var(--text-secondary)',
               }}
             >
@@ -228,8 +229,8 @@ export default function CreateGame() {
 
       {/* ---- Number of questions ---- */}
       <div>
-        <label className="block text-sm font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-widest">
-          Questions: {numQuestions}
+        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+          Questions: <span className="text-[var(--text-primary)]">{numQuestions}</span>
         </label>
         <input
           type="range"
@@ -237,7 +238,7 @@ export default function CreateGame() {
           max={10}
           value={numQuestions}
           onChange={(e) => setNumQuestions(Number(e.target.value))}
-          className="w-full accent-[var(--accent)] cursor-pointer h-2"
+          className="w-full cursor-pointer h-2"
           style={{ accentColor: 'var(--accent)' }}
         />
         <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
@@ -248,8 +249,8 @@ export default function CreateGame() {
       {/* ---- Multiple Choice toggle ---- */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-widest">
-            Multiple Choice
+          <p className="text-sm font-medium text-[var(--text-primary)]">
+            Multiple choice
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
             Show 4 options instead of open answers
@@ -260,8 +261,8 @@ export default function CreateGame() {
           role="switch"
           aria-checked={mcMode}
           onClick={() => setMcMode(!mcMode)}
-          className="relative w-12 h-6 rounded-full transition-all flex-shrink-0"
-          style={{ background: mcMode ? 'var(--accent)' : 'var(--border)' }}
+          className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
+          style={{ background: mcMode ? 'var(--accent)' : 'var(--border-strong)' }}
         >
           <span
             className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
@@ -274,7 +275,7 @@ export default function CreateGame() {
       {error && (
         <div
           className="rounded-xl px-4 py-3 text-sm"
-          style={{ background: '#33111155', border: '1px solid var(--wrong)', color: '#ff8a80' }}
+          style={{ background: 'rgba(229,72,77,0.12)', border: '1px solid var(--wrong)', color: '#f2a3a5' }}
         >
           {error}
         </div>
@@ -284,19 +285,18 @@ export default function CreateGame() {
       <button
         type="submit"
         disabled={loading}
-        className="py-4 rounded-2xl font-black text-lg text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{
-          background: loading ? 'var(--bg-card)' : 'var(--accent)',
-          boxShadow: loading ? 'none' : '0 0 30px var(--accent-glow)',
-        }}
+        className="py-3.5 rounded-xl font-semibold text-base text-white transition-colors disabled:cursor-not-allowed"
+        style={{ background: loading ? 'var(--bg-elevated)' : 'var(--accent)' }}
+        onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = 'var(--accent-hover)'; }}
+        onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
       >
         {loading ? (
-          <span className="flex items-center justify-center gap-3">
-            <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-            Generating questions…
+          <span className="flex items-center justify-center gap-3 text-[var(--text-secondary)]">
+            <span className="w-5 h-5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
+            Generating questions
           </span>
         ) : (
-          'Create Challenge →'
+          'Create challenge'
         )}
       </button>
     </form>

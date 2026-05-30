@@ -20,20 +20,20 @@ interface ScoreBoardProps {
   playerLabel?: string;   // default "STREAMER"
 }
 
-// Small flame badge shown under a score when that player is on a
-// streak of 2 or more correct answers. Bigger streak = hotter label.
+// Small badge shown under a score when that player is on a streak of
+// 2 or more correct answers. Flat, solid styling (no gradient/glow).
 function StreakBadge({ streak }: { streak: number }) {
   if (streak < 2) return null;
   return (
     <span
-      className="text-xs font-black px-2 py-0.5 rounded-full mt-1"
+      className="text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 uppercase tracking-wider"
       style={{
-        background: 'linear-gradient(90deg,#ff6a00,#ff0000)',
-        color: 'white',
-        boxShadow: '0 0 12px #ff4d0080',
+        background: 'var(--bg-elevated)',
+        border: '1px solid var(--border-strong)',
+        color: 'var(--gold)',
       }}
     >
-      🔥 {streak} streak
+      {streak} streak
     </span>
   );
 }
@@ -72,15 +72,14 @@ export default function ScoreBoard({
     <div className="flex items-center justify-center gap-6">
       {/* Host score */}
       <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] font-bold tracking-widest text-[var(--text-secondary)] uppercase">
+        <span className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
           {hostLabel}
         </span>
         <span
-          className="text-5xl font-black tabular-nums transition-all duration-300"
+          className="text-5xl font-bold tabular-nums transition-all duration-300"
           style={{
             color: hostFlash ? 'var(--gold)' : 'var(--text-primary)',
-            textShadow: hostFlash ? '0 0 20px var(--gold)' : 'none',
-            transform: hostFlash ? 'scale(1.2)' : 'scale(1)',
+            transform: hostFlash ? 'scale(1.12)' : 'scale(1)',
           }}
         >
           {hostScore}
@@ -91,7 +90,7 @@ export default function ScoreBoard({
       {/* VS divider */}
       <div className="flex flex-col items-center">
         <span
-          className="text-sm font-black tracking-widest"
+          className="text-xs font-medium tracking-wider"
           style={{ color: 'var(--text-muted)' }}
         >
           VS
@@ -100,15 +99,14 @@ export default function ScoreBoard({
 
       {/* Player score */}
       <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] font-bold tracking-widest text-[var(--text-secondary)] uppercase">
+        <span className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
           {playerLabel}
         </span>
         <span
-          className="text-5xl font-black tabular-nums transition-all duration-300"
+          className="text-5xl font-bold tabular-nums transition-all duration-300"
           style={{
             color: playerFlash ? 'var(--gold)' : 'var(--text-primary)',
-            textShadow: playerFlash ? '0 0 20px var(--gold)' : 'none',
-            transform: playerFlash ? 'scale(1.2)' : 'scale(1)',
+            transform: playerFlash ? 'scale(1.12)' : 'scale(1)',
           }}
         >
           {playerScore}

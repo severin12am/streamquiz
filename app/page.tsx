@@ -14,27 +14,19 @@ export default function HomePage() {
 
       {/* ---- Header ---- */}
       <div className="text-center mb-10">
-        <h1
-          className="text-5xl font-black tracking-tight mb-3"
-          style={{
-            background: 'linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
+        <h1 className="text-5xl font-bold tracking-tight mb-3 text-[var(--text-primary)]">
           StreamQuiz
         </h1>
         <p className="text-[var(--text-secondary)] text-lg">
           Live quiz show for you and your streamer
         </p>
 
-        <div className="flex items-center justify-center gap-6 mt-6 text-sm text-[var(--text-muted)]">
-          <span>① Create challenge</span>
-          <span>→</span>
-          <span>② Share link</span>
-          <span>→</span>
-          <span>③ Play live</span>
+        <div className="flex items-center justify-center gap-3 mt-6 text-sm text-[var(--text-muted)]">
+          <span>Create challenge</span>
+          <span className="text-[var(--border-strong)]">—</span>
+          <span>Share link</span>
+          <span className="text-[var(--border-strong)]">—</span>
+          <span>Play live</span>
         </div>
       </div>
 

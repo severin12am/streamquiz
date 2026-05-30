@@ -79,18 +79,18 @@ export default function QuestionPanel({
         style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}
       >
         <div>
-          <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">
+          <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
             Topic
           </p>
-          <p className="text-sm font-semibold text-[var(--text-secondary)] truncate max-w-[180px]">
+          <p className="text-sm font-medium text-[var(--text-secondary)] truncate max-w-[180px]">
             {game.topic}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] uppercase">
+          <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
             Question
           </p>
-          <p className="text-sm font-bold text-[var(--text-primary)]">
+          <p className="text-sm font-semibold text-[var(--text-primary)] tabular-nums">
             {game.current_question_index + 1} / {game.questions.length}
           </p>
         </div>
@@ -113,17 +113,17 @@ export default function QuestionPanel({
       ====================================================== */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4 lg:gap-6 px-4 lg:px-8 py-2 pb-4 overflow-y-auto">
 
-        {/* STEAL banner — big and obvious when a rebound is live. */}
+        {/* STEAL banner — clear when a rebound is live (flat styling). */}
         {game.is_steal && (phase === 'question' || phase === 'buzzing') && (
           <div
-            className="px-5 py-1.5 rounded-full font-black tracking-widest text-sm uppercase"
+            className="px-4 py-1.5 rounded-full font-semibold tracking-wider text-xs uppercase"
             style={{
-              background: 'var(--buzz-red)',
-              color: 'white',
-              boxShadow: '0 0 24px var(--buzz-glow)',
+              background: 'rgba(229,72,77,0.14)',
+              border: '1px solid var(--buzz-red)',
+              color: 'var(--buzz-red)',
             }}
           >
-            ⚡ STEAL CHANCE ⚡
+            Steal chance
           </div>
         )}
 
@@ -137,11 +137,8 @@ export default function QuestionPanel({
         {/* Answering indicator — shown while a player is speaking */}
         {phase === 'answering' && (
           <div className="text-center">
-            <p
-              className="text-2xl font-black"
-              style={{ color: 'var(--buzz-red)', textShadow: '0 0 16px var(--buzz-glow)' }}
-            >
-              {game.buzz_player === role ? '🎤 You are answering…' : '🎤 Listening to answer…'}
+            <p className="text-xl font-semibold" style={{ color: 'var(--buzz-red)' }}>
+              {game.buzz_player === role ? 'You are answering' : 'Listening to answer'}
             </p>
           </div>
         )}
@@ -149,9 +146,9 @@ export default function QuestionPanel({
         {/* Checking indicator — AI is judging the answer */}
         {phase === 'checking' && (
           <div className="text-center flex flex-col items-center gap-2">
-            <div className="w-8 h-8 rounded-full border-4 border-t-[var(--accent)] border-[var(--border)] animate-spin" />
-            <p className="text-lg font-bold text-[var(--text-secondary)]">
-              Checking answer…
+            <div className="w-7 h-7 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
+            <p className="text-base font-medium text-[var(--text-secondary)]">
+              Checking answer
             </p>
           </div>
         )}
@@ -159,16 +156,10 @@ export default function QuestionPanel({
         {/* Buzz countdown overlay */}
         {phase === 'buzzing' && (
           <div className="text-center">
-            <p
-              className="text-4xl font-black"
-              style={{
-                color: 'var(--buzz-red)',
-                textShadow: '0 0 20px var(--buzz-glow)',
-              }}
-            >
-              {game.buzz_player === role ? 'SPEAK NOW!' : 'They\'re speaking…'}
+            <p className="text-3xl font-semibold" style={{ color: 'var(--buzz-red)' }}>
+              {game.buzz_player === role ? 'Speak now' : 'They\'re speaking'}
             </p>
-            <p className="text-[var(--text-secondary)] mt-1">
+            <p className="text-[var(--text-secondary)] mt-1 text-sm">
               {buzzCountdown}s remaining
             </p>
           </div>
@@ -178,10 +169,7 @@ export default function QuestionPanel({
             Responsive size so it fits on phones too. */}
         {currentQuestion && phase !== 'ended' && (
           <div className="text-center">
-            <p
-              className="text-lg lg:text-2xl font-bold leading-snug text-[var(--text-primary)]"
-              style={{ textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}
-            >
+            <p className="text-lg lg:text-2xl font-semibold leading-snug text-[var(--text-primary)]">
               {currentQuestion.question}
             </p>
           </div>
@@ -192,7 +180,7 @@ export default function QuestionPanel({
           isStealLockedForMe ? (
             // The player who answered wrong watches the opponent steal
             <p className="text-[var(--text-secondary)] text-base text-center">
-              Opponent can steal this one…
+              Opponent can steal this one
             </p>
           ) : (
             <BuzzButton
@@ -223,7 +211,7 @@ export default function QuestionPanel({
               borderColor: 'var(--border)',
             }}
           >
-            <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] mb-1 uppercase">
+            <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
               Live answer
             </p>
             <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
@@ -239,10 +227,10 @@ export default function QuestionPanel({
             className="w-full rounded-xl p-4 border text-center"
             style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
           >
-            <p className="text-[10px] font-bold tracking-widest text-[var(--text-muted)] mb-1 uppercase">
+            <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
               Correct answer
             </p>
-            <p className="text-xl font-bold text-[var(--correct)]">
+            <p className="text-xl font-semibold text-[var(--correct)]">
               {currentQuestion.correct_answer}
             </p>
           </div>
@@ -254,7 +242,7 @@ export default function QuestionPanel({
             <p className="text-[var(--text-secondary)] text-base">
               {isHost
                 ? 'Share the link with your opponent to start'
-                : 'Waiting for the host to start…'}
+                : 'Waiting for the host to start'}
             </p>
           </div>
         )}
@@ -269,30 +257,22 @@ export default function QuestionPanel({
           className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
           style={{
             background: lastAnswerCorrect
-              ? 'rgba(67,160,71,0.18)'
-              : 'rgba(229,57,53,0.18)',
+              ? 'rgba(34,160,107,0.12)'
+              : 'rgba(229,72,77,0.12)',
           }}
         >
           <div className="flex flex-col items-center gap-2">
             <span
-              className="text-7xl font-black"
-              style={{
-                color: lastAnswerCorrect ? 'var(--correct)' : 'var(--wrong)',
-                textShadow: lastAnswerCorrect
-                  ? '0 0 40px var(--correct)'
-                  : '0 0 40px var(--wrong)',
-              }}
+              className="text-7xl font-semibold"
+              style={{ color: lastAnswerCorrect ? 'var(--correct)' : 'var(--wrong)' }}
             >
               {lastAnswerCorrect ? '✓' : '✗'}
             </span>
             {/* Points earned (with streak multiplier hint) */}
             {lastAnswerCorrect && game.last_points > 0 && (
-              <span
-                className="text-2xl font-black"
-                style={{ color: 'var(--gold)', textShadow: '0 0 20px var(--gold)' }}
-              >
+              <span className="text-2xl font-semibold" style={{ color: 'var(--gold)' }}>
                 +{game.last_points}
-                {game.last_points > 1 && ' 🔥'}
+                {game.last_points > 1 ? ` (×${game.last_points})` : ''}
               </span>
             )}
           </div>

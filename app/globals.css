@@ -2,94 +2,99 @@
 
 /* ============================================================
    StreamQuiz — Global Styles
-   Dark TV-show theme. Edit colours here to retheme the whole app.
+   A calm, uniform dark theme. No gradients, no neon glows.
+   Edit the palette below to retheme the whole app.
    ============================================================ */
 
 :root {
-  /* --- Core palette --- */
-  --bg-base:    #0a0a0f;   /* near-black background */
-  --bg-panel:   #12121a;   /* slightly lighter panel background */
-  --bg-card:    #1a1a27;   /* card / input background */
-  --border:     #2a2a3f;   /* subtle borders */
+  /* --- Surfaces (dark, neutral, layered) --- */
+  --bg-base:     #0d0d10;  /* app background */
+  --bg-panel:    #141418;  /* large panels (camera columns) */
+  --bg-card:     #1b1b21;  /* cards / inputs */
+  --bg-elevated: #232329;  /* hover / raised elements */
+  --border:      #2c2c34;  /* default hairline border */
+  --border-strong:#3a3a44; /* emphasised border */
 
-  /* --- Accent colours --- */
-  --accent:     #6c63ff;   /* purple — primary accent */
-  --accent-glow:#6c63ff44; /* accent with alpha for glows */
-  --buzz-red:   #e53935;   /* big red BUZZ button */
-  --buzz-glow:  #e5393560;
-  --correct:    #43a047;   /* green — correct answer */
-  --wrong:      #e53935;   /* red — wrong answer */
-  --gold:       #ffd700;   /* winner gold */
+  /* --- Accent + status (solid, muted, never neon) --- */
+  --accent:      #6366f1;  /* primary actions */
+  --accent-hover:#7c7ef6;
+  --correct:     #22a06b;  /* correct answer */
+  --wrong:       #e5484d;  /* wrong answer */
+  --buzz-red:    #e5484d;  /* BUZZ button */
+  --gold:        #d6a838;  /* winner accent (muted, not bright yellow) */
 
   /* --- Text --- */
-  --text-primary:   #f0f0ff;
-  --text-secondary: #9090b0;
-  --text-muted:     #50507a;
+  --text-primary:   #ededf2;
+  --text-secondary: #9a9aab;
+  --text-muted:     #62626f;
 
-  /* --- Timer colours --- */
-  --timer-ok:      #43a047;
-  --timer-warning: #fb8c00;
-  --timer-urgent:  #e53935;
+  /* --- Timer states --- */
+  --timer-ok:      #22a06b;
+  --timer-warning: #d6953b;
+  --timer-urgent:  #e5484d;
 
   background: var(--bg-base);
   color: var(--text-primary);
 }
 
-/* Keep dark regardless of OS preference — this is always a dark app */
+/* Always dark, regardless of OS preference */
 html, body {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-geist-sans), 'Inter', Arial, sans-serif;
   height: 100%;
-  overflow: hidden; /* game is full-screen, no page scroll */
+  overflow: hidden; /* full-screen game, no page scroll */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Scrollbar styling for any scrollable sub-areas */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-panel); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* Thin, unobtrusive scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
-/* --- Camera video elements --- */
 video {
   display: block;
   background: #000;
 }
 
-/* --- Utility glow classes used across components --- */
-.glow-accent {
-  box-shadow: 0 0 20px var(--accent-glow);
+/* ------------------------------------------------------------
+   Reusable surface + elevation utilities
+   ------------------------------------------------------------ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
 }
-.glow-buzz {
-  box-shadow: 0 0 30px var(--buzz-glow);
-}
-.glow-correct {
-  box-shadow: 0 0 20px #43a04740;
-}
-.glow-wrong {
-  box-shadow: 0 0 20px #e5393540;
+.elevated {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-/* --- Pulsing "speaking" ring animation --- */
-@keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 var(--buzz-glow); }
-  70%  { box-shadow: 0 0 0 14px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+/* ------------------------------------------------------------
+   "Speaking" indicator — a soft pulsing ring (no neon colour).
+   ------------------------------------------------------------ */
+@keyframes speaking-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.45); }
+  70%  { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
 }
 .speaking-pulse {
-  animation: pulse-ring 1s ease-out infinite;
+  animation: speaking-ring 1.4s ease-out infinite;
 }
 
-/* --- Buzz button press animation --- */
+/* ------------------------------------------------------------
+   BUZZ press feedback (subtle opacity blink, no flashing neon)
+   ------------------------------------------------------------ */
 @keyframes buzz-flash {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.7; }
+  50%      { opacity: 0.85; }
 }
 .buzz-flash {
   animation: buzz-flash 0.15s ease-in-out 2;
 }
 
-/* --- Countdown timer stroke animation --- */
+/* Countdown ring stroke (used by CountdownTimer) */
 @keyframes timer-drain {
   from { stroke-dashoffset: 0; }
-  to   { stroke-dashoffset: 283; } /* 2πr where r=45 */
+  to   { stroke-dashoffset: 283; }
 }

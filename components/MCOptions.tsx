@@ -22,14 +22,6 @@ interface MCOptionsProps {
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
 
-// Colour class per option (TV-show classic colours)
-const OPTION_COLOURS = [
-  '#1565c0', // A — blue
-  '#f57f17', // B — amber
-  '#2e7d32', // C — green
-  '#c62828', // D — red
-] as const;
-
 export default function MCOptions({
   options,
   correctAnswer,
@@ -44,9 +36,24 @@ export default function MCOptions({
         const isCorrect  = lockedIn && option === correctAnswer;
         const isWrong    = isSelected && lockedIn && option !== correctAnswer;
 
-        let borderColour: string = OPTION_COLOURS[i];
-        if (isCorrect) borderColour = 'var(--correct)';
-        if (isWrong)   borderColour = 'var(--wrong)';
+        // Uniform styling: neutral by default, status colour only on
+        // reveal. No per-option colours, no glows.
+        let borderColour = 'var(--border)';
+        let background   = 'var(--bg-card)';
+        if (isCorrect) {
+          borderColour = 'var(--correct)';
+          background   = 'rgba(34,160,107,0.12)';
+        } else if (isWrong) {
+          borderColour = 'var(--wrong)';
+          background   = 'rgba(229,72,77,0.12)';
+        }
+
+        // Badge colour follows the option's state too.
+        const badgeColour = isCorrect
+          ? 'var(--correct)'
+          : isWrong
+          ? 'var(--wrong)'
+          : 'var(--bg-elevated)';
 
         return (
           <button
@@ -55,27 +62,30 @@ export default function MCOptions({
             disabled={lockedIn}
             className={[
               'flex items-center gap-3 p-4 rounded-xl text-left',
-              'font-semibold transition-all duration-200',
-              'border-2 bg-[var(--bg-card)]',
-              lockedIn
-                ? 'cursor-default'
-                : 'cursor-pointer hover:brightness-125 active:scale-95',
-              isCorrect ? 'glow-correct' : '',
-              isWrong   ? 'glow-wrong'   : '',
+              'font-medium transition-colors duration-150 border',
+              lockedIn ? 'cursor-default' : 'cursor-pointer',
             ].join(' ')}
-            style={{
-              borderColor: borderColour,
-              background: isCorrect
-                ? '#1a3322'
-                : isWrong
-                ? '#331a1a'
-                : 'var(--bg-card)',
+            style={{ borderColor: borderColour, background }}
+            onMouseEnter={(e) => {
+              if (!lockedIn) {
+                e.currentTarget.style.borderColor = 'var(--accent)';
+                e.currentTarget.style.background = 'var(--bg-elevated)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!lockedIn) {
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.background = 'var(--bg-card)';
+              }
             }}
           >
             {/* Letter badge */}
             <span
-              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black text-white"
-              style={{ background: borderColour }}
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold"
+              style={{
+                background: badgeColour,
+                color: isCorrect || isWrong ? 'white' : 'var(--text-secondary)',
+              }}
             >
               {OPTION_LABELS[i]}
             </span>
@@ -84,12 +94,8 @@ export default function MCOptions({
               {option}
             </span>
             {/* Correct/wrong icon */}
-            {isCorrect && (
-              <span className="ml-auto text-[var(--correct)] text-lg">✓</span>
-            )}
-            {isWrong && (
-              <span className="ml-auto text-[var(--wrong)] text-lg">✗</span>
-            )}
+            {isCorrect && <span className="ml-auto text-[var(--correct)] text-lg">✓</span>}
+            {isWrong   && <span className="ml-auto text-[var(--wrong)] text-lg">✗</span>}
           </button>
         );
       })}

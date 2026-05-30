@@ -35,11 +35,10 @@ export default function BuzzButton({ state, countdown, onBuzz }: BuzzButtonProps
         onClick={isClickable ? onBuzz : undefined}
         disabled={!isClickable}
         className={[
-          'w-36 h-36 rounded-full text-white font-black text-2xl tracking-widest',
-          'uppercase select-none transition-all duration-150',
-          'border-4',
+          'w-36 h-36 rounded-full text-white font-bold text-2xl tracking-wide',
+          'uppercase select-none transition-all duration-150 border',
           isClickable
-            ? 'cursor-pointer active:scale-95 glow-buzz hover:brightness-110'
+            ? 'cursor-pointer active:scale-95 hover:brightness-110'
             : 'cursor-not-allowed opacity-60',
           state === 'buzzed_me'
             ? 'bg-[var(--buzz-red)] border-white buzz-flash'
@@ -47,17 +46,10 @@ export default function BuzzButton({ state, countdown, onBuzz }: BuzzButtonProps
             ? 'bg-[var(--bg-card)] border-[var(--buzz-red)]'
             : 'bg-[var(--buzz-red)] border-[var(--buzz-red)]',
         ].join(' ')}
-        style={
-          isClickable
-            ? {
-                boxShadow:
-                  '0 0 40px var(--buzz-glow), 0 4px 24px rgba(0,0,0,0.5)',
-              }
-            : undefined
-        }
+        style={isClickable ? { boxShadow: '0 8px 24px rgba(0,0,0,0.45)' } : undefined}
         aria-label={isClickable ? 'Buzz in to answer' : 'Buzz not available'}
       >
-        BUZZ
+        Buzz
       </button>
 
       {/* ---- Status message under button ---- */}
@@ -68,16 +60,16 @@ export default function BuzzButton({ state, countdown, onBuzz }: BuzzButtonProps
           </span>
         )}
         {state === 'buzzed_me' && (
-          <span className="text-[var(--buzz-red)] font-bold">
-            You buzzed! Start speaking…{' '}
+          <span className="text-[var(--buzz-red)] font-semibold">
+            You buzzed, start speaking{' '}
             {countdown !== undefined && countdown > 0 && (
-              <span className="text-white">({countdown}s)</span>
+              <span className="text-[var(--text-primary)]">({countdown}s)</span>
             )}
           </span>
         )}
         {state === 'buzzed_them' && (
           <span className="text-[var(--text-secondary)]">
-            Other player is answering…
+            Other player is answering
           </span>
         )}
         {state === 'disabled' && (

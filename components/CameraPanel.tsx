@@ -93,7 +93,7 @@ export default function CameraPanel({
             </svg>
           </div>
           <p className="text-[var(--text-muted)] text-sm text-center px-4">
-            {error ?? 'Waiting for camera…'}
+            {error ?? 'Waiting for camera'}
           </p>
         </div>
       )}
@@ -102,38 +102,33 @@ export default function CameraPanel({
       {isSpeaking && (
         <div
           className="absolute inset-0 pointer-events-none speaking-pulse"
-          style={{ border: '3px solid var(--buzz-red)', borderRadius: 'inherit' }}
+          style={{ border: '2px solid var(--accent)', borderRadius: 'inherit' }}
         />
       )}
 
       {/* ---- Player label badge at bottom ---- */}
       <div
         className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2"
-        style={{
-          background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
-        }}
+        style={{ background: 'rgba(0,0,0,0.6)' }}
       >
-        <span className="text-xs font-bold tracking-widest uppercase text-[var(--text-primary)]">
+        <span className="text-xs font-semibold tracking-wider uppercase text-[var(--text-primary)]">
           {label}
         </span>
         {/* Live indicator dot */}
         <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
           <span
             className="inline-block w-2 h-2 rounded-full"
-            style={{
-              background: stream ? 'var(--correct)' : 'var(--text-muted)',
-              boxShadow: stream ? '0 0 6px var(--correct)' : 'none',
-            }}
+            style={{ background: stream ? 'var(--correct)' : 'var(--text-muted)' }}
           />
-          {stream ? 'LIVE' : 'OFFLINE'}
+          {stream ? 'Live' : 'Offline'}
         </span>
       </div>
 
       {/* ---- Mic active indicator (top-right corner) ---- */}
       {isSpeaking && (
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-[var(--buzz-red)] text-white text-xs font-bold px-2 py-1 rounded-full">
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-[var(--accent)] text-white text-xs font-semibold px-2 py-1 rounded-full">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-          ANSWERING
+          Answering
         </div>
       )}
     </div>
