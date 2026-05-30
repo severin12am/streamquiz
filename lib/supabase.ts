@@ -39,6 +39,47 @@ export const supabase = createClient<any>(
 );
 
 // -------------------------------------------------------
+// SERVER CLOCK SYNC
+// All game pacing is driven by `phase_deadline` timestamps. Those are
+// written by ONE client and compared by BOTH clients. If the two
+// devices' clocks disagree (very common — phones/laptops drift by
+// seconds), one client sees deadlines as already-expired and races
+// through the questions while the other lags far behind.
+//
+// To avoid this we sync to the DATABASE server's clock (read from the
+// HTTP `Date` response header) and express ALL "now" comparisons in
+// server time. Accuracy is ~1s (header resolution) — plenty to kill the
+// multi-second skew that breaks pacing.
+// -------------------------------------------------------
+let serverOffsetMs = 0;
+
+/** Current time in SERVER milliseconds (local clock + measured offset). */
+export function serverNow(): number {
+  return Date.now() + serverOffsetMs;
+}
+
+/** Measure the offset between this device's clock and the server's. */
+export async function syncServerClock(): Promise<void> {
+  if (isMisconfigured) return;
+  try {
+    const t0 = Date.now();
+    const res = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'HEAD',
+      headers: { apikey: supabaseKey },
+    });
+    const t1 = Date.now();
+    const dateHeader = res.headers.get('date');
+    if (!dateHeader) return;
+    const serverMs = new Date(dateHeader).getTime();
+    if (Number.isNaN(serverMs)) return;
+    // Assume the server stamped the response ~halfway through the round-trip.
+    serverOffsetMs = serverMs - (t0 + (t1 - t0) / 2);
+  } catch {
+    // Network blocked → fall back to the local clock (offset stays 0).
+  }
+}
+
+// -------------------------------------------------------
 // Helper: subscribe to changes on a specific game row
 // Returns the channel so the caller can remove it on cleanup
 // -------------------------------------------------------

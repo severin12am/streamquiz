@@ -104,6 +104,7 @@ export const messages = {
     mc: {
       opponentSteal: 'Opponent can steal this one',
       answerLocked: 'Answer locked in — waiting for your opponent',
+      you: 'You',
     },
     score: {
       vs: 'VS',
@@ -220,6 +221,7 @@ export const messages = {
     mc: {
       opponentSteal: 'Соперник может перехватить',
       answerLocked: 'Ответ зафиксирован — ждём соперника',
+      you: 'Вы',
     },
     score: {
       vs: 'VS',

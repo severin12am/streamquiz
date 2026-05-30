@@ -21,7 +21,6 @@ import MCOptions  from './MCOptions';
 import ScoreBoard from './ScoreBoard';
 import CountdownTimer from './CountdownTimer';
 import { useLocale } from '@/context/LocaleProvider';
-import { isMcAnswerCorrect } from '@/lib/mc-utils';
 import type { Game, PlayerRole } from '@/lib/types';
 
 interface QuestionPanelProps {
@@ -70,16 +69,9 @@ export default function QuestionPanel({
   // Show a full-screen result overlay?
   const showResult = phase === 'result';
 
-  // Did I personally score this round? For MC, each player has their own
-  // pick, so the ✓/✗ flash is per-viewer. For open-ended there's a single
-  // answerer, so we fall back to the shared answer_correct flag.
-  let iScored: boolean;
-  if (game.mc_mode) {
-    const opt = myMcPick !== null ? currentQuestion?.options?.[myMcPick] : undefined;
-    iScored = !!opt && isMcAnswerCorrect(opt, currentQuestion?.correct_answer);
-  } else {
-    iScored = game.answer_correct === true;
-  }
+  // Open-ended result flash uses the shared answer_correct flag (single
+  // answerer). MC shows its outcome on the grid instead (no flash).
+  const answerWasCorrect = game.answer_correct === true;
 
   return (
     <div
@@ -239,9 +231,11 @@ export default function QuestionPanel({
           <MCOptions
             options={currentQuestion.options}
             correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
-            lockedIn={phase === 'result' || iHavePicked}
-            selectedIndex={myMcPick}
-            disabled={phase === 'thinking'}
+            myPick={myMcPick}
+            opponentPick={role === 'host' ? game.player_mc_index : game.host_mc_index}
+            canSelect={phase === 'question' && !iHavePicked}
+            youLabel={t('mc.you')}
+            opponentLabel={t('game.streamer')}
             onSelect={onMCSelect}
           />
         )}
@@ -301,13 +295,14 @@ export default function QuestionPanel({
 
       {/* ======================================================
           RESULT OVERLAY — brief ✓/✗ flash after each answer.
-          Works for BOTH modes via the shared answer_correct flag.
+          Open-ended ONLY: in MC the option grid shows the outcome
+          (both picks + correct answer), so no full-screen flash.
       ====================================================== */}
-      {showResult && (
+      {showResult && !game.mc_mode && (
         <div
           className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
           style={{
-            background: iScored
+            background: answerWasCorrect
               ? 'rgba(34,160,107,0.12)'
               : 'rgba(229,72,77,0.12)',
           }}
@@ -315,11 +310,11 @@ export default function QuestionPanel({
           <div className="flex flex-col items-center gap-2">
             <span
               className="text-7xl font-semibold"
-              style={{ color: iScored ? 'var(--correct)' : 'var(--wrong)' }}
+              style={{ color: answerWasCorrect ? 'var(--correct)' : 'var(--wrong)' }}
             >
-              {iScored ? '✓' : '✗'}
+              {answerWasCorrect ? '✓' : '✗'}
             </span>
-            {iScored && (
+            {answerWasCorrect && (
               <span className="text-2xl font-semibold" style={{ color: 'var(--gold)' }}>
                 +1
               </span>

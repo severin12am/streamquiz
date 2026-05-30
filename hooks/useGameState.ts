@@ -37,7 +37,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   supabase, subscribeToGame, updateGame, updateGameIfPhase,
-  updateGameGuarded, fetchGame,
+  updateGameGuarded, fetchGame, serverNow, syncServerClock,
 } from '@/lib/supabase';
 import { isMcAnswerCorrect } from '@/lib/mc-utils';
 import type { Game, PlayerRole, Question } from '@/lib/types';
@@ -71,15 +71,17 @@ const TICK_INTERVAL_MS     = 300;   // how often we check deadlines locally
 const MAX_INIT_ATTEMPTS   = 5;      // retries for the very first load
 const INIT_RETRY_DELAY_MS = 1200;   // wait between initial-load retries
 
-// Helper: an ISO timestamp `seconds` from now (for phase_deadline)
+// Helper: an ISO timestamp `seconds` from now (for phase_deadline).
+// Uses SERVER time so every client agrees on the deadline.
 function deadlineIn(seconds: number): string {
-  return new Date(Date.now() + seconds * 1000).toISOString();
+  return new Date(serverNow() + seconds * 1000).toISOString();
 }
 
-// Helper: whole seconds left until an ISO deadline (never negative)
+// Helper: whole seconds left until an ISO deadline (never negative).
+// Compared against SERVER time to stay consistent across devices.
 function secondsUntil(iso: string | null): number {
   if (!iso) return 0;
-  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 1000));
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - serverNow()) / 1000));
 }
 
 // The total duration (for the timer ring) of the current timed phase
@@ -143,6 +145,11 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   useEffect(() => {
     let cancelled = false;
 
+    // Sync to the server clock ASAP (and refresh periodically) so both
+    // devices agree on when each phase deadline passes.
+    syncServerClock();
+    const clockTimer = setInterval(() => { syncServerClock(); }, 30000);
+
     async function tryInitialLoad(attempt = 0) {
       const data = await fetchGame(gameId);
       if (cancelled) return;
@@ -177,6 +184,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     return () => {
       cancelled = true;
       clearInterval(pollTimer);
+      clearInterval(clockTimer);
       supabase.removeChannel(channel);
     };
   }, [gameId]);
@@ -353,9 +361,9 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       // --- update the visible countdown ---
       setTimeLeft(secondsUntil(g.phase_deadline));
 
-      // --- has the current phase's deadline passed? ---
+      // --- has the current phase's deadline passed? (server time) ---
       if (!g.phase_deadline) return;
-      const expired = new Date(g.phase_deadline).getTime() <= Date.now();
+      const expired = new Date(g.phase_deadline).getTime() <= serverNow();
       if (!expired) return;
 
       // Only act ONCE per deadline on this client (avoid DB spam)
