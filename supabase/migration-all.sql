@@ -43,5 +43,9 @@ ALTER TABLE games ADD COLUMN IF NOT EXISTS player_transcript TEXT    DEFAULT '';
 ALTER TABLE games ADD COLUMN IF NOT EXISTS host_correct      BOOLEAN DEFAULT NULL;
 ALTER TABLE games ADD COLUMN IF NOT EXISTS player_correct    BOOLEAN DEFAULT NULL;
 
+-- v7: "Done" lock-in for voice mode (advance early when both finished)
+ALTER TABLE games ADD COLUMN IF NOT EXISTS host_done   BOOLEAN DEFAULT FALSE;
+ALTER TABLE games ADD COLUMN IF NOT EXISTS player_done BOOLEAN DEFAULT FALSE;
+
 -- Make sure realtime is on for the table
 ALTER PUBLICATION supabase_realtime ADD TABLE games;

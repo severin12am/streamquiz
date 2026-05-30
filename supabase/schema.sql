@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS games (
   player_transcript      TEXT DEFAULT '',
   host_correct           BOOLEAN DEFAULT NULL,
   player_correct         BOOLEAN DEFAULT NULL,
+  -- "Done" lock-in: when both are true the voice round advances early.
+  host_done              BOOLEAN DEFAULT FALSE,
+  player_done            BOOLEAN DEFAULT FALSE,
 
   -- MC answer picked by the winner: 0-3 index, or NULL (legacy single).
   mc_answer_index        INTEGER DEFAULT NULL,

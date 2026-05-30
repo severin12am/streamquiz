@@ -89,6 +89,9 @@ export interface Game {
   player_transcript: string;
   host_correct: boolean | null;
   player_correct: boolean | null;
+  /** Voice "Done" lock-in: when both true, the round advances early. */
+  host_done: boolean;
+  player_done: boolean;
   /** Result of the most recent answer (true=correct, false=wrong,
    *  null=not judged yet). Lets BOTH clients show the same ✓/✗. */
   answer_correct: boolean | null;

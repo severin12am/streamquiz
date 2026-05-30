@@ -141,6 +141,7 @@ export interface UseGameStateReturn {
   submitMCAnswer: (role: PlayerRole, optionIndex: number) => Promise<void>;
   startGame: () => Promise<void>;
   updateTranscript: (text: string) => Promise<void>;
+  finishAnswer: (finalText?: string) => Promise<void>;
   rematch: (newQuestions?: Question[]) => Promise<void>;
   voteRematch: (role: PlayerRole) => Promise<void>;
 }
@@ -156,6 +157,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   const gameRef        = useRef<Game | null>(null);
   const judgingRef     = useRef(false); // this client is running the AI check
   const actedDeadline  = useRef<string | null>(null); // last deadline we acted on
+  const earlyDoneRef   = useRef<string | null>(null); // deadline we early-advanced (both done)
 
   useEffect(() => { gameRef.current = game; }, [game]);
 
@@ -323,6 +325,8 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         player_transcript: '',
         host_correct: null,
         player_correct: null,
+        host_done: false,
+        player_done: false,
         answer_correct: null,
         last_points: 0,
         last_scorer: null,
@@ -346,6 +350,24 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       // --- update the visible countdown (whole seconds + smooth ms) ---
       setTimeLeft(secondsUntil(g.phase_deadline));
       setTimeLeftMs(msUntil(g.phase_deadline));
+
+      // --- EARLY ADVANCE (voice): both players pressed "Done" before the
+      //     talk window ended → jump straight to judging. Guarded so only
+      //     one client wins; earlyDoneRef stops us spamming until the
+      //     phase change propagates. Keyed by the (unique) deadline. ---
+      if (
+        g.phase === 'answering' &&
+        g.host_done && g.player_done &&
+        earlyDoneRef.current !== g.phase_deadline
+      ) {
+        earlyDoneRef.current = g.phase_deadline;
+        const won = await updateGameIfPhase(gameId, 'answering', {
+          phase: 'checking',
+          phase_deadline: deadlineIn(CHECK_TIMEOUT_SECONDS),
+        });
+        if (won) runVoiceCheck();
+        return;
+      }
 
       // --- has the current phase's deadline passed? (server time) ---
       if (!g.phase_deadline) return;
@@ -434,6 +456,8 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       player_transcript: '',
       host_correct: null,
       player_correct: null,
+      host_done: false,
+      player_done: false,
       answer_correct: null,
       last_points: 0,
       last_scorer: null,
@@ -491,6 +515,19 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       : { player_transcript: text });
   }, [gameId, role]);
 
+  // Finish answering early (voice mode). Optionally writes a final
+  // transcript (e.g. a typed answer) and marks THIS player done. When
+  // both players are done the ticker advances the round immediately.
+  const finishAnswer = useCallback(async (finalText?: string) => {
+    const isHost = role === 'host';
+    const patch: Partial<Game> = isHost ? { host_done: true } : { player_done: true };
+    if (typeof finalText === 'string') {
+      if (isHost) patch.host_transcript = finalText;
+      else        patch.player_transcript = finalText;
+    }
+    await updateGame(gameId, patch);
+  }, [gameId, role]);
+
   // Rematch — reset the game back to the lobby. If `newQuestions` is
   // passed (freshly generated with the same settings) they REPLACE the
   // old set; otherwise the same questions are reused.
@@ -510,6 +547,8 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       player_transcript: '',
       host_correct: null,
       player_correct: null,
+      host_done: false,
+      player_done: false,
       answer_correct: null,
       last_points: 0,
       last_scorer: null,
@@ -538,6 +577,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     submitMCAnswer,
     startGame,
     updateTranscript,
+    finishAnswer,
     rematch,
     voteRematch,
   };

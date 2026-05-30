@@ -52,8 +52,11 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     game, loading, error,
     timeLeft, timeLeftMs, timerTotal,
     submitMCAnswer,
-    startGame, updateTranscript, rematch, voteRematch,
+    startGame, updateTranscript, finishAnswer, rematch, voteRematch,
   } = useGameState(gameId, role);
+
+  // Whether THIS player has already locked in their voice answer.
+  const iAmDone = !!game && (role === 'host' ? game.host_done : game.player_done);
 
   // Determine whether the other player has joined
   // (game moves to 'ready' or 'playing' once both are present)
@@ -84,23 +87,42 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   }, [role, game?.status, localStream, gameId]);
 
   // ----------------------------------------------------------
-  // 3. Speech recognition (for open-ended answering)
+  // 3. Speech recognition (for voice answering)
+  //    `answerDraft` is what we SHOW + save: it comes from the mic by
+  //    default, but switches to TYPED text if the player uses the
+  //    fallback input (e.g. on a browser with poor speech support).
   // ----------------------------------------------------------
+  const [answerDraft, setAnswerDraft] = useState('');
+  const [typedMode, setTypedMode]     = useState(false);
+  const typedModeRef = React.useRef(false);
+  useEffect(() => { typedModeRef.current = typedMode; }, [typedMode]);
+
   const onTranscriptUpdate = useCallback(
-    (text: string) => { updateTranscript(text); },
+    (text: string) => {
+      // Ignore mic results once the player has chosen to type instead.
+      if (typedModeRef.current) return;
+      setAnswerDraft(text);
+      updateTranscript(text);
+    },
     [updateTranscript]
   );
 
-  const { transcript, isListening, startListening, stopListening } =
+  const { isListening, isSupported, startListening, stopListening } =
     useSpeechRecognition(onTranscriptUpdate, speechLang);
+
+  // Fresh draft each round.
+  useEffect(() => {
+    setAnswerDraft('');
+    setTypedMode(false);
+  }, [game?.current_question_index]);
 
   // Start/stop the microphone during the voice 'answering' phase.
   // There is NO buzzer: BOTH players talk at once, so every client
-  // runs its OWN mic and writes to its OWN transcript column.
-  // (MC mode never enters 'answering', so the mic stays off there.)
+  // runs its OWN mic. The mic stops once this player is Done or has
+  // switched to typing. (MC mode never enters 'answering'.)
   useEffect(() => {
     if (!game) return;
-    const iShouldSpeak = game.phase === 'answering';
+    const iShouldSpeak = game.phase === 'answering' && !iAmDone && !typedMode;
 
     if (iShouldSpeak && !isListening) {
       startListening();
@@ -108,7 +130,21 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       stopListening();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase]);
+  }, [game?.phase, iAmDone, typedMode]);
+
+  // Switch to the typed fallback: stop the mic and use the typed text.
+  const handleTypeAnswer = useCallback((text: string) => {
+    if (!typedMode) setTypedMode(true);
+    if (isListening) stopListening();
+    setAnswerDraft(text);
+    updateTranscript(text);
+  }, [typedMode, isListening, stopListening, updateTranscript]);
+
+  // Lock in this player's answer early.
+  const handleFinishAnswer = useCallback(() => {
+    if (isListening) stopListening();
+    finishAnswer(answerDraft);
+  }, [isListening, stopListening, finishAnswer, answerDraft]);
 
   // ----------------------------------------------------------
   // 4. Media recorder (for clip downloads at the end)
@@ -291,8 +327,12 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           timeLeft={timeLeft}
           timeLeftMs={timeLeftMs}
           timerTotal={timerTotal}
-          transcript={transcript}
+          transcript={answerDraft}
+          iAmDone={iAmDone}
+          speechSupported={isSupported}
           onMCSelect={(i) => submitMCAnswer(role, i)}
+          onTypeAnswer={handleTypeAnswer}
+          onFinish={handleFinishAnswer}
         />
       </div>
 

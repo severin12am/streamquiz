@@ -25,13 +25,17 @@ import { useLocale } from '@/context/LocaleProvider';
 import type { Game, PlayerRole } from '@/lib/types';
 
 interface QuestionPanelProps {
-  game:       Game;
-  role:       PlayerRole;
-  timeLeft:   number;
-  timeLeftMs: number; // fractional ms — drives the smooth timer ring
-  timerTotal: number;
-  transcript: string; // this viewer's OWN live speech transcript
-  onMCSelect: (index: number) => void;
+  game:            Game;
+  role:            PlayerRole;
+  timeLeft:        number;
+  timeLeftMs:      number; // fractional ms — drives the smooth timer ring
+  timerTotal:      number;
+  transcript:      string;  // this viewer's OWN live answer (speech or typed)
+  iAmDone:         boolean; // this viewer locked in their voice answer
+  speechSupported: boolean; // false on browsers without the Speech API
+  onMCSelect:      (index: number) => void;
+  onTypeAnswer:    (text: string) => void; // fallback: type instead of speak
+  onFinish:        () => void;             // lock in the voice answer early
 }
 
 export default function QuestionPanel({
@@ -41,7 +45,11 @@ export default function QuestionPanel({
   timeLeftMs,
   timerTotal,
   transcript,
+  iAmDone,
+  speechSupported,
   onMCSelect,
+  onTypeAnswer,
+  onFinish,
 }: QuestionPanelProps) {
   const { t } = useLocale();
   const currentQuestion = game.questions[game.current_question_index];
@@ -149,13 +157,26 @@ export default function QuestionPanel({
         )}
 
         {/* Voice answer cue — both players speak at once (no buzzer). */}
-        {phase === 'answering' && (
+        {phase === 'answering' && !iAmDone && (
           <div className="text-center">
             <p className="text-xl font-semibold" style={{ color: 'var(--correct)' }}>
               {t('game.speakAnswerNow')}
             </p>
             <p className="text-[var(--text-secondary)] mt-1 text-sm">
               {t('game.speakHint')}
+            </p>
+          </div>
+        )}
+
+        {/* After locking in — waiting for the opponent (or the timer). */}
+        {phase === 'answering' && iAmDone && (
+          <div className="text-center flex flex-col items-center gap-2">
+            <span className="text-3xl" style={{ color: 'var(--correct)' }}>{'\u2713'}</span>
+            <p className="text-base font-semibold text-[var(--text-primary)]">
+              {t('game.answerLockedIn')}
+            </p>
+            <p className="text-[var(--text-secondary)] text-sm">
+              {t('game.waitingOpponent')}
             </p>
           </div>
         )}
@@ -199,20 +220,53 @@ export default function QuestionPanel({
           />
         )}
 
-        {/* ---- Live voice transcript (your own words, while speaking) ---- */}
-        {phase === 'answering' && !game.mc_mode && (
-          <div
-            className="w-full rounded-xl p-4 border min-h-[4.5rem]"
-            style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
-          >
-            <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
-              {t('game.yourAnswer')}
-            </p>
-            <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
-              {transcript
-                ? `\u201C${transcript}\u201D`
-                : <span className="text-[var(--text-muted)] not-italic">{t('game.startSpeaking')}</span>}
-            </p>
+        {/* ---- Voice answer area: live "heard" box + type fallback + Done ----
+            Hidden once locked in (the waiting state above shows instead). */}
+        {phase === 'answering' && !game.mc_mode && !iAmDone && (
+          <div className="w-full flex flex-col gap-2.5">
+            {/* Live transcript — what the mic / typing has so far. */}
+            <div
+              className="w-full rounded-xl p-4 border min-h-[4.5rem]"
+              style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+            >
+              <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
+                {t('game.yourAnswer')}
+              </p>
+              <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
+                {transcript
+                  ? `\u201C${transcript}\u201D`
+                  : <span className="text-[var(--text-muted)] not-italic">
+                      {speechSupported ? t('game.startSpeaking') : t('game.typeYourAnswer')}
+                    </span>}
+              </p>
+            </div>
+
+            {/* Type fallback — always available; the only path if the
+                browser has no speech support. Typing stops the mic. */}
+            <input
+              type="text"
+              value={transcript}
+              onChange={(e) => onTypeAnswer(e.target.value)}
+              placeholder={t('game.typePlaceholder')}
+              className="w-full rounded-lg px-3 py-2 text-sm outline-none border"
+              style={{
+                background: 'var(--bg-base)',
+                borderColor: 'var(--border)',
+                color: 'var(--text-primary)',
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') onFinish(); }}
+            />
+
+            {/* Done — lock in early so we don't wait out the whole window. */}
+            <button
+              onClick={onFinish}
+              className="w-full px-6 py-2.5 rounded-xl font-semibold text-white transition-colors"
+              style={{ background: 'var(--accent)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
+            >
+              {t('game.done')}
+            </button>
           </div>
         )}
 
