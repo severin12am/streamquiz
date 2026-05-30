@@ -61,7 +61,7 @@ const CHECK_TIMEOUT_SECONDS = 15;   // safety: max time to wait for AI judging
 // INCREASE this if players on slow connections still lose unfairly
 // (costs a little pace); DECREASE for a snappier feel.
 // -------------------------------------------------------
-const MC_GRACE_SECONDS = 1.5;
+const MC_GRACE_SECONDS = 3;
 
 // -------------------------------------------------------
 // NETWORK RESILIENCE SETTINGS
@@ -89,7 +89,13 @@ function phaseTotalSeconds(game: Game | null): number {
   if (!game) return QUESTION_TIME_SECONDS;
   switch (game.phase) {
     case 'thinking':  return THINK_TIME_SECONDS;
-    case 'question':  return game.is_steal ? STEAL_TIME_SECONDS : QUESTION_TIME_SECONDS;
+    case 'question':
+      // Once someone has picked in MC mode, the timer shows the short
+      // grace window (so the ring drains correctly, not from 15s).
+      if (game.mc_mode && (game.host_mc_index !== null || game.player_mc_index !== null)) {
+        return MC_GRACE_SECONDS;
+      }
+      return game.is_steal ? STEAL_TIME_SECONDS : QUESTION_TIME_SECONDS;
     case 'buzzing':   return BUZZ_WINDOW_SECONDS;
     case 'answering': return ANSWER_TIME_SECONDS;
     case 'result':    return RESULT_TIME_SECONDS;
@@ -125,6 +131,7 @@ export interface UseGameStateReturn {
   startGame: () => Promise<void>;
   updateTranscript: (text: string) => Promise<void>;
   rematch: (newQuestions?: Question[]) => Promise<void>;
+  voteRematch: (role: PlayerRole) => Promise<void>;
 }
 
 export function useGameState(gameId: string, role: PlayerRole): UseGameStateReturn {
@@ -254,9 +261,15 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   // =======================================================
   // 3b. RESOLVE A MULTIPLE-CHOICE ROUND.
   //    Reads BOTH players' picks and scores every correct one (+1).
+  //    IMPORTANT: re-fetch the row first so we use the AUTHORITATIVE
+  //    picks. The local copy may be missing the opponent's pick if
+  //    their realtime update hasn't arrived yet — that bug caused a
+  //    correct answer to occasionally not be counted.
   //    Guarded on 'question' so exactly one client resolves it.
   // =======================================================
-  const resolveMcRound = useCallback(async (g: Game) => {
+  const resolveMcRound = useCallback(async () => {
+    const g = (await fetchGame(gameId)) ?? gameRef.current;
+    if (!g) return;
     const q = g.questions[g.current_question_index];
     const optionAt = (idx: number | null) =>
       idx != null ? (q?.options?.[idx] ?? '') : '';
@@ -387,7 +400,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
               // MC: the deadline is either the 15s no-answer timeout OR
               // the grace window after the first pick. Either way, score
               // whatever picks are in (none = nobody answered → reveal).
-              await resolveMcRound(g);
+              await resolveMcRound();
             } else {
               // Open-ended: nobody buzzed in time → reveal answer, move on.
               await updateGameIfPhase(gameId, 'question', {
@@ -554,7 +567,18 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       last_points: 0,
       last_scorer: null,
       phase_deadline: null,
+      // Clear the rematch votes for the next round.
+      rematch_host: false,
+      rematch_player: false,
     });
+  }, [gameId]);
+
+  // Vote to rematch. A rematch only starts once the host AND at least
+  // one other player have voted (see GameScreen). Voting is idempotent.
+  const voteRematch = useCallback(async (votingRole: PlayerRole) => {
+    await updateGame(gameId, votingRole === 'host'
+      ? { rematch_host: true }
+      : { rematch_player: true });
   }, [gameId]);
 
   return {
@@ -569,6 +593,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     startGame,
     updateTranscript,
     rematch,
+    voteRematch,
   };
 }
 

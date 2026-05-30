@@ -17,8 +17,15 @@ interface WinnerScreenProps {
   hostScore:   number;
   playerScore: number;
   clips:       AnswerClip[];
-  /** Host only: restart with FRESH questions (same settings, same link). */
-  onRematch?:  () => void;
+  /** Cast this player's rematch vote. */
+  onVoteRematch?: () => void;
+  /** Has THIS player voted to rematch? */
+  myVote?:      boolean;
+  /** Vote state of each side (to show who's ready). */
+  hostVoted?:   boolean;
+  playerVoted?: boolean;
+  hostLabel?:   string;
+  guestLabel?:  string;
   /** True while the rematch is generating new questions. */
   rematchLoading?: boolean;
   /** Leave to the home page (available to everyone). */
@@ -29,7 +36,12 @@ export default function WinnerScreen({
   hostScore,
   playerScore,
   clips,
-  onRematch,
+  onVoteRematch,
+  myVote = false,
+  hostVoted = false,
+  playerVoted = false,
+  hostLabel = 'Host',
+  guestLabel = 'Guest 1',
   rematchLoading = false,
   onExit,
 }: WinnerScreenProps) {
@@ -115,48 +127,60 @@ export default function WinnerScreen({
         </div>
       )}
 
-      {/* ---- Actions: Rematch (host) + Exit ---- */}
-      <div className="flex items-center gap-3">
-        {/* Rematch generates fresh questions (same settings) and reuses
-            the link, so the opponent's tab returns to the lobby. */}
-        {onRematch && (
-          <button
-            onClick={onRematch}
-            disabled={rematchLoading}
-            className="flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-white transition-colors disabled:opacity-70"
-            style={{ background: 'var(--accent)' }}
-            onMouseEnter={(e) => { if (!rematchLoading) e.currentTarget.style.background = 'var(--accent-hover)'; }}
-            onMouseLeave={(e) => { if (!rematchLoading) e.currentTarget.style.background = 'var(--accent)'; }}
-          >
-            {rematchLoading && (
-              <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-            )}
-            {rematchLoading ? t('create.generating') : t('winner.rematch')}
-          </button>
-        )}
+      {/* ---- Rematch voting ----
+          A rematch starts once the host AND at least one other player
+          have accepted. Everyone sees the button; after voting it shows
+          who is ready. Generating fresh questions reuses the same link. */}
+      <div className="flex flex-col items-center gap-3">
+        {/* Who's ready so far */}
+        <div className="flex items-center gap-4 text-xs">
+          <span className="flex items-center gap-1.5" style={{ color: hostVoted ? 'var(--correct)' : 'var(--text-muted)' }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: hostVoted ? 'var(--correct)' : 'var(--border-strong)' }} />
+            {hostLabel}
+          </span>
+          <span className="flex items-center gap-1.5" style={{ color: playerVoted ? 'var(--correct)' : 'var(--text-muted)' }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: playerVoted ? 'var(--correct)' : 'var(--border-strong)' }} />
+            {guestLabel}
+          </span>
+        </div>
 
-        {/* The player (no rematch control) sees a waiting hint instead. */}
-        {!onRematch && (
-          <p className="text-[var(--text-secondary)] text-sm">
-            {t('winner.waitRematch')}
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {onVoteRematch && (
+            <button
+              onClick={onVoteRematch}
+              disabled={myVote || rematchLoading}
+              className="flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-white transition-colors disabled:opacity-70"
+              style={{ background: 'var(--accent)' }}
+              onMouseEnter={(e) => { if (!myVote && !rematchLoading) e.currentTarget.style.background = 'var(--accent-hover)'; }}
+              onMouseLeave={(e) => { if (!myVote && !rematchLoading) e.currentTarget.style.background = 'var(--accent)'; }}
+            >
+              {rematchLoading && (
+                <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              )}
+              {rematchLoading
+                ? t('create.generating')
+                : myVote
+                ? t('winner.rematchWaiting')
+                : t('winner.rematch')}
+            </button>
+          )}
 
-        {onExit && (
-          <button
-            onClick={onExit}
-            className="px-6 py-3 rounded-xl font-semibold transition-colors"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
-          >
-            {t('winner.exit')}
-          </button>
-        )}
+          {onExit && (
+            <button
+              onClick={onExit}
+              className="px-6 py-3 rounded-xl font-semibold transition-colors"
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-primary)',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
+            >
+              {t('winner.exit')}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

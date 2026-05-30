@@ -42,6 +42,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
 
   // True while a rematch is regenerating a fresh set of questions.
   const [rematchLoading, setRematchLoading] = useState(false);
+  // Guards the one-shot rematch trigger so it can't fire twice.
+  const rematchTriggeredRef = React.useRef(false);
 
   // ----------------------------------------------------------
   // 1. Game state (synced via Supabase Realtime)
@@ -50,7 +52,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     game, loading, error,
     timeLeft, timerTotal, buzzCountdown,
     buzz, submitMCAnswer,
-    startGame, updateTranscript, rematch,
+    startGame, updateTranscript, rematch, voteRematch,
   } = useGameState(gameId, role);
 
   // Determine whether the other player has joined
@@ -131,7 +133,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // Rematch — generate a FRESH set of questions using the SAME
   // settings (topic/difficulty/count/mode), then reset to the lobby.
   // Falls back to reusing the old questions if generation fails so
-  // the rematch never gets stuck. Host-only (button is host-only).
+  // the rematch never gets stuck. Runs on the HOST once enough players
+  // have voted (the host has the locale/API access to regenerate).
   // ----------------------------------------------------------
   const handleRematch = useCallback(async () => {
     if (!game || rematchLoading) return;
@@ -166,6 +169,26 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       setRematchLoading(false);
     }
   }, [game, rematchLoading, locale, rematch]);
+
+  // Start the rematch once the host AND at least one other player have
+  // voted. The host's client drives the regeneration. A ref guards
+  // against firing twice; it resets after we leave the end screen.
+  useEffect(() => {
+    if (!game) return;
+    if (game.phase !== 'ended') {
+      rematchTriggeredRef.current = false;
+      return;
+    }
+    if (
+      role === 'host' &&
+      game.rematch_host &&
+      game.rematch_player &&
+      !rematchTriggeredRef.current
+    ) {
+      rematchTriggeredRef.current = true;
+      handleRematch();
+    }
+  }, [role, game, handleRematch]);
 
   // ----------------------------------------------------------
   // Loading / error states
@@ -360,8 +383,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           playerScore={game.player_score}
           clips={clips}
           /* Rematch = FRESH questions (same settings), same link, back to
-             the lobby. Only the host sees the button. */
-          onRematch={role === 'host' ? handleRematch : undefined}
+             the lobby. BOTH players vote; it starts once the host and at
+             least one other have accepted. */
+          onVoteRematch={() => voteRematch(role)}
+          myVote={role === 'host' ? game.rematch_host : game.rematch_player}
+          hostVoted={game.rematch_host}
+          playerVoted={game.rematch_player}
+          hostLabel={t('game.host')}
+          guestLabel={t('game.streamer')}
           rematchLoading={rematchLoading}
           onExit={() => (window.location.href = '/')}
         />

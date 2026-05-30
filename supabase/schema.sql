@@ -102,7 +102,12 @@ CREATE TABLE IF NOT EXISTS games (
   -- Points awarded on the most recent correct answer + who scored
   -- (used for the score pop animation). last_scorer: host|player|null.
   last_points            INTEGER DEFAULT 0,
-  last_scorer            TEXT DEFAULT NULL
+  last_scorer            TEXT DEFAULT NULL,
+
+  -- Rematch voting: a rematch starts when the host AND at least one
+  -- other player have accepted. Reset when a new match begins.
+  rematch_host           BOOLEAN DEFAULT FALSE,
+  rematch_player         BOOLEAN DEFAULT FALSE
 );
 
 -- -------------------------------------------------------

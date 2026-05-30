@@ -103,7 +103,8 @@ export const messages = {
     },
     mc: {
       opponentSteal: 'Opponent can steal this one',
-      answerLocked: 'Answer locked in — waiting for your opponent',
+      answerLocked: 'Answer locked in',
+      someoneAnswered: 'Someone answered — {n}s to answer!',
       you: 'You',
     },
     score: {
@@ -118,6 +119,7 @@ export const messages = {
       clipLabel: 'Q{n} · {role} answer',
       download: 'Download',
       rematch: 'Rematch',
+      rematchWaiting: 'Waiting for others…',
       waitRematch: 'Waiting for the host to start a rematch',
       exit: 'Exit',
     },
@@ -220,7 +222,8 @@ export const messages = {
     },
     mc: {
       opponentSteal: 'Соперник может перехватить',
-      answerLocked: 'Ответ зафиксирован — ждём соперника',
+      answerLocked: 'Ответ зафиксирован',
+      someoneAnswered: 'Кто-то ответил — {n}с на ответ!',
       you: 'Вы',
     },
     score: {
@@ -235,6 +238,7 @@ export const messages = {
       clipLabel: 'В{n} · ответ: {role}',
       download: 'Скачать',
       rematch: 'Реванш',
+      rematchWaiting: 'Ждём остальных…',
       waitRematch: 'Ждём реванш от ведущего',
       exit: 'Выход',
     },

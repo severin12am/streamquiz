@@ -103,6 +103,11 @@ export interface Game {
    *  (used for the score pop animation). */
   last_points: number;
   last_scorer: 'host' | 'player' | null;
+
+  /** Rematch votes — a rematch begins once the host AND at least one
+   *  other player have accepted. Reset when a new match starts. */
+  rematch_host: boolean;
+  rematch_player: boolean;
 }
 
 // -------------------------------------------------------

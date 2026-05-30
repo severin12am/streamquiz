@@ -134,12 +134,11 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Timer — during the locked think countdown, the open question,
-            or the buzz window. (Hidden during 'answering' so it doesn't
-            sit frozen, and hidden once an MC pick starts the short grace
-            window so the ring doesn't flicker.) timerTotal adapts per phase. */}
-        {(phase === 'thinking' || phase === 'question' || phase === 'buzzing') &&
-          !(game.mc_mode && someonePicked) && (
+        {/* Timer — during the locked think countdown, the open question
+            (incl. the MC grace window), or the buzz window. Kept visible
+            during the grace window (timerTotal adapts) so the layout
+            doesn't jump when someone picks. */}
+        {(phase === 'thinking' || phase === 'question' || phase === 'buzzing') && (
           <CountdownTimer current={timeLeft} total={timerTotal} />
         )}
 
@@ -156,12 +155,31 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* GO cue — appears the moment the think lock lifts (think mode,
-            normal question, not a steal). Makes the unlock obvious. */}
-        {game.game_mode === 'think' && phase === 'question' && !game.is_steal && (
-          <p className="text-lg font-semibold" style={{ color: 'var(--correct)' }}>
-            {t('game.answerNow')}
-          </p>
+        {/* Status line for the open question — ONE fixed-height row so the
+            message can change (go cue / someone answered / locked) without
+            shifting the question and options below it. */}
+        {phase === 'question' && (
+          <div className="min-h-[1.75rem] flex items-center justify-center text-center px-2">
+            {game.mc_mode ? (
+              iHavePicked ? (
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {t('mc.answerLocked')} · {timeLeft}s
+                </p>
+              ) : someonePicked ? (
+                <p className="text-base font-semibold" style={{ color: 'var(--buzz-red)' }}>
+                  {t('mc.someoneAnswered', { n: timeLeft })}
+                </p>
+              ) : game.game_mode === 'think' && !game.is_steal ? (
+                <p className="text-base font-semibold" style={{ color: 'var(--correct)' }}>
+                  {t('game.answerNow')}
+                </p>
+              ) : null
+            ) : game.game_mode === 'think' && !game.is_steal && !isStealLockedForMe ? (
+              <p className="text-base font-semibold" style={{ color: 'var(--correct)' }}>
+                {t('game.answerNow')}
+              </p>
+            ) : null}
+          </div>
         )}
 
         {/* Answering indicator — shown while a player is speaking */}
@@ -238,13 +256,6 @@ export default function QuestionPanel({
             opponentLabel={t('game.streamer')}
             onSelect={onMCSelect}
           />
-        )}
-
-        {/* Waiting-for-opponent hint while my MC pick is locked in. */}
-        {game.mc_mode && phase === 'question' && iHavePicked && (
-          <p className="text-[var(--text-secondary)] text-sm text-center">
-            {t('mc.answerLocked')}
-          </p>
         )}
 
         {/* ---- Live voice transcript ---- */}
