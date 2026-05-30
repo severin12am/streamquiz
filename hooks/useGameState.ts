@@ -12,13 +12,20 @@
 //   • Because either client can drive transitions, the game keeps
 //     going even if the host's connection drops.
 //
+// GAME MODES (set at creation):
+//   • 'think' (default, fair): each round starts in a LOCKED `thinking`
+//     phase for THINK_TIME_SECONDS — nobody can buzz/speak/click. When
+//     the server deadline passes, BOTH players unlock at the same instant
+//     (the "GO"), so a faster connection can't win by acting early.
+//   • 'classic': round opens directly in `question` (buzz immediately).
+//
 // ROUND FLOW (open-ended):
-//   question → (buzz) → buzzing → answering → checking → result → next
+//   [thinking →] question → (buzz) → buzzing → answering → checking → result → next
 //   On a WRONG answer the OTHER player gets a STEAL chance:
 //   result is skipped and we re-enter `question` with is_steal=true.
 //
 // ROUND FLOW (multiple choice):
-//   question → (click) → result → next   (+ steal on wrong)
+//   [thinking →] question → (click) → result → next   (+ steal on wrong)
 //
 // SCORING: consecutive correct answers build a STREAK; points per
 //   correct = min(streak, MAX_STREAK_POINTS). A wrong answer resets
@@ -29,11 +36,13 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   supabase, subscribeToGame, updateGame, updateGameIfPhase, fetchGame,
 } from '@/lib/supabase';
+import { isMcAnswerCorrect } from '@/lib/mc-utils';
 import type { Game, PlayerRole } from '@/lib/types';
 
 // -------------------------------------------------------
 // TIMING SETTINGS — change these to adjust game pacing (seconds)
 // -------------------------------------------------------
+const THINK_TIME_SECONDS    = 4;    // (think mode) locked countdown before answering
 const QUESTION_TIME_SECONDS = 15;   // time to buzz / pick before auto-skip
 const BUZZ_WINDOW_SECONDS   = 2;    // "get ready" window after buzzing
 const ANSWER_TIME_SECONDS   = 7;    // time the buzzer has to speak
@@ -69,12 +78,24 @@ function secondsUntil(iso: string | null): number {
 function phaseTotalSeconds(game: Game | null): number {
   if (!game) return QUESTION_TIME_SECONDS;
   switch (game.phase) {
+    case 'thinking':  return THINK_TIME_SECONDS;
     case 'question':  return game.is_steal ? STEAL_TIME_SECONDS : QUESTION_TIME_SECONDS;
     case 'buzzing':   return BUZZ_WINDOW_SECONDS;
     case 'answering': return ANSWER_TIME_SECONDS;
     case 'result':    return RESULT_TIME_SECONDS;
     default:          return QUESTION_TIME_SECONDS;
   }
+}
+
+// Where a fresh round begins. In THINK mode it starts LOCKED (no buzz)
+// for THINK_TIME_SECONDS, then the ticker unlocks it into 'question'.
+// In CLASSIC mode it jumps straight to the open 'question' phase.
+function roundStartPatch(game: Game | null): Partial<Game> {
+  const mode = game?.game_mode ?? 'think';
+  if (mode === 'think') {
+    return { phase: 'thinking', phase_deadline: deadlineIn(THINK_TIME_SECONDS) };
+  }
+  return { phase: 'question', phase_deadline: deadlineIn(QUESTION_TIME_SECONDS) };
 }
 
 // -------------------------------------------------------
@@ -282,7 +303,6 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       });
     } else {
       await updateGameIfPhase(gameId, 'result', {
-        phase: 'question',
         current_question_index: nextIndex,
         buzz_player: null,
         buzz_time: null,
@@ -293,7 +313,8 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         first_answerer: null,
         last_points: 0,
         last_scorer: null,
-        phase_deadline: deadlineIn(QUESTION_TIME_SECONDS),
+        // Next round starts locked (think) or open (classic).
+        ...roundStartPatch(g),
       });
     }
   }, [gameId]);
@@ -323,6 +344,16 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
 
       try {
         switch (g.phase) {
+          case 'thinking':
+            // Think-lock over → UNLOCK both players at the same instant.
+            // This is the server-controlled "GO": neither side could act
+            // before now, so a faster connection gains no early advantage.
+            await updateGameIfPhase(gameId, 'thinking', {
+              phase: 'question',
+              phase_deadline: deadlineIn(QUESTION_TIME_SECONDS),
+            });
+            break;
+
           case 'question':
             // Nobody buzzed / picked in time → reveal answer, move on.
             await updateGameIfPhase(gameId, 'question', {
@@ -384,7 +415,6 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     if (role !== 'host') return;
     await updateGame(gameId, {
       status: 'playing',
-      phase: 'question',
       current_question_index: 0,
       host_score: 0,
       player_score: 0,
@@ -396,7 +426,8 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       answer_correct: null,
       last_points: 0,
       last_scorer: null,
-      phase_deadline: deadlineIn(QUESTION_TIME_SECONDS),
+      // Think mode starts locked; classic jumps to the open question.
+      ...roundStartPatch(gameRef.current),
     });
   }, [gameId, role]);
 
@@ -427,10 +458,12 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     if (!g || !g.mc_mode) return;
     if (g.phase !== 'question') return;
     if (g.is_steal && g.first_answerer === answeringRole) return; // not your steal
+    // Someone already picked (guard against double-click spam)
+    if (g.mc_answer_index !== null) return;
 
     const question = g.questions[g.current_question_index];
     const chosen   = question.options?.[optionIndex] ?? '';
-    const correct  = chosen === question.correct_answer;
+    const correct  = isMcAnswerCorrect(chosen, question.correct_answer);
 
     // Single guarded write: records the pick AND resolves it atomically,
     // so a simultaneous double-click can't desync the highlighted choice
@@ -486,6 +519,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
 
 // Export timing constants for components that need them visually
 export {
+  THINK_TIME_SECONDS,
   QUESTION_TIME_SECONDS,
   BUZZ_WINDOW_SECONDS,
   ANSWER_TIME_SECONDS,

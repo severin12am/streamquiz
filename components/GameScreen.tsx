@@ -29,6 +29,8 @@ import { useWebRTC }    from '@/hooks/useWebRTC';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
 import { updateGame }   from '@/lib/supabase';
+import { useLocale }    from '@/context/LocaleProvider';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { PlayerRole } from '@/lib/types';
 
 interface GameScreenProps {
@@ -37,6 +39,7 @@ interface GameScreenProps {
 }
 
 export default function GameScreen({ gameId, role }: GameScreenProps) {
+  const { t, speechLang } = useLocale();
 
   // ----------------------------------------------------------
   // 1. Game state (synced via Supabase Realtime)
@@ -85,7 +88,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   );
 
   const { transcript, isListening, startListening, stopListening } =
-    useSpeechRecognition(onTranscriptUpdate);
+    useSpeechRecognition(onTranscriptUpdate, speechLang);
 
   // Start/stop the microphone for the player who buzzed.
   // The host auto-judges on a timer (see useGameState), so here we
@@ -132,7 +135,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           <div
             className="w-10 h-10 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin mx-auto mb-4"
           />
-          <p className="text-[var(--text-secondary)]">Joining game</p>
+          <p className="text-[var(--text-secondary)]">{t('game.joining')}</p>
         </div>
       </div>
     );
@@ -143,17 +146,17 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       <div className="flex h-screen items-center justify-center">
         <div className="card elevated text-center max-w-md px-8 py-10 mx-4">
           <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
-            {error ?? 'Game not found'}
+            {error ?? t('game.notFound')}
           </h2>
           <p className="text-[var(--text-secondary)] text-sm">
-            Check the link and try again. If you&apos;re the host, create a new game.
+            {t('game.notFoundHint')}
           </p>
           <a
             href="/"
             className="inline-block mt-6 px-6 py-2.5 rounded-xl font-semibold text-white transition-colors"
             style={{ background: 'var(--accent)' }}
           >
-            Back to home
+            {t('game.backHome')}
           </a>
         </div>
       </div>
@@ -187,6 +190,10 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       TO CHANGE THE BREAKPOINT: swap "lg:" for "md:" or "xl:".
     */
     <div className="relative flex flex-col lg:flex-row h-screen w-screen overflow-hidden">
+      {/* Language switcher — top-right corner during a game */}
+      <div className="absolute top-3 right-3 z-40">
+        <LanguageSwitcher />
+      </div>
 
       {/* =====================================================
           HOST camera — desktop: 30% width. Phone: smaller height
@@ -196,7 +203,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       <div className="flex-[2] lg:flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={hostCamera}
-          label="HOST"
+          label={t('game.host')}
           isSpeaking={hostSpeaking}
           mirrored={role === 'host'}
           error={role === 'host' ? cameraError : null}
@@ -228,7 +235,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       <div className="flex-[2] lg:flex-[3] min-w-0 min-h-0">
         <CameraPanel
           stream={playerCamera}
-          label="STREAMER"
+          label={t('game.streamer')}
           isSpeaking={playerSpeaking}
           mirrored={role === 'player'}
           error={role === 'player' ? cameraError : null}
@@ -246,12 +253,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           <div className="card elevated flex flex-col items-center gap-6 px-10 py-9 text-center max-w-sm w-full">
             <div>
               <h2 className="text-2xl font-bold text-[var(--text-primary)]">
-                Both players are in
+                {t('game.bothIn')}
               </h2>
               <p className="text-sm text-[var(--text-secondary)] mt-1.5">
-                {game.questions.length} questions
+                {t('game.questionsCount', { n: game.questions.length })}
                 <span className="mx-2 text-[var(--border-strong)]">·</span>
-                {game.mc_mode ? 'Multiple choice' : 'Speak your answer'}
+                {game.mc_mode ? t('game.modeMc') : t('game.modeVoice')}
+                <span className="mx-2 text-[var(--border-strong)]">·</span>
+                {game.game_mode === 'classic' ? t('create.modeClassic') : t('create.modeThink')}
               </p>
             </div>
             <button
@@ -261,7 +270,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
               onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
             >
-              Start quiz
+              {t('game.startQuiz')}
             </button>
           </div>
         </div>
@@ -272,9 +281,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/60 backdrop-blur-sm p-6 pointer-events-none">
           <div className="card flex flex-col items-center gap-3 px-8 py-6 text-center">
             <div className="w-7 h-7 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
-            <p className="text-[var(--text-primary)] font-semibold">You&apos;re in</p>
+            <p className="text-[var(--text-primary)] font-semibold">{t('game.youreIn')}</p>
             <p className="text-sm text-[var(--text-secondary)]">
-              Waiting for the host to start
+              {t('game.waitHostStartOverlay')}
             </p>
           </div>
         </div>
@@ -292,8 +301,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
             <div className="w-9 h-9 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin mx-auto mb-4" />
             <p className="text-[var(--text-secondary)]">
               {role === 'host'
-                ? 'Waiting for your opponent to join'
-                : 'Connecting to game'}
+                ? t('game.waitOpponent')
+                : t('game.connecting')}
             </p>
           </div>
         </div>

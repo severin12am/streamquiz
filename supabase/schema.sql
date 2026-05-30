@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS games (
   num_questions          INTEGER NOT NULL CHECK (num_questions BETWEEN 3 AND 10),
   mc_mode                BOOLEAN DEFAULT FALSE,
 
+  -- Game mode:
+  --   'think'   → locked think countdown before answering (default, fair)
+  --   'classic' → buzz immediately when the question appears (original)
+  game_mode              TEXT DEFAULT 'think' CHECK (game_mode IN ('think', 'classic')),
+
   -- Generated questions array — stored as JSON.
   -- Each item: { question, options (MC only), correct_answer (MC only) }
   questions              JSONB DEFAULT '[]'::JSONB,
@@ -37,6 +42,7 @@ CREATE TABLE IF NOT EXISTS games (
 
   -- Current phase of one question round:
   --   waiting    → game not started
+  --   thinking   → (think mode) locked countdown, no buzz/speak/click yet
   --   question   → question is shown, waiting for BUZZ / MC click
   --   buzzing    → someone buzzed, 2-second window before they speak
   --   answering  → voice recognition active
@@ -45,7 +51,7 @@ CREATE TABLE IF NOT EXISTS games (
   --   ended      → all questions done
   phase                  TEXT DEFAULT 'waiting'
                            CHECK (phase IN (
-                             'waiting','question','buzzing',
+                             'waiting','thinking','question','buzzing',
                              'answering','checking','judging','result','ended'
                            )),
 

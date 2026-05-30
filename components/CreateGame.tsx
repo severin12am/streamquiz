@@ -17,10 +17,12 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '@/lib/supabase';
-import type { Difficulty, CreateGamePayload } from '@/lib/types';
+import { useLocale } from '@/context/LocaleProvider';
+import type { Difficulty, GameMode, CreateGamePayload } from '@/lib/types';
 
 export default function CreateGame() {
   const router = useRouter();
+  const { t, locale } = useLocale();
 
   // ---- Form state ----
   // TO CHANGE DEFAULTS: edit the values here
@@ -28,6 +30,7 @@ export default function CreateGame() {
   const [difficulty,   setDifficulty]   = useState<Difficulty>('medium');
   const [numQuestions, setNumQuestions] = useState(5);
   const [mcMode,       setMcMode]       = useState(false);
+  const [gameMode,     setGameMode]     = useState<GameMode>('think'); // default: fair think race
 
   // ---- UI state ----
   const [loading,       setLoading]       = useState(false);
@@ -40,7 +43,7 @@ export default function CreateGame() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!topic.trim()) {
-      setError('Please enter a topic.');
+      setError(t('create.errorEmptyTopic'));
       return;
     }
     setError(null);
@@ -53,6 +56,8 @@ export default function CreateGame() {
         difficulty,
         num_questions: numQuestions,
         mc_mode: mcMode,
+        game_mode: gameMode,
+        locale,
       };
 
       const res = await fetch('/api/generate-questions', {
@@ -63,7 +68,7 @@ export default function CreateGame() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? 'Failed to generate questions.');
+        throw new Error(body.error ?? t('create.errorGenerate'));
       }
 
       const { questions } = await res.json();
@@ -77,6 +82,7 @@ export default function CreateGame() {
           difficulty,
           num_questions: numQuestions,
           mc_mode: mcMode,
+          game_mode: gameMode,
           questions,
           status: 'waiting',
           phase: 'waiting',
@@ -85,7 +91,7 @@ export default function CreateGame() {
         .single();
 
       if (dbError || !data) {
-        throw new Error(dbError?.message ?? 'Failed to create game in database.');
+        throw new Error(dbError?.message ?? t('create.errorCreate'));
       }
 
       // Step 3: Build the shareable link (no ?role= means player)
@@ -96,7 +102,7 @@ export default function CreateGame() {
       setShareLink(link);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setError(err instanceof Error ? err.message : t('create.errorGeneric'));
     } finally {
       setLoading(false);
     }
@@ -115,10 +121,10 @@ export default function CreateGame() {
         {/* Success heading */}
         <div>
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">
-            Quiz created
+            {t('create.createdTitle')}
           </h2>
           <p className="text-[var(--text-secondary)] mt-1">
-            Share this link with your opponent, then enter the quiz.
+            {t('create.createdHint')}
           </p>
         </div>
 
@@ -133,7 +139,7 @@ export default function CreateGame() {
         {/* Shareable link */}
         <div className="w-full max-w-md">
           <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider mb-2 font-semibold">
-            Shareable link
+            {t('create.shareLink')}
           </p>
           <div
             className="flex items-center gap-2 rounded-xl border p-3"
@@ -153,7 +159,7 @@ export default function CreateGame() {
               className="flex-shrink-0 text-xs font-semibold hover:underline"
               style={{ color: copied ? 'var(--correct)' : 'var(--accent)' }}
             >
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('create.copied') : t('create.copy')}
             </button>
           </div>
         </div>
@@ -166,7 +172,7 @@ export default function CreateGame() {
           onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
         >
-          Enter quiz
+          {t('create.enterQuiz')}
         </button>
       </div>
     );
@@ -184,13 +190,13 @@ export default function CreateGame() {
       {/* ---- Topic ---- */}
       <div>
         <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-          Topic
+          {t('create.topic')}
         </label>
         <input
           type="text"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          placeholder="e.g. 90s Cartoons, Science, Football"
+          placeholder={t('create.topicPlaceholder')}
           maxLength={100}
           className="w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base outline-none transition-colors"
           style={{
@@ -206,7 +212,7 @@ export default function CreateGame() {
       {/* ---- Difficulty ---- */}
       <div>
         <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-          Difficulty
+          {t('create.difficulty')}
         </label>
         <div className="flex gap-2">
           {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
@@ -214,14 +220,14 @@ export default function CreateGame() {
               key={d}
               type="button"
               onClick={() => setDifficulty(d)}
-              className="flex-1 py-2.5 rounded-xl text-sm font-medium capitalize transition-colors"
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
               style={{
                 background: difficulty === d ? 'var(--accent)' : 'var(--bg-base)',
                 border: `1px solid ${difficulty === d ? 'var(--accent)' : 'var(--border)'}`,
                 color: difficulty === d ? 'white' : 'var(--text-secondary)',
               }}
             >
-              {d}
+              {d === 'easy' ? t('create.difficultyEasy') : d === 'medium' ? t('create.difficultyMedium') : t('create.difficultyHard')}
             </button>
           ))}
         </div>
@@ -230,7 +236,7 @@ export default function CreateGame() {
       {/* ---- Number of questions ---- */}
       <div>
         <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-          Questions: <span className="text-[var(--text-primary)]">{numQuestions}</span>
+          {t('create.questions')}: <span className="text-[var(--text-primary)]">{numQuestions}</span>
         </label>
         <input
           type="range"
@@ -246,14 +252,41 @@ export default function CreateGame() {
         </div>
       </div>
 
+      {/* ---- Game mode (think race vs classic buzz) ---- */}
+      <div>
+        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+          {t('create.modeTitle')}
+        </label>
+        <div className="flex gap-2">
+          {(['think', 'classic'] as GameMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setGameMode(m)}
+              className="flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors text-left"
+              style={{
+                background: gameMode === m ? 'var(--accent)' : 'var(--bg-base)',
+                border: `1px solid ${gameMode === m ? 'var(--accent)' : 'var(--border)'}`,
+                color: gameMode === m ? 'white' : 'var(--text-secondary)',
+              }}
+            >
+              {m === 'think' ? t('create.modeThink') : t('create.modeClassic')}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-[var(--text-muted)] mt-1.5">
+          {gameMode === 'think' ? t('create.modeThinkHint') : t('create.modeClassicHint')}
+        </p>
+      </div>
+
       {/* ---- Multiple Choice toggle ---- */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-[var(--text-primary)]">
-            Multiple choice
+            {t('create.mcTitle')}
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Show 4 options instead of open answers
+            {t('create.mcHint')}
           </p>
         </div>
         <button
@@ -293,10 +326,10 @@ export default function CreateGame() {
         {loading ? (
           <span className="flex items-center justify-center gap-3 text-[var(--text-secondary)]">
             <span className="w-5 h-5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
-            Generating questions
+            {t('create.generating')}
           </span>
         ) : (
-          'Create challenge'
+          t('create.submit')
         )}
       </button>
     </form>

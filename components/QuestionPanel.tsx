@@ -20,6 +20,7 @@ import BuzzButton from './BuzzButton';
 import MCOptions  from './MCOptions';
 import ScoreBoard from './ScoreBoard';
 import CountdownTimer from './CountdownTimer';
+import { useLocale } from '@/context/LocaleProvider';
 import type { Game, PlayerRole } from '@/lib/types';
 
 interface QuestionPanelProps {
@@ -41,6 +42,7 @@ export default function QuestionPanel({
   onBuzz,
   onMCSelect,
 }: QuestionPanelProps) {
+  const { t } = useLocale();
   const currentQuestion = game.questions[game.current_question_index];
   const phase           = game.phase;
   const isHost          = role === 'host';
@@ -80,7 +82,7 @@ export default function QuestionPanel({
       >
         <div>
           <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-            Topic
+            {t('game.topic')}
           </p>
           <p className="text-sm font-medium text-[var(--text-secondary)] truncate max-w-[180px]">
             {game.topic}
@@ -88,7 +90,7 @@ export default function QuestionPanel({
         </div>
         <div className="text-right">
           <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-            Question
+            {t('game.question')}
           </p>
           <p className="text-sm font-semibold text-[var(--text-primary)] tabular-nums">
             {game.current_question_index + 1} / {game.questions.length}
@@ -105,6 +107,8 @@ export default function QuestionPanel({
           playerScore={game.player_score}
           hostStreak={game.streak_host}
           playerStreak={game.streak_player}
+          hostLabel={t('game.host')}
+          playerLabel={t('game.streamer')}
         />
       </div>
 
@@ -123,22 +127,43 @@ export default function QuestionPanel({
               color: 'var(--buzz-red)',
             }}
           >
-            Steal chance
+            {t('game.stealChance')}
           </div>
         )}
 
-        {/* Timer — only while the question is open or someone is buzzing.
-            (Hidden during 'answering' so it doesn't sit frozen.)
-            timerTotal adapts (15s question, 5s steal, 2s buzz). */}
-        {(phase === 'question' || phase === 'buzzing') && (
+        {/* Timer — during the locked think countdown, the open question,
+            or the buzz window. (Hidden during 'answering' so it doesn't
+            sit frozen.) timerTotal adapts per phase. */}
+        {(phase === 'thinking' || phase === 'question' || phase === 'buzzing') && (
           <CountdownTimer current={timeLeft} total={timerTotal} />
+        )}
+
+        {/* Think-mode lock banner — both players read the question but
+            can't answer yet. Unlocks for everyone at the same instant. */}
+        {phase === 'thinking' && (
+          <div className="text-center">
+            <p className="text-xl font-semibold" style={{ color: 'var(--accent)' }}>
+              {t('game.getReady')}
+            </p>
+            <p className="text-[var(--text-secondary)] mt-1 text-sm">
+              {t('game.thinkHint')}
+            </p>
+          </div>
+        )}
+
+        {/* GO cue — appears the moment the think lock lifts (think mode,
+            normal question, not a steal). Makes the unlock obvious. */}
+        {game.game_mode === 'think' && phase === 'question' && !game.is_steal && (
+          <p className="text-lg font-semibold" style={{ color: 'var(--correct)' }}>
+            {t('game.answerNow')}
+          </p>
         )}
 
         {/* Answering indicator — shown while a player is speaking */}
         {phase === 'answering' && (
           <div className="text-center">
             <p className="text-xl font-semibold" style={{ color: 'var(--buzz-red)' }}>
-              {game.buzz_player === role ? 'You are answering' : 'Listening to answer'}
+              {game.buzz_player === role ? t('game.youAnswering') : t('game.listeningAnswer')}
             </p>
           </div>
         )}
@@ -148,7 +173,7 @@ export default function QuestionPanel({
           <div className="text-center flex flex-col items-center gap-2">
             <div className="w-7 h-7 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
             <p className="text-base font-medium text-[var(--text-secondary)]">
-              Checking answer
+              {t('game.checkingAnswer')}
             </p>
           </div>
         )}
@@ -157,10 +182,10 @@ export default function QuestionPanel({
         {phase === 'buzzing' && (
           <div className="text-center">
             <p className="text-3xl font-semibold" style={{ color: 'var(--buzz-red)' }}>
-              {game.buzz_player === role ? 'Speak now' : 'They\'re speaking'}
+              {game.buzz_player === role ? t('game.speakNow') : t('game.theySpeaking')}
             </p>
             <p className="text-[var(--text-secondary)] mt-1 text-sm">
-              {buzzCountdown}s remaining
+              {t('game.secondsLeft', { n: buzzCountdown })}
             </p>
           </div>
         )}
@@ -180,7 +205,7 @@ export default function QuestionPanel({
           isStealLockedForMe ? (
             // The player who answered wrong watches the opponent steal
             <p className="text-[var(--text-secondary)] text-base text-center">
-              Opponent can steal this one
+              {t('game.opponentSteal')}
             </p>
           ) : (
             <BuzzButton
@@ -191,15 +216,25 @@ export default function QuestionPanel({
           )
         )}
 
-        {/* ---- MC Options (multiple choice mode) ---- */}
-        {game.mc_mode && currentQuestion?.options && (phase === 'question' || phase === 'result') && (
-          <MCOptions
-            options={currentQuestion.options}
-            correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
-            lockedIn={phase === 'result' || game.mc_answer_index !== null}
-            selectedIndex={game.mc_answer_index}
-            onSelect={onMCSelect}
-          />
+        {/* ---- MC Options (multiple choice mode) ----
+            Visible (but disabled) during 'thinking' so both players can
+            read the choices, then become clickable when the lock lifts. */}
+        {game.mc_mode && currentQuestion?.options &&
+          (phase === 'thinking' || phase === 'question' || phase === 'result') && (
+          isStealLockedForMe && phase === 'question' ? (
+            <p className="text-[var(--text-secondary)] text-base text-center">
+              {t('mc.opponentSteal')}
+            </p>
+          ) : (
+            <MCOptions
+              options={currentQuestion.options}
+              correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
+              lockedIn={phase === 'result' || game.mc_answer_index !== null}
+              selectedIndex={game.mc_answer_index}
+              disabled={isStealLockedForMe || phase === 'thinking'}
+              onSelect={onMCSelect}
+            />
+          )
         )}
 
         {/* ---- Live voice transcript ---- */}
@@ -212,7 +247,7 @@ export default function QuestionPanel({
             }}
           >
             <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
-              Live answer
+              {t('game.liveAnswer')}
             </p>
             <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
               &ldquo;{game.current_transcript}&rdquo;
@@ -228,7 +263,7 @@ export default function QuestionPanel({
             style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
           >
             <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
-              Correct answer
+              {t('game.correctAnswer')}
             </p>
             <p className="text-xl font-semibold text-[var(--correct)]">
               {currentQuestion.correct_answer}
@@ -241,8 +276,8 @@ export default function QuestionPanel({
           <div className="text-center">
             <p className="text-[var(--text-secondary)] text-base">
               {isHost
-                ? 'Share the link with your opponent to start'
-                : 'Waiting for the host to start'}
+                ? t('game.waitShareLink')
+                : t('game.waitHostStart')}
             </p>
           </div>
         )}
@@ -272,7 +307,7 @@ export default function QuestionPanel({
             {lastAnswerCorrect && game.last_points > 0 && (
               <span className="text-2xl font-semibold" style={{ color: 'var(--gold)' }}>
                 +{game.last_points}
-                {game.last_points > 1 ? ` (×${game.last_points})` : ''}
+                {game.last_points > 1 ? ` ${t('game.pointsMultiplier', { n: game.last_points })}` : ''}
               </span>
             )}
           </div>

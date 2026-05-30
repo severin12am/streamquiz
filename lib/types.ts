@@ -10,6 +10,14 @@
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 // -------------------------------------------------------
+// Game mode — how a round starts
+//   'think'   → locked think countdown, then both unlocked together
+//               (fair: a faster connection can't click early). DEFAULT.
+//   'classic' → buzz immediately when the question appears (original)
+// -------------------------------------------------------
+export type GameMode = 'think' | 'classic';
+
+// -------------------------------------------------------
 // A single question (as stored in games.questions JSONB)
 // -------------------------------------------------------
 export interface Question {
@@ -30,6 +38,7 @@ export interface Question {
 // -------------------------------------------------------
 export type GamePhase =
   | 'waiting'    // host is on the page, player hasn't joined yet
+  | 'thinking'   // (think mode) locked countdown — no buzz/speak/click yet
   | 'question'   // question is visible, waiting for buzz or MC click
   | 'buzzing'    // someone buzzed — 2-second countdown before speaking
   | 'answering'  // voice recognition running (open-ended only)
@@ -58,6 +67,8 @@ export interface Game {
   difficulty: Difficulty;
   num_questions: number;
   mc_mode: boolean;
+  /** Round-start mode: 'think' (locked countdown first) or 'classic'. */
+  game_mode: GameMode;
   questions: Question[];
   status: GameStatus;
   current_question_index: number;
@@ -98,6 +109,10 @@ export interface CreateGamePayload {
   difficulty: Difficulty;
   num_questions: number;
   mc_mode: boolean;
+  /** Round-start mode (defaults to 'think'). */
+  game_mode?: GameMode;
+  /** UI language — questions are generated in this language. */
+  locale?: 'en' | 'ru';
 }
 
 // -------------------------------------------------------
