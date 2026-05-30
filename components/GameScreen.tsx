@@ -30,7 +30,6 @@ import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
 import { updateGame }   from '@/lib/supabase';
 import { useLocale }    from '@/context/LocaleProvider';
-import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { PlayerRole, CreateGamePayload } from '@/lib/types';
 
 interface GameScreenProps {
@@ -235,10 +234,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       TO CHANGE PHONE CAMERA SIZE: edit the h-[16vh] values.
     */
     <div className="relative flex flex-col lg:flex-row h-screen w-screen overflow-hidden">
-      {/* Language switcher — top-right corner during a game */}
-      <div className="absolute top-3 right-3 z-40">
-        <LanguageSwitcher />
-      </div>
+      {/* Language is chosen by the host on the home page BEFORE creating
+          the quiz — no in-game switcher (questions are already generated
+          in the chosen language). */}
 
       {/* =====================================================
           HOST camera — desktop: 30% width. Phone: smaller height
