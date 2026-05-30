@@ -50,8 +50,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // ----------------------------------------------------------
   const {
     game, loading, error,
-    timeLeft, timerTotal, buzzCountdown,
-    buzz, submitMCAnswer,
+    timeLeft, timeLeftMs, timerTotal,
+    submitMCAnswer,
     startGame, updateTranscript, rematch, voteRematch,
   } = useGameState(gameId, role);
 
@@ -94,40 +94,40 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const { transcript, isListening, startListening, stopListening } =
     useSpeechRecognition(onTranscriptUpdate, speechLang);
 
-  // Start/stop the microphone for the player who buzzed.
-  // The host auto-judges on a timer (see useGameState), so here we
-  // ONLY manage the mic — no phase transitions.
+  // Start/stop the microphone during the voice 'answering' phase.
+  // There is NO buzzer: BOTH players talk at once, so every client
+  // runs its OWN mic and writes to its OWN transcript column.
+  // (MC mode never enters 'answering', so the mic stays off there.)
   useEffect(() => {
     if (!game) return;
-    const iAmAnswering =
-      game.phase === 'answering' && game.buzz_player === role;
+    const iShouldSpeak = game.phase === 'answering';
 
-    if (iAmAnswering && !isListening) {
+    if (iShouldSpeak && !isListening) {
       startListening();
-    } else if (!iAmAnswering && isListening) {
+    } else if (!iShouldSpeak && isListening) {
       stopListening();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.buzz_player]);
+  }, [game?.phase]);
 
   // ----------------------------------------------------------
   // 4. Media recorder (for clip downloads at the end)
   // ----------------------------------------------------------
   const { clips, startRecording, stopRecording } = useMediaRecorder();
 
-  // Record each answer automatically
+  // Record each answer automatically (the local player's own clip,
+  // since both players speak during 'answering').
   useEffect(() => {
     if (!game || !localStream) return;
-    const iAmAnswering =
-      game.phase === 'answering' && game.buzz_player === role;
+    const iShouldSpeak = game.phase === 'answering';
 
-    if (iAmAnswering) {
+    if (iShouldSpeak) {
       startRecording(localStream, game.current_question_index, role);
     } else {
       stopRecording();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, game?.buzz_player]);
+  }, [game?.phase]);
 
   // ----------------------------------------------------------
   // Rematch — generate a FRESH set of questions using the SAME
@@ -237,8 +237,10 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // ----------------------------------------------------------
   const hostCamera   = role === 'host'   ? localStream  : remoteStream;
   const playerCamera = role === 'player' ? localStream  : remoteStream;
-  const hostSpeaking   = game.phase === 'answering' && game.buzz_player === 'host';
-  const playerSpeaking = game.phase === 'answering' && game.buzz_player === 'player';
+  // During the voice answer phase BOTH players are talking, so both
+  // camera frames get the "speaking" highlight.
+  const hostSpeaking   = game.phase === 'answering';
+  const playerSpeaking = game.phase === 'answering';
 
   return (
     /*
@@ -287,9 +289,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           game={game}
           role={role}
           timeLeft={timeLeft}
+          timeLeftMs={timeLeftMs}
           timerTotal={timerTotal}
-          buzzCountdown={buzzCountdown}
-          onBuzz={() => buzz(role)}
+          transcript={transcript}
           onMCSelect={(i) => submitMCAnswer(role, i)}
         />
       </div>

@@ -39,10 +39,15 @@ function getOpenAI() {
 
 // Normalise text for comparison: lowercase, strip punctuation,
 // collapse whitespace. "The Pacific Ocean!" → "the pacific ocean"
+//
+// IMPORTANT: use Unicode letter/number classes (\p{L}\p{N} with the `u`
+// flag) instead of \w. \w only matches Latin a-z0-9_, so Cyrillic (and
+// any non-Latin script) was being stripped to an empty string — which
+// made every Russian answer judged as wrong.
 function normalise(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[^\w\s]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }

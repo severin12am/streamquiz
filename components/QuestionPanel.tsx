@@ -4,19 +4,20 @@
 //
 // Displays everything in the centre column:
 //   - Current question text
-//   - Countdown timer (circular)
+//   - Countdown timer (circular, smooth)
 //   - Live scoreboard
-//   - BUZZ button OR multiple choice options
-//   - Voice transcript (live, shown to both players)
-//   - Judge buttons (correct/wrong, host only)
-//   - Result flash (correct/wrong outcome)
+//   - Multiple-choice options  OR  the voice answer area
+//   - Live voice transcript (your own, while you speak)
+//   - Per-player result reveal (who said what / correct answer)
+//
+// VOICE MODE HAS NO BUZZER: after the question both players simply talk.
+// Each player's spoken answer is judged independently, so both can score.
 //
 // This component receives all its data as props — no hooks here.
 // Easier for future developers to modify and test.
 // ============================================================
 
 import React from 'react';
-import BuzzButton from './BuzzButton';
 import MCOptions  from './MCOptions';
 import ScoreBoard from './ScoreBoard';
 import CountdownTimer from './CountdownTimer';
@@ -24,22 +25,22 @@ import { useLocale } from '@/context/LocaleProvider';
 import type { Game, PlayerRole } from '@/lib/types';
 
 interface QuestionPanelProps {
-  game:          Game;
-  role:          PlayerRole;
-  timeLeft:      number;
-  timerTotal:    number;
-  buzzCountdown: number;
-  onBuzz:        () => void;
-  onMCSelect:    (index: number) => void;
+  game:       Game;
+  role:       PlayerRole;
+  timeLeft:   number;
+  timeLeftMs: number; // fractional ms — drives the smooth timer ring
+  timerTotal: number;
+  transcript: string; // this viewer's OWN live speech transcript
+  onMCSelect: (index: number) => void;
 }
 
 export default function QuestionPanel({
   game,
   role,
   timeLeft,
+  timeLeftMs,
   timerTotal,
-  buzzCountdown,
-  onBuzz,
+  transcript,
   onMCSelect,
 }: QuestionPanelProps) {
   const { t } = useLocale();
@@ -47,31 +48,17 @@ export default function QuestionPanel({
   const phase           = game.phase;
   const isHost          = role === 'host';
 
-  // During a steal (open-ended only), only the player who did NOT answer
-  // first may buzz.
-  const isStealLockedForMe = game.is_steal && game.first_answerer === role;
-
   // This viewer's own multiple-choice pick (each player answers separately).
-  const myMcPick = role === 'host' ? game.host_mc_index : game.player_mc_index;
+  const myMcPick = isHost ? game.host_mc_index : game.player_mc_index;
   const iHavePicked = myMcPick !== null;
   const someonePicked = game.host_mc_index !== null || game.player_mc_index !== null;
 
-  // Determine BUZZ button state
-  type BuzzState = 'idle' | 'buzzed_me' | 'buzzed_them' | 'disabled';
-  function getBuzzState(): BuzzState {
-    if (phase !== 'question') return 'disabled';
-    if (isStealLockedForMe) return 'disabled'; // can't steal from yourself
-    if (game.buzz_player === null) return 'idle';
-    if (game.buzz_player === role) return 'buzzed_me';
-    return 'buzzed_them';
-  }
-
-  // Show a full-screen result overlay?
-  const showResult = phase === 'result';
-
-  // Open-ended result flash uses the shared answer_correct flag (single
-  // answerer). MC shows its outcome on the grid instead (no flash).
-  const answerWasCorrect = game.answer_correct === true;
+  // Voice result data (per player). "me" = this viewer, "opp" = the other.
+  const myTranscript  = isHost ? game.host_transcript   : game.player_transcript;
+  const oppTranscript = isHost ? game.player_transcript  : game.host_transcript;
+  const myCorrect     = isHost ? game.host_correct       : game.player_correct;
+  const oppCorrect    = isHost ? game.player_correct      : game.host_correct;
+  const oppLabel      = t('game.streamer');
 
   return (
     <div
@@ -120,26 +107,11 @@ export default function QuestionPanel({
       ====================================================== */}
       <div className="flex-1 flex flex-col items-center justify-start lg:justify-center gap-2.5 lg:gap-6 px-4 lg:px-8 py-2 lg:py-2 pb-4 overflow-y-auto">
 
-        {/* STEAL banner — clear when a rebound is live (flat styling). */}
-        {game.is_steal && (phase === 'question' || phase === 'buzzing') && (
-          <div
-            className="px-4 py-1.5 rounded-full font-semibold tracking-wider text-xs uppercase"
-            style={{
-              background: 'rgba(229,72,77,0.14)',
-              border: '1px solid var(--buzz-red)',
-              color: 'var(--buzz-red)',
-            }}
-          >
-            {t('game.stealChance')}
-          </div>
-        )}
-
-        {/* Timer — during the locked think countdown, the open question
-            (incl. the MC grace window), or the buzz window. Kept visible
-            during the grace window (timerTotal adapts) so the layout
-            doesn't jump when someone picks. */}
-        {(phase === 'thinking' || phase === 'question' || phase === 'buzzing') && (
-          <CountdownTimer current={timeLeft} total={timerTotal} />
+        {/* Timer — during the locked think countdown, the MC pick phase
+            (incl. the grace window), or the voice answer window. Kept
+            visible across these so the layout doesn't jump. */}
+        {(phase === 'thinking' || phase === 'question' || phase === 'answering') && (
+          <CountdownTimer current={timeLeft} total={timerTotal} remainingMs={timeLeftMs} />
         )}
 
         {/* Think-mode lock banner — both players read the question but
@@ -155,43 +127,40 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Status line for the open question — ONE fixed-height row so the
+        {/* Status line for the MC pick phase — ONE fixed-height row so the
             message can change (go cue / someone answered / locked) without
             shifting the question and options below it. */}
-        {phase === 'question' && (
+        {phase === 'question' && game.mc_mode && (
           <div className="min-h-[1.75rem] flex items-center justify-center text-center px-2">
-            {game.mc_mode ? (
-              iHavePicked ? (
-                <p className="text-sm text-[var(--text-secondary)]">
-                  {t('mc.answerLocked')} · {timeLeft}s
-                </p>
-              ) : someonePicked ? (
-                <p className="text-base font-semibold" style={{ color: 'var(--buzz-red)' }}>
-                  {t('mc.someoneAnswered', { n: timeLeft })}
-                </p>
-              ) : game.game_mode === 'think' && !game.is_steal ? (
-                <p className="text-base font-semibold" style={{ color: 'var(--correct)' }}>
-                  {t('game.answerNow')}
-                </p>
-              ) : null
-            ) : game.game_mode === 'think' && !game.is_steal && !isStealLockedForMe ? (
+            {iHavePicked ? (
+              <p className="text-sm text-[var(--text-secondary)]">
+                {t('mc.answerLocked')} · {timeLeft}s
+              </p>
+            ) : someonePicked ? (
+              <p className="text-base font-semibold" style={{ color: 'var(--buzz-red)' }}>
+                {t('mc.someoneAnswered', { n: timeLeft })}
+              </p>
+            ) : (
               <p className="text-base font-semibold" style={{ color: 'var(--correct)' }}>
                 {t('game.answerNow')}
               </p>
-            ) : null}
+            )}
           </div>
         )}
 
-        {/* Answering indicator — shown while a player is speaking */}
+        {/* Voice answer cue — both players speak at once (no buzzer). */}
         {phase === 'answering' && (
           <div className="text-center">
-            <p className="text-xl font-semibold" style={{ color: 'var(--buzz-red)' }}>
-              {game.buzz_player === role ? t('game.youAnswering') : t('game.listeningAnswer')}
+            <p className="text-xl font-semibold" style={{ color: 'var(--correct)' }}>
+              {t('game.speakAnswerNow')}
+            </p>
+            <p className="text-[var(--text-secondary)] mt-1 text-sm">
+              {t('game.speakHint')}
             </p>
           </div>
         )}
 
-        {/* Checking indicator — AI is judging the answer */}
+        {/* Checking indicator — AI is judging both answers */}
         {phase === 'checking' && (
           <div className="text-center flex flex-col items-center gap-2">
             <div className="w-7 h-7 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
@@ -201,42 +170,14 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Buzz countdown overlay */}
-        {phase === 'buzzing' && (
-          <div className="text-center">
-            <p className="text-3xl font-semibold" style={{ color: 'var(--buzz-red)' }}>
-              {game.buzz_player === role ? t('game.speakNow') : t('game.theySpeaking')}
-            </p>
-            <p className="text-[var(--text-secondary)] mt-1 text-sm">
-              {t('game.secondsLeft', { n: buzzCountdown })}
-            </p>
-          </div>
-        )}
-
-        {/* Question text — the big centrepiece.
-            Responsive size so it fits on phones too. */}
-        {currentQuestion && phase !== 'ended' && (
+        {/* Question text — the big centrepiece. Hidden on the result screen
+            so the per-player reveal has room. */}
+        {currentQuestion && phase !== 'ended' && phase !== 'result' && (
           <div className="text-center">
             <p className="text-lg lg:text-2xl font-semibold leading-snug text-[var(--text-primary)]">
               {currentQuestion.question}
             </p>
           </div>
-        )}
-
-        {/* ---- BUZZ button (open-ended mode) ---- */}
-        {!game.mc_mode && (phase === 'question' || phase === 'buzzing') && (
-          isStealLockedForMe ? (
-            // The player who answered wrong watches the opponent steal
-            <p className="text-[var(--text-secondary)] text-base text-center">
-              {t('game.opponentSteal')}
-            </p>
-          ) : (
-            <BuzzButton
-              state={getBuzzState()}
-              countdown={buzzCountdown}
-              onBuzz={onBuzz}
-            />
-          )
         )}
 
         {/* ---- MC Options (multiple choice mode) ----
@@ -250,45 +191,61 @@ export default function QuestionPanel({
             options={currentQuestion.options}
             correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
             myPick={myMcPick}
-            opponentPick={role === 'host' ? game.player_mc_index : game.host_mc_index}
+            opponentPick={isHost ? game.player_mc_index : game.host_mc_index}
             canSelect={phase === 'question' && !iHavePicked}
             youLabel={t('mc.you')}
-            opponentLabel={t('game.streamer')}
+            opponentLabel={oppLabel}
             onSelect={onMCSelect}
           />
         )}
 
-        {/* ---- Live voice transcript ---- */}
-        {(phase === 'answering' || phase === 'checking') && game.current_transcript && (
+        {/* ---- Live voice transcript (your own words, while speaking) ---- */}
+        {phase === 'answering' && !game.mc_mode && (
           <div
-            className="w-full rounded-xl p-4 border"
-            style={{
-              background: 'var(--bg-card)',
-              borderColor: 'var(--border)',
-            }}
+            className="w-full rounded-xl p-4 border min-h-[4.5rem]"
+            style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
           >
             <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
-              {t('game.liveAnswer')}
+              {t('game.yourAnswer')}
             </p>
             <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
-              &ldquo;{game.current_transcript}&rdquo;
+              {transcript
+                ? `\u201C${transcript}\u201D`
+                : <span className="text-[var(--text-muted)] not-italic">{t('game.startSpeaking')}</span>}
             </p>
           </div>
         )}
 
-        {/* ---- Correct answer reveal (during result, open-ended) ----
-            MC mode shows the right option highlighted instead. */}
-        {phase === 'result' && !game.mc_mode && currentQuestion?.correct_answer && (
-          <div
-            className="w-full rounded-xl p-4 border text-center"
-            style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
-          >
-            <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
-              {t('game.correctAnswer')}
-            </p>
-            <p className="text-xl font-semibold text-[var(--correct)]">
-              {currentQuestion.correct_answer}
-            </p>
+        {/* ---- Voice RESULT reveal (per player) ----
+            Shows both players' spoken answers with ✓/✗ and the correct
+            answer. No full-screen flash — clearer and no layout jump. */}
+        {phase === 'result' && !game.mc_mode && (
+          <div className="w-full flex flex-col gap-2.5">
+            <TranscriptResult
+              label={t('mc.you')}
+              text={myTranscript}
+              correct={myCorrect}
+              emptyHint={t('game.saidNothing')}
+            />
+            <TranscriptResult
+              label={oppLabel}
+              text={oppTranscript}
+              correct={oppCorrect}
+              emptyHint={t('game.saidNothing')}
+            />
+            {currentQuestion?.correct_answer && (
+              <div
+                className="w-full rounded-xl px-4 py-3 border text-center"
+                style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+              >
+                <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
+                  {t('game.correctAnswer')}
+                </p>
+                <p className="text-lg font-semibold text-[var(--correct)]">
+                  {currentQuestion.correct_answer}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -303,36 +260,43 @@ export default function QuestionPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* ======================================================
-          RESULT OVERLAY — brief ✓/✗ flash after each answer.
-          Open-ended ONLY: in MC the option grid shows the outcome
-          (both picks + correct answer), so no full-screen flash.
-      ====================================================== */}
-      {showResult && !game.mc_mode && (
-        <div
-          className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
-          style={{
-            background: answerWasCorrect
-              ? 'rgba(34,160,107,0.12)'
-              : 'rgba(229,72,77,0.12)',
-          }}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <span
-              className="text-7xl font-semibold"
-              style={{ color: answerWasCorrect ? 'var(--correct)' : 'var(--wrong)' }}
-            >
-              {answerWasCorrect ? '✓' : '✗'}
-            </span>
-            {answerWasCorrect && (
-              <span className="text-2xl font-semibold" style={{ color: 'var(--gold)' }}>
-                +1
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+// ------------------------------------------------------------
+// One player's spoken answer on the result screen.
+// Green border/✓ if judged correct, red/✗ if wrong, neutral if blank.
+// ------------------------------------------------------------
+function TranscriptResult({
+  label, text, correct, emptyHint,
+}: {
+  label: string;
+  text: string;
+  correct: boolean | null;
+  emptyHint: string;
+}) {
+  const said = text && text.trim().length > 0;
+  const colour = correct ? 'var(--correct)' : said ? 'var(--wrong)' : 'var(--border-strong)';
+  return (
+    <div
+      className="w-full rounded-xl px-4 py-2.5 border flex items-center gap-3"
+      style={{ background: 'var(--bg-card)', borderColor: colour }}
+    >
+      <span
+        className="text-lg font-bold w-5 text-center shrink-0"
+        style={{ color: colour }}
+      >
+        {correct ? '\u2713' : said ? '\u2717' : '\u2013'}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
+          {label}
+        </p>
+        <p className="text-sm text-[var(--text-primary)] italic truncate">
+          {said ? `\u201C${text}\u201D` : emptyHint}
+        </p>
+      </div>
     </div>
   );
 }

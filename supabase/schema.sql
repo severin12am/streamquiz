@@ -64,8 +64,16 @@ CREATE TABLE IF NOT EXISTS games (
   host_score             INTEGER DEFAULT 0,
   player_score           INTEGER DEFAULT 0,
 
-  -- Voice transcript of the current answer (shown live to both players)
+  -- Voice transcript (legacy single-answer field; kept for compat).
   current_transcript     TEXT DEFAULT '',
+
+  -- Per-player voice transcripts + judged correctness. In voice mode
+  -- both players talk freely (no buzzer); each answer is transcribed
+  -- into their own column and judged independently so both can score.
+  host_transcript        TEXT DEFAULT '',
+  player_transcript      TEXT DEFAULT '',
+  host_correct           BOOLEAN DEFAULT NULL,
+  player_correct         BOOLEAN DEFAULT NULL,
 
   -- MC answer picked by the winner: 0-3 index, or NULL (legacy single).
   mc_answer_index        INTEGER DEFAULT NULL,

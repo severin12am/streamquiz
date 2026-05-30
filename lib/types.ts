@@ -83,6 +83,12 @@ export interface Game {
    *  within a grace window so near-simultaneous correct answers score. */
   host_mc_index: number | null;
   player_mc_index: number | null;
+  /** Per-player voice transcripts + judged correctness. In voice mode
+   *  both players talk freely; each answer is judged independently. */
+  host_transcript: string;
+  player_transcript: string;
+  host_correct: boolean | null;
+  player_correct: boolean | null;
   /** Result of the most recent answer (true=correct, false=wrong,
    *  null=not judged yet). Lets BOTH clients show the same ✓/✗. */
   answer_correct: boolean | null;

@@ -95,6 +95,8 @@ export function useSpeechRecognition(
   const startListening = useCallback(() => {
     if (!recognitionRef.current || isListening) return;
     try {
+      // Clear last round's words so the new answer starts blank.
+      setTranscript('');
       recognitionRef.current.start();
       setIsListening(true);
     } catch {
