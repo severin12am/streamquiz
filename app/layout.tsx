@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { LocaleProvider } from "@/context/LocaleProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,7 +31,7 @@ export default function RootLayout({
         overflow-hidden prevents any page-level scrolling (game is full-screen).
       */}
       <body className="h-screen overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)]">
-        {children}
+        <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
   );

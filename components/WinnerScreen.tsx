@@ -10,6 +10,7 @@
 // ============================================================
 
 import React from 'react';
+import { useLocale } from '@/context/LocaleProvider';
 import type { AnswerClip } from '@/hooks/useMediaRecorder';
 
 interface WinnerScreenProps {
@@ -29,6 +30,8 @@ export default function WinnerScreen({
   onRematch,
   onExit,
 }: WinnerScreenProps) {
+  const { t } = useLocale();
+
   const winner =
     hostScore > playerScore
       ? 'HOST'
@@ -47,25 +50,29 @@ export default function WinnerScreen({
       {/* ---- Winner label ---- */}
       <div className="text-center">
         <p className="text-[var(--text-muted)] text-xs font-semibold tracking-wider uppercase mb-3">
-          {winner === 'TIE' ? 'Result' : 'Winner'}
+          {winner === 'TIE' ? t('winner.result') : t('winner.winner')}
         </p>
         <p
           className="text-6xl font-bold tracking-tight"
           style={{ color: winner === 'TIE' ? 'var(--text-primary)' : 'var(--gold)' }}
         >
-          {winner === 'TIE' ? 'Tie' : winner === 'HOST' ? 'Host' : 'Streamer'}
+          {winner === 'TIE'
+            ? t('winner.tie')
+            : winner === 'HOST'
+            ? t('game.host')
+            : t('game.streamer')}
         </p>
       </div>
 
       {/* ---- Final scores ---- */}
       <div className="flex items-center gap-8 text-center">
         <div>
-          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider">Host</p>
+          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider">{t('game.host')}</p>
           <p className="text-4xl font-bold text-[var(--text-primary)] tabular-nums">{hostScore}</p>
         </div>
         <span className="text-[var(--border-strong)] text-2xl">—</span>
         <div>
-          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider">Streamer</p>
+          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider">{t('game.streamer')}</p>
           <p className="text-4xl font-bold text-[var(--text-primary)] tabular-nums">{playerScore}</p>
         </div>
       </div>
@@ -74,7 +81,7 @@ export default function WinnerScreen({
       {clips.length > 0 && (
         <div className="w-full max-w-md">
           <p className="text-[var(--text-muted)] text-xs font-semibold tracking-wider uppercase mb-3 text-center">
-            Download answer clips
+            {t('winner.downloadClips')}
           </p>
           <div className="flex flex-col gap-2">
             {clips.map((clip, i) => (
@@ -93,9 +100,12 @@ export default function WinnerScreen({
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
               >
                 <span className="text-sm">
-                  Q{clip.questionIndex + 1} · {clip.role === 'host' ? 'Host' : 'Streamer'} answer
+                  {t('winner.clipLabel', {
+                    n: clip.questionIndex + 1,
+                    role: clip.role === 'host' ? t('game.host') : t('game.streamer'),
+                  })}
                 </span>
-                <span className="text-xs text-[var(--accent)]">Download</span>
+                <span className="text-xs text-[var(--accent)]">{t('winner.download')}</span>
               </a>
             ))}
           </div>
@@ -114,14 +124,14 @@ export default function WinnerScreen({
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
           >
-            Rematch
+            {t('winner.rematch')}
           </button>
         )}
 
         {/* The player (no rematch control) sees a waiting hint instead. */}
         {!onRematch && (
           <p className="text-[var(--text-secondary)] text-sm">
-            Waiting for the host to start a rematch
+            {t('winner.waitRematch')}
           </p>
         )}
 
@@ -137,7 +147,7 @@ export default function WinnerScreen({
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
           >
-            Exit
+            {t('winner.exit')}
           </button>
         )}
       </div>

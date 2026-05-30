@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { CreateGamePayload, Question } from '@/lib/types';
+import { sanitizeMcQuestion } from '@/lib/mc-utils';
 
 // Lazily initialise so missing env var doesn't crash the whole app
 let openai: OpenAI | null = null;
@@ -41,7 +42,7 @@ function getOpenAI() {
 export async function POST(req: NextRequest) {
   try {
     const body: CreateGamePayload = await req.json();
-    const { topic, difficulty, num_questions, mc_mode } = body;
+    const { topic, difficulty, num_questions, mc_mode, locale = 'en' } = body;
 
     // -------------------------------------------------------
     // Validate input
@@ -59,6 +60,11 @@ export async function POST(req: NextRequest) {
       );
     }
     const count = Math.min(Math.max(Number(num_questions) || 5, 3), 10);
+
+    const languageInstruction =
+      locale === 'ru'
+        ? 'Write ALL question text and answer options in Russian.'
+        : 'Write all question text and answer options in English.';
 
     // -------------------------------------------------------
     // Build the prompt
@@ -93,7 +99,9 @@ You MUST return ONLY a valid JSON array — no markdown, no explanation, no code
 Start your response with [ and end with ].`;
 
     // ---- USER PROMPT — change this to adjust question framing ----
-    const userPrompt = `Generate exactly ${count} ${difficultyGuide} quiz questions about: "${topic}".
+    const userPrompt = `${languageInstruction}
+
+Generate exactly ${count} ${difficultyGuide} quiz questions about: "${topic}".
 
 ${mcInstructions}
 
@@ -174,6 +182,11 @@ Example:
 
     // Trim to requested count (in case model returns more)
     questions = questions.slice(0, count);
+
+    // MC mode: validate structure and align correct_answer to an option
+    if (mc_mode) {
+      questions = questions.map((q) => sanitizeMcQuestion(q));
+    }
 
     if (questions.length === 0) {
       throw new Error('No questions were generated. Please try a different topic.');

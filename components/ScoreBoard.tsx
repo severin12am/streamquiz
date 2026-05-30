@@ -10,6 +10,7 @@
 // ============================================================
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocale } from '@/context/LocaleProvider';
 
 interface ScoreBoardProps {
   hostScore:   number;
@@ -23,6 +24,7 @@ interface ScoreBoardProps {
 // Small badge shown under a score when that player is on a streak of
 // 2 or more correct answers. Flat, solid styling (no gradient/glow).
 function StreakBadge({ streak }: { streak: number }) {
+  const { t } = useLocale();
   if (streak < 2) return null;
   return (
     <span
@@ -33,7 +35,7 @@ function StreakBadge({ streak }: { streak: number }) {
         color: 'var(--gold)',
       }}
     >
-      {streak} streak
+      {t('score.streak', { n: streak })}
     </span>
   );
 }
@@ -46,6 +48,7 @@ export default function ScoreBoard({
   hostLabel   = 'HOST',
   playerLabel = 'STREAMER',
 }: ScoreBoardProps) {
+  const { t } = useLocale();
   // Track previous scores to flash the changed one
   const prevHostRef   = useRef(hostScore);
   const prevPlayerRef = useRef(playerScore);
@@ -93,7 +96,7 @@ export default function ScoreBoard({
           className="text-xs font-medium tracking-wider"
           style={{ color: 'var(--text-muted)' }}
         >
-          VS
+          {t('score.vs')}
         </span>
       </div>
 

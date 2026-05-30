@@ -33,7 +33,8 @@ export interface UseSpeechRecognitionReturn {
 }
 
 export function useSpeechRecognition(
-  onTranscriptUpdate?: (text: string) => void  // called on each interim result
+  onTranscriptUpdate?: (text: string) => void,
+  lang = 'en-US'  // BCP-47 tag, e.g. 'ru-RU' for Russian
 ): UseSpeechRecognitionReturn {
 
   const [transcript,  setTranscript]  = useState('');
@@ -61,7 +62,7 @@ export function useSpeechRecognition(
     recognition.continuous    = true;
     // interimResults: gives partial results as the user speaks
     recognition.interimResults = true;
-    recognition.lang           = 'en-US'; // TO CHANGE LANGUAGE: edit this string
+    recognition.lang           = lang;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let fullTranscript = '';
@@ -89,7 +90,7 @@ export function useSpeechRecognition(
       recognition.abort();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSupported]);
+  }, [isSupported, lang]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current || isListening) return;

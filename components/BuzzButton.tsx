@@ -16,6 +16,7 @@
 // ============================================================
 
 import React from 'react';
+import { useLocale } from '@/context/LocaleProvider';
 
 type BuzzState = 'idle' | 'buzzed_me' | 'buzzed_them' | 'disabled';
 
@@ -26,6 +27,7 @@ interface BuzzButtonProps {
 }
 
 export default function BuzzButton({ state, countdown, onBuzz }: BuzzButtonProps) {
+  const { t } = useLocale();
   const isClickable = state === 'idle';
 
   return (
@@ -47,21 +49,21 @@ export default function BuzzButton({ state, countdown, onBuzz }: BuzzButtonProps
             : 'bg-[var(--buzz-red)] border-[var(--buzz-red)]',
         ].join(' ')}
         style={isClickable ? { boxShadow: '0 8px 24px rgba(0,0,0,0.45)' } : undefined}
-        aria-label={isClickable ? 'Buzz in to answer' : 'Buzz not available'}
+        aria-label={isClickable ? t('buzz.ariaBuzz') : t('buzz.ariaDisabled')}
       >
-        Buzz
+        {t('buzz.label')}
       </button>
 
       {/* ---- Status message under button ---- */}
       <div className="text-center text-sm font-medium h-6">
         {state === 'idle' && (
           <span className="text-[var(--text-secondary)]">
-            Tap to answer first
+            {t('buzz.tapFirst')}
           </span>
         )}
         {state === 'buzzed_me' && (
           <span className="text-[var(--buzz-red)] font-semibold">
-            You buzzed, start speaking{' '}
+            {t('buzz.youBuzzed')}{' '}
             {countdown !== undefined && countdown > 0 && (
               <span className="text-[var(--text-primary)]">({countdown}s)</span>
             )}
@@ -69,7 +71,7 @@ export default function BuzzButton({ state, countdown, onBuzz }: BuzzButtonProps
         )}
         {state === 'buzzed_them' && (
           <span className="text-[var(--text-secondary)]">
-            Other player is answering
+            {t('buzz.otherAnswering')}
           </span>
         )}
         {state === 'disabled' && (

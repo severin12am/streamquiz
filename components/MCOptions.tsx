@@ -14,9 +14,10 @@ import React from 'react';
 
 interface MCOptionsProps {
   options:            [string, string, string, string];
-  correctAnswer?:     string;   // revealed after someone answers
-  lockedIn?:          boolean;  // true after any answer submitted
-  selectedIndex?:     number | null; // index chosen by the winner
+  correctAnswer?:     string;
+  lockedIn?:          boolean;
+  selectedIndex?:     number | null;
+  disabled?:          boolean;  // steal-locked player cannot pick
   onSelect:           (index: number) => void;
 }
 
@@ -27,8 +28,11 @@ export default function MCOptions({
   correctAnswer,
   lockedIn = false,
   selectedIndex,
+  disabled = false,
   onSelect,
 }: MCOptionsProps) {
+  const canSelect = !lockedIn && !disabled;
+
   return (
     <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
       {options.map((option, i) => {
@@ -58,22 +62,22 @@ export default function MCOptions({
         return (
           <button
             key={i}
-            onClick={() => !lockedIn && onSelect(i)}
-            disabled={lockedIn}
+            onClick={() => canSelect && onSelect(i)}
+            disabled={!canSelect}
             className={[
               'flex items-center gap-3 p-4 rounded-xl text-left',
               'font-medium transition-colors duration-150 border',
-              lockedIn ? 'cursor-default' : 'cursor-pointer',
+              canSelect ? 'cursor-pointer' : 'cursor-default opacity-60',
             ].join(' ')}
             style={{ borderColor: borderColour, background }}
             onMouseEnter={(e) => {
-              if (!lockedIn) {
+              if (canSelect) {
                 e.currentTarget.style.borderColor = 'var(--accent)';
                 e.currentTarget.style.background = 'var(--bg-elevated)';
               }
             }}
             onMouseLeave={(e) => {
-              if (!lockedIn) {
+              if (canSelect) {
                 e.currentTarget.style.borderColor = 'var(--border)';
                 e.currentTarget.style.background = 'var(--bg-card)';
               }

@@ -15,6 +15,7 @@
 // ============================================================
 
 import React, { useEffect, useRef } from 'react';
+import { useLocale } from '@/context/LocaleProvider';
 
 interface CameraPanelProps {
   stream:     MediaStream | null;
@@ -33,6 +34,7 @@ export default function CameraPanel({
   error,
   className = '',
 }: CameraPanelProps) {
+  const { t } = useLocale();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Attach the stream to the <video> element whenever it changes.
@@ -93,7 +95,7 @@ export default function CameraPanel({
             </svg>
           </div>
           <p className="text-[var(--text-muted)] text-sm text-center px-4">
-            {error ?? 'Waiting for camera'}
+            {error ?? t('game.waitingCamera')}
           </p>
         </div>
       )}
@@ -120,7 +122,7 @@ export default function CameraPanel({
             className="inline-block w-2 h-2 rounded-full"
             style={{ background: stream ? 'var(--correct)' : 'var(--text-muted)' }}
           />
-          {stream ? 'Live' : 'Offline'}
+          {stream ? t('game.live') : t('game.offline')}
         </span>
       </div>
 
@@ -128,7 +130,7 @@ export default function CameraPanel({
       {isSpeaking && (
         <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-[var(--accent)] text-white text-xs font-semibold px-2 py-1 rounded-full">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-          Answering
+          {t('game.answering')}
         </div>
       )}
     </div>
