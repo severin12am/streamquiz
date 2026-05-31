@@ -30,7 +30,8 @@ import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
 import { updateGame }   from '@/lib/supabase';
 import { useLocale }    from '@/context/LocaleProvider';
-import type { PlayerRole, CreateGamePayload } from '@/lib/types';
+import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
+import { mergePreviousQuestions, rememberQuestions } from '@/lib/question-history';
 
 interface GameScreenProps {
   gameId: string;
@@ -176,6 +177,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     if (!game || rematchLoading) return;
     setRematchLoading(true);
     try {
+      const currentTexts = game.questions.map((q) => q.question);
       const payload: CreateGamePayload = {
         topic: game.topic,
         difficulty: game.difficulty,
@@ -183,15 +185,18 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         mc_mode: game.mc_mode,
         game_mode: game.game_mode,
         locale,
+        previous_questions: mergePreviousQuestions(game.topic, currentTexts),
       };
       const res = await fetch('/api/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const { questions } = await res.json();
+        const { questions } = (await res.json()) as { questions: Question[] };
         if (Array.isArray(questions) && questions.length > 0) {
+          rememberQuestions(game.topic, questions);
           await rematch(questions);
           return;
         }

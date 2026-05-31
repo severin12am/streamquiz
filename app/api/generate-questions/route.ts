@@ -4,24 +4,20 @@
 // Receives game config from the host's form and uses OpenAI
 // to generate quiz questions. Returns a JSON array of questions.
 //
-// CHANGE THE PROMPT:
-//   Look for the `messages` array below. Edit the system prompt
-//   and user prompt to change how questions are generated.
-//   Current style: crisp, unambiguous trivia questions.
-//
-// CHANGE THE MODEL:
-//   Find `model:` below. Default is gpt-4o-mini (fast + cheap).
-//   Use 'gpt-4o' for harder, better-crafted questions.
-//
-// CHANGE QUESTION FORMAT:
-//   The prompt asks for a JSON array. If you change the structure,
-//   update the Question interface in lib/types.ts to match.
+// CHANGE THE PROMPT: lib/quiz-prompts.ts
+// CHANGE THE MODEL: modelForDifficulty() below
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import type { CreateGamePayload, Question } from '@/lib/types';
+import type { CreateGamePayload, Difficulty, Question } from '@/lib/types';
 import { sanitizeMcQuestion } from '@/lib/mc-utils';
+import { buildQuestionPrompts } from '@/lib/quiz-prompts';
+
+export const dynamic = 'force-dynamic';
+
+const MAX_PREVIOUS_QUESTIONS = 20;
+const MAX_QUESTION_TEXT_LEN = 300;
 
 // Lazily initialise so missing env var doesn't crash the whole app
 let openai: OpenAI | null = null;
@@ -39,10 +35,31 @@ function getOpenAI() {
   return openai;
 }
 
+function modelForDifficulty(difficulty: Difficulty): string {
+  // Stronger model for medium/hard — same OpenRouter key, better calibration.
+  return difficulty === 'easy' ? 'openai/gpt-4o-mini' : 'openai/gpt-4o';
+}
+
+function sanitizePreviousQuestions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((q): q is string => typeof q === 'string')
+    .map((q) => q.trim().slice(0, MAX_QUESTION_TEXT_LEN))
+    .filter(Boolean)
+    .slice(-MAX_PREVIOUS_QUESTIONS);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: CreateGamePayload = await req.json();
-    const { topic, difficulty, num_questions, mc_mode, locale = 'en' } = body;
+    const {
+      topic,
+      difficulty,
+      num_questions,
+      mc_mode,
+      locale = 'en',
+      previous_questions,
+    } = body;
 
     // -------------------------------------------------------
     // Validate input
@@ -66,82 +83,45 @@ export async function POST(req: NextRequest) {
         ? 'Write ALL question text and answer options in Russian.'
         : 'Write all question text and answer options in English.';
 
-    // -------------------------------------------------------
-    // Build the prompt
-    // -------------------------------------------------------
-    // CHANGE THIS SECTION to alter question style, format, etc.
-    const difficultyGuide = {
-      easy:   'very simple, widely known facts suitable for a general audience',
-      medium: 'moderately challenging, requires some knowledge',
-      hard:   'difficult, expert-level trivia that would stump most people',
-    }[difficulty];
-
-    // Format instructions differ by mode.
-    //   MC mode  → 4 options + correct_answer (one of the options).
-    //   Open mode → correct_answer (the canonical short answer) PLUS
-    //               accepted_answers (other phrasings/synonyms that
-    //               should also count). These power the AUTOMATIC
-    //               judging — no host clicking needed.
-    const mcInstructions = mc_mode
-      ? `Each question must include:
-   - "options": an array of EXACTLY 4 short answer choices
-   - "correct_answer": the text of the correct option (must match one option exactly)`
-      : `Each question must include:
-   - "correct_answer": the single canonical correct answer, kept SHORT (1-5 words)
-   - "accepted_answers": an array of 2-5 alternative acceptable phrasings or synonyms
-     (e.g. for "Pacific Ocean" include "the Pacific", "Pacific"). Lowercase is fine.`;
-
-    // ---- SYSTEM PROMPT — change this to adjust overall style ----
-    const systemPrompt = `You are a professional quiz writer for a live TV quiz show.
-Generate crisp, unambiguous questions with a single clear correct answer.
-Avoid trick questions, opinion questions, or anything with multiple valid answers.
-You MUST return ONLY a valid JSON array — no markdown, no explanation, no code fences, no extra text.
-Start your response with [ and end with ].`;
-
-    // ---- USER PROMPT — change this to adjust question framing ----
-    const userPrompt = `${languageInstruction}
-
-Generate exactly ${count} ${difficultyGuide} quiz questions about: "${topic}".
-
-${mcInstructions}
-
-Return a JSON array where each item has this shape:
-${mc_mode
-  ? `{
-  "question": "string",
-  "options": ["string","string","string","string"],
-  "correct_answer": "string"
-}
-
-Example:
-{"question":"What is the capital of France?","options":["London","Paris","Berlin","Madrid"],"correct_answer":"Paris"}`
-  : `{
-  "question": "string",
-  "correct_answer": "string",
-  "accepted_answers": ["string","string"]
-}
-
-Example:
-{"question":"What is the largest ocean on Earth?","correct_answer":"Pacific Ocean","accepted_answers":["pacific","the pacific","pacific ocean"]}`
-}`;
+    const { systemPrompt, userPrompt } = buildQuestionPrompts({
+      topic,
+      difficulty,
+      count,
+      mcMode: mc_mode,
+      languageInstruction,
+      previousQuestions: sanitizePreviousQuestions(previous_questions),
+    });
 
     // -------------------------------------------------------
-    // Call OpenAI
+    // Call OpenAI (via OpenRouter)
     // -------------------------------------------------------
     const ai = getOpenAI();
+    const model = modelForDifficulty(difficulty);
 
-    const completion = await ai.chat.completions.create({
-      // CHANGE MODEL here. OpenRouter model list: https://openrouter.ai/models
-      // Current: GPT-4o mini via OpenRouter — fast and cheap
-      // Other good options: 'openai/gpt-4o', 'anthropic/claude-3-haiku'
-      model: 'openai/gpt-4o-mini',
+    const requestBody = {
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt },
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const,   content: userPrompt },
       ],
-      temperature: 0.7, // CHANGE: 0.0 = factual/consistent, 1.0 = more creative
-      max_tokens:  2000,
-    });
+      temperature: 0.8,
+      max_tokens:  3000,
+    };
+
+    let completion;
+    try {
+      completion = await ai.chat.completions.create({ model, ...requestBody });
+    } catch (primaryErr) {
+      // If a stronger model isn't available on OpenRouter, fall back to mini.
+      if (model !== 'openai/gpt-4o-mini') {
+        console.warn('[generate-questions] Primary model failed, retrying with gpt-4o-mini:', primaryErr);
+        completion = await ai.chat.completions.create({
+          model: 'openai/gpt-4o-mini',
+          ...requestBody,
+        });
+      } else {
+        throw primaryErr;
+      }
+    }
 
     const raw = completion.choices[0].message.content ?? '[]';
 

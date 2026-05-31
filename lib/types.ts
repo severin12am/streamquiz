@@ -131,6 +131,8 @@ export interface CreateGamePayload {
   game_mode?: GameMode;
   /** UI language — questions are generated in this language. */
   locale?: 'en' | 'ru';
+  /** Optional — question texts to avoid repeating (from session or rematch). */
+  previous_questions?: string[];
 }
 
 // -------------------------------------------------------

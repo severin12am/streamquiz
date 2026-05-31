@@ -18,7 +18,8 @@ import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/context/LocaleProvider';
-import type { Difficulty, GameMode, CreateGamePayload } from '@/lib/types';
+import type { Difficulty, GameMode, CreateGamePayload, Question } from '@/lib/types';
+import { getPreviousQuestions, rememberQuestions } from '@/lib/question-history';
 
 export default function CreateGame() {
   const router = useRouter();
@@ -51,18 +52,21 @@ export default function CreateGame() {
 
     try {
       // Step 1: Generate questions via OpenAI API route
+      const trimmedTopic = topic.trim();
       const payload: CreateGamePayload = {
-        topic: topic.trim(),
+        topic: trimmedTopic,
         difficulty,
         num_questions: numQuestions,
         mc_mode: mcMode,
         game_mode: gameMode,
         locale,
+        previous_questions: getPreviousQuestions(trimmedTopic),
       };
 
       const res = await fetch('/api/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify(payload),
       });
 
@@ -71,14 +75,15 @@ export default function CreateGame() {
         throw new Error(body.error ?? t('create.errorGenerate'));
       }
 
-      const { questions } = await res.json();
+      const { questions } = (await res.json()) as { questions: Question[] };
+      rememberQuestions(trimmedTopic, questions);
 
       // Step 2: Create the game row in Supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error: dbError } = await (supabase as any)
         .from('games')
         .insert({
-          topic: topic.trim(),
+          topic: trimmedTopic,
           difficulty,
           num_questions: numQuestions,
           mc_mode: mcMode,

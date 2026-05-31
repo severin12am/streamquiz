@@ -27,10 +27,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
       {/*
-        body is h-screen so the game fits exactly in the viewport.
-        overflow-hidden prevents any page-level scrolling (game is full-screen).
+        body grows with its content and scrolls normally. The game view
+        (GameScreen) pins itself to the viewport with its own
+        h-screen/overflow-hidden container, while taller pages like the
+        home/create form can scroll on small mobile screens.
       */}
-      <body className="h-screen overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)]">
+      <body className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
         <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>

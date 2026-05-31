@@ -42,8 +42,13 @@ html, body {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-geist-sans), 'Inter', Arial, sans-serif;
-  height: 100%;
-  overflow: hidden; /* full-screen game, no page scroll */
+  min-height: 100%;
+  /* Allow normal vertical scrolling on tall pages (e.g. the create
+     form on small mobile screens). The full-screen game view locks
+     its own scroll via its container, so we no longer hide overflow
+     globally — otherwise the host can't reach the "create" button on
+     short phone viewports. */
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
