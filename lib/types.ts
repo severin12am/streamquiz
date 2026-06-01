@@ -5,15 +5,20 @@
 // ============================================================
 
 // -------------------------------------------------------
+// Up to SIX players per game: 1 host (slot 0) + 5 guests (slots 1-5).
+// -------------------------------------------------------
+export const MAX_PLAYERS = 6;
+
+// -------------------------------------------------------
 // Game difficulty options
 // -------------------------------------------------------
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 // -------------------------------------------------------
 // Game mode — how a round starts
-//   'think'   → locked think countdown, then both unlocked together
+//   'think'   → locked think countdown, then everyone unlocked together
 //               (fair: a faster connection can't click early). DEFAULT.
-//   'classic' → buzz immediately when the question appears (original)
+//   'classic' → answer immediately when the question appears (original)
 // -------------------------------------------------------
 export type GameMode = 'think' | 'classic';
 
@@ -21,7 +26,7 @@ export type GameMode = 'think' | 'classic';
 // A single question (as stored in games.questions JSONB)
 // -------------------------------------------------------
 export interface Question {
-  /** The question text shown to both players */
+  /** The question text shown to all players */
   question: string;
   /** MC only — 4 answer choices. Undefined for open-ended mode. */
   options?: [string, string, string, string];
@@ -37,13 +42,13 @@ export interface Question {
 // Game phase — what's happening right now in the round
 // -------------------------------------------------------
 export type GamePhase =
-  | 'waiting'    // host is on the page, player hasn't joined yet
-  | 'thinking'   // (think mode) locked countdown — no buzz/speak/click yet
-  | 'question'   // question is visible, waiting for buzz or MC click
-  | 'buzzing'    // someone buzzed — 2-second countdown before speaking
+  | 'waiting'    // lobby — players joining, host hasn't started yet
+  | 'thinking'   // (think mode) locked countdown — nobody can answer yet
+  | 'question'   // MC question is visible, players pick
+  | 'buzzing'    // (legacy) unused
   | 'answering'  // voice recognition running (open-ended only)
-  | 'checking'   // AI is auto-judging the spoken answer
-  | 'judging'    // (legacy) kept for backwards compat; no longer used
+  | 'checking'   // AI is auto-judging the spoken answers
+  | 'judging'    // (legacy) unused
   | 'result'     // brief flash of correct/wrong outcome
   | 'ended';     // all questions finished
 
@@ -53,12 +58,46 @@ export type GamePhase =
 export type GameStatus = 'waiting' | 'ready' | 'playing' | 'ended';
 
 // -------------------------------------------------------
-// Player role — determined by URL param
+// Player role
+//   'host'   → the creator (slot 0); starts the game + rematch
+//   'player' → everyone else (slots 1-5)
 // -------------------------------------------------------
 export type PlayerRole = 'host' | 'player';
 
 // -------------------------------------------------------
-// Full game row (mirrors the Supabase games table exactly)
+// A single participant — one row in the `players` table.
+// All PER-PLAYER state lives here so up to six people can answer
+// simultaneously without clobbering each other.
+// -------------------------------------------------------
+export interface Player {
+  id: string;
+  created_at: string;
+  game_id: string;
+  /** Stable per-browser id (localStorage) — survives reloads. */
+  client_id: string;
+  name: string;
+  role: PlayerRole;
+  /** Seat 0..5. Slot 0 is always the host. */
+  slot: number;
+  score: number;
+
+  // ---- per-round state (reset each question) ----
+  /** Multiple-choice pick this round (0-3) or null = not answered. */
+  mc_index: number | null;
+  /** Voice answer this round (each player talks into their own row). */
+  transcript: string;
+  /** Was this player correct this round? null until judged. */
+  correct: boolean | null;
+  /** Voice "Done" lock-in — when EVERY player is done the round advances. */
+  done: boolean;
+
+  /** Rematch vote — reset when a new match starts. */
+  rematch: boolean;
+}
+
+// -------------------------------------------------------
+// Full game row (mirrors the SHARED columns of the games table).
+// Per-player state now lives in the `players` table (see Player).
 // -------------------------------------------------------
 export interface Game {
   id: string;
@@ -67,56 +106,21 @@ export interface Game {
   difficulty: Difficulty;
   num_questions: number;
   mc_mode: boolean;
+  /** Host setting: request player cameras? Default false (mics only). */
+  cameras_enabled: boolean;
   /** Round-start mode: 'think' (locked countdown first) or 'classic'. */
   game_mode: GameMode;
   questions: Question[];
   status: GameStatus;
   current_question_index: number;
   phase: GamePhase;
-  buzz_player: 'host' | 'player' | null;
-  buzz_time: string | null;
-  host_score: number;
-  player_score: number;
-  current_transcript: string;
-  mc_answer_index: number | null;
-  /** Per-player MC picks (0-3 index or null). Both players may answer
-   *  within a grace window so near-simultaneous correct answers score. */
-  host_mc_index: number | null;
-  player_mc_index: number | null;
-  /** Per-player voice transcripts + judged correctness. In voice mode
-   *  both players talk freely; each answer is judged independently. */
-  host_transcript: string;
-  player_transcript: string;
-  host_correct: boolean | null;
-  player_correct: boolean | null;
-  /** Voice "Done" lock-in: when both true, the round advances early. */
-  host_done: boolean;
-  player_done: boolean;
-  /** Result of the most recent answer (true=correct, false=wrong,
-   *  null=not judged yet). Lets BOTH clients show the same ✓/✗. */
-  answer_correct: boolean | null;
-
-  // ---- v2: robust transitions, steal mechanic, streaks ----
   /** ISO timestamp when the current timed phase auto-advances.
-   *  Both clients watch this; either can drive the transition. */
+   *  Every client watches this; any one can drive the transition. */
   phase_deadline: string | null;
-  /** True while the OTHER player gets a rebound/steal chance. */
-  is_steal: boolean;
-  /** Who answered first this round (during a steal only the OTHER
-   *  player may buzz). */
-  first_answerer: 'host' | 'player' | null;
-  /** Consecutive-correct streak counters (drive multipliers). */
-  streak_host: number;
-  streak_player: number;
-  /** Points awarded on the most recent correct answer + who scored
-   *  (used for the score pop animation). */
+  /** True if ANY player answered correctly this round (drives shared UI). */
+  answer_correct: boolean | null;
+  /** Points awarded on the most recent correct answer (for the score pop). */
   last_points: number;
-  last_scorer: 'host' | 'player' | null;
-
-  /** Rematch votes — a rematch begins once the host AND at least one
-   *  other player have accepted. Reset when a new match starts. */
-  rematch_host: boolean;
-  rematch_player: boolean;
 }
 
 // -------------------------------------------------------
@@ -137,12 +141,17 @@ export interface CreateGamePayload {
 
 // -------------------------------------------------------
 // WebRTC signaling message types
-// These are sent over Supabase Realtime Broadcast (not DB)
+// Sent over a Supabase Realtime Broadcast channel (not the DB).
+// In the mesh, every message is ROUTED: `from`/`to` are player ids
+// (the players.id), so each peer only consumes messages addressed to it.
 // -------------------------------------------------------
 export type SignalType = 'offer' | 'answer' | 'ice-candidate';
 
 export interface WebRTCSignal {
   type: SignalType;
-  from: PlayerRole;
+  /** Sender player id. */
+  from: string;
+  /** Recipient player id. */
+  to: string;
   payload: RTCSessionDescriptionInit | RTCIceCandidateInit;
 }

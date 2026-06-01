@@ -1,119 +1,94 @@
 'use client';
 // ============================================================
-// useGameState — Master hook for all game state logic
+// useGameState — Master hook for all game state logic (MULTIPLAYER)
 //
-// ARCHITECTURE (v2 — robust, host-disconnect tolerant):
-//   • All game state lives in ONE Supabase row (the source of truth).
-//   • Every TIMED phase stores a `phase_deadline` timestamp.
-//   • BOTH clients run a local ticker. When a deadline passes, EITHER
-//     client tries to advance the phase using a GUARDED update
-//     (updateGameIfPhase) — Postgres guarantees only the first one
-//     wins, so there are no races and no double-scoring.
-//   • Because either client can drive transitions, the game keeps
-//     going even if the host's connection drops.
+// ARCHITECTURE (robust, host-disconnect tolerant):
+//   • SHARED state (the question, phase, deadline) lives in ONE games
+//     row. PER-PLAYER state (pick, transcript, score, done) lives in the
+//     `players` table — one row each — so up to SIX people can answer at
+//     the exact same time without clobbering each other.
+//   • Every TIMED phase stores a `phase_deadline` timestamp. EVERY client
+//     runs a local ticker; when a deadline passes, ANY client tries to
+//     advance the phase with a GUARDED update (updateGameIfPhase).
+//     Postgres guarantees only the FIRST one wins → no races, and the
+//     game keeps going even if the host disconnects.
 //
 // GAME MODES (set at creation):
-//   • 'think' (default, fair): each round starts in a LOCKED `thinking`
-//     phase for THINK_TIME_SECONDS — nobody can speak/click. When the
-//     server deadline passes, BOTH players unlock at the same instant
-//     (the "GO"), so a faster connection can't win by acting early.
-//   • 'classic': round opens immediately (no think lock).
+//   • 'think' (default, fair): each round starts LOCKED for
+//     THINK_TIME_SECONDS — nobody can answer. When the server deadline
+//     passes, EVERYONE unlocks at the same instant (the "GO").
+//   • 'classic': round opens immediately.
 //
-// ROUND FLOW (voice — NO buzzer):
-//   [thinking →] answering → checking → result → next
-//   Both players talk freely during `answering`; each spoken answer is
-//   transcribed into their OWN column and judged independently, so both
-//   can score (just like multiple choice).
+// ROUND FLOW (voice — no buzzer):  [thinking →] answering → checking → result → next
+//   Every player talks into their OWN row; each answer is judged
+//   independently, so everyone who's right scores.
 //
-// ROUND FLOW (multiple choice):
-//   [thinking →] question → (each picks; short grace window) → result → next
-//   Any correct pick within MC_GRACE_SECONDS of the first one scores.
+// ROUND FLOW (multiple choice):    [thinking →] question → result → next
+//   Everyone has the same QUESTION_TIME window. The round resolves when
+//   the timer ends OR when every player has picked (early advance). Each
+//   correct pick scores +1.
 //
-// SCORING: each correct answer = 1 point. (No streaks/multipliers.)
+// SCORING: each correct answer = 1 point.
 // ============================================================
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  supabase, subscribeToGame, updateGame, updateGameIfPhase,
-  updateGameGuarded, fetchGame, serverNow, syncServerClock,
+  supabase, subscribeToGame, subscribeToPlayers, updateGame, updateGameIfPhase,
+  fetchGame, fetchPlayers, updatePlayer, joinGame,
+  resetPlayersForRound, resetPlayersForMatch, serverNow, syncServerClock,
 } from '@/lib/supabase';
 import { isMcAnswerCorrect } from '@/lib/mc-utils';
-import type { Game, PlayerRole, Question } from '@/lib/types';
+import type { Game, Player, Question } from '@/lib/types';
 
 // -------------------------------------------------------
 // TIMING SETTINGS — change these to adjust game pacing (seconds)
 // -------------------------------------------------------
 const THINK_TIME_SECONDS    = 5;    // (think mode) locked countdown before answering
-const QUESTION_TIME_SECONDS = 15;   // MC: time to pick before auto-skip
-const VOICE_ANSWER_SECONDS  = 12;   // voice: time both players have to speak
+const QUESTION_TIME_SECONDS = 15;   // MC: time to pick before the round resolves
+const VOICE_ANSWER_SECONDS  = 12;   // voice: time everyone has to speak
 const RESULT_TIME_SECONDS   = 5;    // how long the result screen shows
 const CHECK_TIMEOUT_SECONDS = 15;   // safety: max time to wait for AI judging
-
-// -------------------------------------------------------
-// FAIRNESS — multiple-choice "grace window"
-// After the FIRST player picks, the other player still has this long
-// to also answer. Any correct pick inside the window scores, so two
-// players who answer at nearly the same time BOTH get the point.
-// INCREASE this if players on slow connections still lose unfairly
-// (costs a little pace); DECREASE for a snappier feel.
-// -------------------------------------------------------
-const MC_GRACE_SECONDS = 3;
 
 // -------------------------------------------------------
 // NETWORK RESILIENCE SETTINGS
 // -------------------------------------------------------
 const POLL_INTERVAL_MS    = 2500;   // fallback poll when realtime is blocked
-const TICK_INTERVAL_MS     = 100;   // how often we check deadlines / update the timer (small = smooth ring)
+const TICK_INTERVAL_MS     = 100;   // how often we check deadlines / update the timer
 const MAX_INIT_ATTEMPTS   = 5;      // retries for the very first load
 const INIT_RETRY_DELAY_MS = 1200;   // wait between initial-load retries
 
-// Helper: an ISO timestamp `seconds` from now (for phase_deadline).
-// Uses SERVER time so every client agrees on the deadline.
+// Helper: an ISO timestamp `seconds` from now (server time).
 function deadlineIn(seconds: number): string {
   return new Date(serverNow() + seconds * 1000).toISOString();
 }
 
-// Helper: whole seconds left until an ISO deadline (never negative).
-// Compared against SERVER time to stay consistent across devices.
 function secondsUntil(iso: string | null): number {
   if (!iso) return 0;
   return Math.max(0, Math.ceil((new Date(iso).getTime() - serverNow()) / 1000));
 }
 
-// Helper: MILLISECONDS left until a deadline (for a smooth timer ring).
 function msUntil(iso: string | null): number {
   if (!iso) return 0;
   return Math.max(0, new Date(iso).getTime() - serverNow());
 }
 
-// The total duration (for the timer ring) of the current timed phase
 function phaseTotalSeconds(game: Game | null): number {
   if (!game) return QUESTION_TIME_SECONDS;
   switch (game.phase) {
     case 'thinking':  return THINK_TIME_SECONDS;
-    case 'question':
-      // Once someone has picked in MC mode, the timer shows the short
-      // grace window (so the ring drains correctly, not from 15s).
-      if (game.mc_mode && (game.host_mc_index !== null || game.player_mc_index !== null)) {
-        return MC_GRACE_SECONDS;
-      }
-      return QUESTION_TIME_SECONDS;
+    case 'question':  return QUESTION_TIME_SECONDS;
     case 'answering': return VOICE_ANSWER_SECONDS;
     case 'result':    return RESULT_TIME_SECONDS;
     default:          return QUESTION_TIME_SECONDS;
   }
 }
 
-// Where a fresh round begins. In THINK mode it starts LOCKED (no buzz)
-// for THINK_TIME_SECONDS, then the ticker unlocks it into 'question'.
-// In CLASSIC mode it jumps straight to the open 'question' phase.
+// Where a fresh round begins. THINK mode starts LOCKED; CLASSIC jumps in.
 function roundStartPatch(game: Game | null): Partial<Game> {
   const mode = game?.game_mode ?? 'think';
   if (mode === 'think') {
-    // Think mode always starts with the locked reading countdown.
     return { phase: 'thinking', phase_deadline: deadlineIn(THINK_TIME_SECONDS) };
   }
-  // Classic mode jumps straight in: MC → pick phase, voice → talk phase.
   return game?.mc_mode
     ? { phase: 'question',  phase_deadline: deadlineIn(QUESTION_TIME_SECONDS) }
     : { phase: 'answering', phase_deadline: deadlineIn(VOICE_ANSWER_SECONDS) };
@@ -126,51 +101,66 @@ function afterThinkPatch(game: Game | null): Partial<Game> {
     : { phase: 'answering', phase_deadline: deadlineIn(VOICE_ANSWER_SECONDS) };
 }
 
+// True if a player has supplied an answer this round (MC or voice).
+function hasAnswered(p: Player, mcMode: boolean): boolean {
+  return mcMode ? p.mc_index !== null : p.done;
+}
+
 // -------------------------------------------------------
 // Hook return type
 // -------------------------------------------------------
 export interface UseGameStateReturn {
   game: Game | null;
+  players: Player[];
+  me: Player | null;
   loading: boolean;
   error: string | null;
-  timeLeft: number;       // whole seconds left in the current timed phase
-  timeLeftMs: number;     // fractional ms left (for a smooth timer ring)
-  timerTotal: number;     // total seconds of the current phase (for the ring)
+  timeLeft: number;
+  timeLeftMs: number;
+  timerTotal: number;
 
   // Actions
-  submitMCAnswer: (role: PlayerRole, optionIndex: number) => Promise<void>;
+  join: (name: string, asHost: boolean) => Promise<Player | null>;
+  submitMCAnswer: (optionIndex: number) => Promise<void>;
   startGame: () => Promise<void>;
   updateTranscript: (text: string) => Promise<void>;
   finishAnswer: (finalText?: string) => Promise<void>;
   rematch: (newQuestions?: Question[]) => Promise<void>;
-  voteRematch: (role: PlayerRole) => Promise<void>;
+  voteRematch: () => Promise<void>;
 }
 
-export function useGameState(gameId: string, role: PlayerRole): UseGameStateReturn {
+export function useGameState(gameId: string, clientId: string): UseGameStateReturn {
   const [game, setGame]       = useState<Game | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_SECONDS);
-  // Fractional ms remaining — drives a smooth (non-jumpy) timer ring.
   const [timeLeftMs, setTimeLeftMs] = useState(QUESTION_TIME_SECONDS * 1000);
 
   const gameRef        = useRef<Game | null>(null);
-  const judgingRef     = useRef(false); // this client is running the AI check
-  const actedDeadline  = useRef<string | null>(null); // last deadline we acted on
-  const earlyDoneRef   = useRef<string | null>(null); // deadline we early-advanced (both done)
+  const playersRef     = useRef<Player[]>([]);
+  const judgingRef     = useRef(false);
+  const actedDeadline  = useRef<string | null>(null);
+  const earlyDoneRef   = useRef<string | null>(null);
+
+  const me = players.find((p) => p.client_id === clientId) ?? null;
 
   useEffect(() => { gameRef.current = game; }, [game]);
+  useEffect(() => { playersRef.current = players; }, [players]);
 
   // =======================================================
-  // 1. Initial load + realtime subscription + polling fallback
+  // 1. Initial load + realtime subscriptions + polling fallback
   // =======================================================
   useEffect(() => {
     let cancelled = false;
 
-    // Sync to the server clock ASAP (and refresh periodically) so both
-    // devices agree on when each phase deadline passes.
     syncServerClock();
     const clockTimer = setInterval(() => { syncServerClock(); }, 30000);
+
+    const refreshPlayers = async () => {
+      const list = await fetchPlayers(gameId);
+      if (!cancelled) setPlayers(list);
+    };
 
     async function tryInitialLoad(attempt = 0) {
       const data = await fetchGame(gameId);
@@ -179,6 +169,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         setGame(data);
         setError(null);
         setLoading(false);
+        refreshPlayers();
       } else if (attempt < MAX_INIT_ATTEMPTS) {
         setTimeout(() => tryInitialLoad(attempt + 1), INIT_RETRY_DELAY_MS);
       } else {
@@ -191,9 +182,10 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     }
     tryInitialLoad();
 
-    const channel = subscribeToGame(gameId, (updated) => {
+    const gameChannel = subscribeToGame(gameId, (updated) => {
       if (!cancelled) setGame(updated);
     });
+    const playersChannel = subscribeToPlayers(gameId, () => { refreshPlayers(); });
 
     const pollTimer = setInterval(async () => {
       const data = await fetchGame(gameId);
@@ -201,22 +193,22 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         setGame(data);
         setError(null);
       }
+      refreshPlayers();
     }, POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       clearInterval(pollTimer);
       clearInterval(clockTimer);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(gameChannel);
+      supabase.removeChannel(playersChannel);
     };
   }, [gameId]);
 
   // =======================================================
-  // 3. JUDGE A VOICE ROUND (no buzzer — both players talked).
-  //    Re-reads the row for the authoritative transcripts, judges
-  //    EACH player's spoken answer independently via /api/check-answer,
-  //    and scores every correct one (+1). Runs on the ONE client that
-  //    won the answering→checking guard. Guarded on 'checking'.
+  // 2. JUDGE A VOICE ROUND — judges EVERY player's spoken answer
+  //    independently and scores each correct one (+1). Runs on the ONE
+  //    client that won the answering→checking guard. Guarded on 'checking'.
   // =======================================================
   const runVoiceCheck = useCallback(async () => {
     if (judgingRef.current) return;
@@ -224,6 +216,7 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
     try {
       const g = (await fetchGame(gameId)) ?? gameRef.current;
       if (!g) return;
+      const roster = await fetchPlayers(gameId);
       const question = g.questions[g.current_question_index];
 
       const judge = async (transcript: string): Promise<boolean> => {
@@ -246,62 +239,77 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         }
       };
 
-      const [hostCorrect, playerCorrect] = await Promise.all([
-        judge(g.host_transcript),
-        judge(g.player_transcript),
-      ]);
+      const results = await Promise.all(
+        roster.map(async (p) => ({
+          id: p.id,
+          score: p.score,
+          correct: await judge(p.transcript),
+        }))
+      );
+      const anyCorrect = results.some((r) => r.correct);
 
-      await updateGameIfPhase(gameId, 'checking', {
+      const won = await updateGameIfPhase(gameId, 'checking', {
         phase: 'result',
-        host_correct:   hostCorrect,
-        player_correct: playerCorrect,
-        answer_correct: hostCorrect || playerCorrect,
-        host_score:   g.host_score   + (hostCorrect   ? 1 : 0),
-        player_score: g.player_score + (playerCorrect ? 1 : 0),
-        last_points:  hostCorrect || playerCorrect ? 1 : 0,
+        answer_correct: anyCorrect,
+        last_points: anyCorrect ? 1 : 0,
         phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
       });
+
+      if (won) {
+        await Promise.all(
+          results.map((r) =>
+            updatePlayer(r.id, {
+              correct: r.correct,
+              score: r.score + (r.correct ? 1 : 0),
+            })
+          )
+        );
+      }
     } finally {
       judgingRef.current = false;
     }
   }, [gameId]);
 
   // =======================================================
-  // 3b. RESOLVE A MULTIPLE-CHOICE ROUND.
-  //    Reads BOTH players' picks and scores every correct one (+1).
-  //    IMPORTANT: re-fetch the row first so we use the AUTHORITATIVE
-  //    picks. The local copy may be missing the opponent's pick if
-  //    their realtime update hasn't arrived yet — that bug caused a
-  //    correct answer to occasionally not be counted.
-  //    Guarded on 'question' so exactly one client resolves it.
+  // 3. RESOLVE A MULTIPLE-CHOICE ROUND — score every correct pick (+1).
+  //    Re-fetches players so we use AUTHORITATIVE picks (a realtime
+  //    update may not have arrived locally yet). Guarded on 'question'.
   // =======================================================
   const resolveMcRound = useCallback(async () => {
-    const g = (await fetchGame(gameId)) ?? gameRef.current;
+    const g = gameRef.current;
     if (!g) return;
+    const roster = await fetchPlayers(gameId);
     const q = g.questions[g.current_question_index];
-    const optionAt = (idx: number | null) =>
-      idx != null ? (q?.options?.[idx] ?? '') : '';
 
-    const hostCorrect =
-      g.host_mc_index != null && isMcAnswerCorrect(optionAt(g.host_mc_index), q?.correct_answer);
-    const playerCorrect =
-      g.player_mc_index != null && isMcAnswerCorrect(optionAt(g.player_mc_index), q?.correct_answer);
+    const correctOf = (p: Player) =>
+      p.mc_index != null &&
+      isMcAnswerCorrect(q?.options?.[p.mc_index] ?? '', q?.correct_answer);
 
-    await updateGameIfPhase(gameId, 'question', {
+    const anyCorrect = roster.some(correctOf);
+
+    const won = await updateGameIfPhase(gameId, 'question', {
       phase: 'result',
-      // Global flag kept for any shared consumers; QuestionPanel shows a
-      // per-player result using each side's own pick.
-      answer_correct: hostCorrect || playerCorrect,
-      host_score:   g.host_score   + (hostCorrect   ? 1 : 0),
-      player_score: g.player_score + (playerCorrect ? 1 : 0),
-      last_points:  hostCorrect || playerCorrect ? 1 : 0,
+      answer_correct: anyCorrect,
+      last_points: anyCorrect ? 1 : 0,
       phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
     });
+
+    if (won) {
+      await Promise.all(
+        roster.map((p) => {
+          const correct = correctOf(p);
+          return updatePlayer(p.id, {
+            correct,
+            score: p.score + (correct ? 1 : 0),
+          });
+        })
+      );
+    }
   }, [gameId]);
 
   // =======================================================
-  // 4b. ADVANCE TO NEXT QUESTION (or end). Guarded on 'result'.
-  //     Declared before the ticker because the ticker calls it.
+  // 4. ADVANCE TO NEXT QUESTION (or end). Guarded on 'result'. The guard
+  //    winner also clears every player's per-round state.
   // =======================================================
   const advanceToNext = useCallback(async () => {
     const g = gameRef.current;
@@ -315,51 +323,42 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
         phase_deadline: null,
       });
     } else {
-      await updateGameIfPhase(gameId, 'result', {
+      const won = await updateGameIfPhase(gameId, 'result', {
         current_question_index: nextIndex,
-        current_transcript: '',
-        mc_answer_index: null,
-        host_mc_index: null,
-        player_mc_index: null,
-        host_transcript: '',
-        player_transcript: '',
-        host_correct: null,
-        player_correct: null,
-        host_done: false,
-        player_done: false,
         answer_correct: null,
         last_points: 0,
-        last_scorer: null,
-        // Next round starts locked (think) or open (classic).
         ...roundStartPatch(g),
       });
+      if (won) await resetPlayersForRound(gameId);
     }
   }, [gameId]);
 
   // =======================================================
-  // 5. THE TICKER — the heart of the robust state machine.
-  //    Every ~300ms: recompute the countdown + run any due
-  //    transition. Either client may drive transitions; guarded
-  //    updates keep them safe.
+  // 5. THE TICKER — recompute the countdown + run any due transition.
+  //    Any client may drive transitions; guarded updates keep them safe.
   // =======================================================
   useEffect(() => {
     const interval = setInterval(async () => {
       const g = gameRef.current;
       if (!g) return;
+      const roster = playersRef.current;
 
-      // --- update the visible countdown (whole seconds + smooth ms) ---
       setTimeLeft(secondsUntil(g.phase_deadline));
       setTimeLeftMs(msUntil(g.phase_deadline));
 
-      // --- EARLY ADVANCE (voice): both players pressed "Done" before the
-      //     talk window ended → jump straight to judging. Guarded so only
-      //     one client wins; earlyDoneRef stops us spamming until the
-      //     phase change propagates. Keyed by the (unique) deadline. ---
-      if (
-        g.phase === 'answering' &&
-        g.host_done && g.player_done &&
-        earlyDoneRef.current !== g.phase_deadline
-      ) {
+      // --- EARLY ADVANCE: everyone has answered before the timer ends. ---
+      const everyoneAnswered =
+        roster.length > 0 && roster.every((p) => hasAnswered(p, g.mc_mode));
+
+      if (g.phase === 'question' && everyoneAnswered &&
+          earlyDoneRef.current !== g.phase_deadline) {
+        earlyDoneRef.current = g.phase_deadline;
+        await resolveMcRound();
+        return;
+      }
+
+      if (g.phase === 'answering' && everyoneAnswered &&
+          earlyDoneRef.current !== g.phase_deadline) {
         earlyDoneRef.current = g.phase_deadline;
         const won = await updateGameIfPhase(gameId, 'answering', {
           phase: 'checking',
@@ -374,31 +373,20 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
       const expired = new Date(g.phase_deadline).getTime() <= serverNow();
       if (!expired) return;
 
-      // Only act ONCE per deadline on this client (avoid DB spam)
       if (actedDeadline.current === g.phase_deadline) return;
       actedDeadline.current = g.phase_deadline;
 
       try {
         switch (g.phase) {
           case 'thinking':
-            // Think-lock over → UNLOCK both players at the same instant.
-            // This is the server-controlled "GO": neither side could act
-            // before now, so a faster connection gains no early advantage.
-            // MC → pick phase; voice → talk phase.
             await updateGameIfPhase(gameId, 'thinking', afterThinkPatch(g));
             break;
 
           case 'question':
-            // MC only now (voice never enters 'question'). The deadline is
-            // either the no-answer timeout OR the grace window after the
-            // first pick. Either way, score whatever picks are in.
             await resolveMcRound();
             break;
 
           case 'answering': {
-            // Voice talk window over → go to checking. The winner of
-            // this guarded update becomes the judge and runs the AI on
-            // BOTH players' transcripts.
             const won = await updateGameIfPhase(gameId, 'answering', {
               phase: 'checking',
               phase_deadline: deadlineIn(CHECK_TIMEOUT_SECONDS),
@@ -409,26 +397,20 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
 
           case 'checking':
             // Safety net: the judge client vanished mid-check.
-            // Resolve as nobody-correct so the game never stalls.
             await updateGameIfPhase(gameId, 'checking', {
               phase: 'result',
-              host_correct: false,
-              player_correct: false,
               answer_correct: false,
               last_points: 0,
-              last_scorer: null,
               phase_deadline: deadlineIn(RESULT_TIME_SECONDS),
             });
             break;
 
           case 'result':
-            // Result shown long enough → next question (or end).
             await advanceToNext();
             break;
         }
       } catch (err) {
         console.error('[useGameState] tick transition error:', err);
-        // Allow a retry on the next tick if it failed
         actedDeadline.current = null;
       }
     }, TICK_INTERVAL_MS);
@@ -438,142 +420,89 @@ export function useGameState(gameId: string, role: PlayerRole): UseGameStateRetu
   }, [gameId, runVoiceCheck, resolveMcRound, advanceToNext]);
 
   // =======================================================
-  // 7. ACTIONS
+  // 6. ACTIONS
   // =======================================================
 
-  // Start the game (host only)
+  // Join / re-attach to a seat. Returns the player row (null if full).
+  const join = useCallback(async (name: string, asHost: boolean) => {
+    const p = await joinGame(gameId, clientId, name, asHost);
+    const list = await fetchPlayers(gameId);
+    setPlayers(list);
+    return p;
+  }, [gameId, clientId]);
+
+  // Start the match (host only). Resets every player, then opens round 1.
   const startGame = useCallback(async () => {
-    if (role !== 'host') return;
+    const meNow = playersRef.current.find((p) => p.client_id === clientId);
+    if (!meNow || meNow.role !== 'host') return;
+    await resetPlayersForMatch(gameId);
     await updateGame(gameId, {
       status: 'playing',
       current_question_index: 0,
-      host_score: 0,
-      player_score: 0,
-      mc_answer_index: null,
-      host_mc_index: null,
-      player_mc_index: null,
-      host_transcript: '',
-      player_transcript: '',
-      host_correct: null,
-      player_correct: null,
-      host_done: false,
-      player_done: false,
       answer_correct: null,
       last_points: 0,
-      last_scorer: null,
-      // Think mode starts locked; classic jumps straight in.
       ...roundStartPatch(gameRef.current),
     });
-  }, [gameId, role]);
+  }, [gameId, clientId]);
 
-  // Pick a multiple-choice option. Each player records their OWN pick;
-  // the round is scored when the grace window closes (see resolveMcRound).
-  // The FIRST pick opens the grace window (sets phase_deadline); a later
-  // pick just records itself without extending the window.
-  const submitMCAnswer = useCallback(async (
-    answeringRole: PlayerRole,
-    optionIndex: number
-  ) => {
+  // Pick a multiple-choice option (records MY pick only). Everyone has
+  // the same window; the round resolves on the timer or once all pick.
+  const submitMCAnswer = useCallback(async (optionIndex: number) => {
     const g = gameRef.current;
-    if (!g || !g.mc_mode) return;
+    const meNow = playersRef.current.find((p) => p.client_id === clientId);
+    if (!g || !meNow || !g.mc_mode) return;
     if (g.phase !== 'question') return;
+    if (meNow.mc_index !== null) return; // can't change your pick
+    await updatePlayer(meNow.id, { mc_index: optionIndex });
+  }, [clientId]);
 
-    const isHost = answeringRole === 'host';
-    const myColumn = isHost ? 'host_mc_index' : 'player_mc_index';
-    const alreadyAnswered = (isHost ? g.host_mc_index : g.player_mc_index) !== null;
-    if (alreadyAnswered) return; // can't change your pick
-
-    // Try to be the FIRST answerer: this opens the grace window. Guarded
-    // so it only succeeds while neither player has answered yet.
-    const firstPatch: Partial<Game> = isHost
-      ? { host_mc_index: optionIndex, phase_deadline: deadlineIn(MC_GRACE_SECONDS) }
-      : { player_mc_index: optionIndex, phase_deadline: deadlineIn(MC_GRACE_SECONDS) };
-
-    const wasFirst = await updateGameGuarded(gameId, firstPatch, {
-      phase: 'question',
-      nullColumns: ['host_mc_index', 'player_mc_index'],
-    });
-
-    if (!wasFirst) {
-      // Someone already answered → just record my pick inside the window,
-      // WITHOUT touching the deadline (so the window can't be extended).
-      const myPatch: Partial<Game> = isHost
-        ? { host_mc_index: optionIndex }
-        : { player_mc_index: optionIndex };
-      await updateGameGuarded(gameId, myPatch, {
-        phase: 'question',
-        nullColumns: [myColumn],
-      });
-    }
-  }, [gameId]);
-
-  // Live transcript update (called by useSpeechRecognition). In voice
-  // mode BOTH players talk, so each writes to their OWN column.
+  // Live transcript update (voice). Writes to MY row only.
   const updateTranscript = useCallback(async (text: string) => {
-    await updateGame(gameId, role === 'host'
-      ? { host_transcript: text }
-      : { player_transcript: text });
-  }, [gameId, role]);
+    const meNow = playersRef.current.find((p) => p.client_id === clientId);
+    if (!meNow) return;
+    await updatePlayer(meNow.id, { transcript: text });
+  }, [clientId]);
 
-  // Finish answering early (voice mode). Optionally writes a final
-  // transcript (e.g. a typed answer) and marks THIS player done. When
-  // both players are done the ticker advances the round immediately.
+  // Finish answering early (voice). Marks me done (+ optional final text).
   const finishAnswer = useCallback(async (finalText?: string) => {
-    const isHost = role === 'host';
-    const patch: Partial<Game> = isHost ? { host_done: true } : { player_done: true };
-    if (typeof finalText === 'string') {
-      if (isHost) patch.host_transcript = finalText;
-      else        patch.player_transcript = finalText;
-    }
-    await updateGame(gameId, patch);
-  }, [gameId, role]);
+    const meNow = playersRef.current.find((p) => p.client_id === clientId);
+    if (!meNow) return;
+    const patch: Partial<Player> = { done: true };
+    if (typeof finalText === 'string') patch.transcript = finalText;
+    await updatePlayer(meNow.id, patch);
+  }, [clientId]);
 
-  // Rematch — reset the game back to the lobby. If `newQuestions` is
-  // passed (freshly generated with the same settings) they REPLACE the
-  // old set; otherwise the same questions are reused.
+  // Rematch — send everyone back to the lobby with fresh (or same) questions.
   const rematch = useCallback(async (newQuestions?: Question[]) => {
+    await resetPlayersForMatch(gameId);
     await updateGame(gameId, {
       ...(newQuestions ? { questions: newQuestions } : {}),
-      status: 'ready',
+      status: 'waiting',
       phase: 'waiting',
       current_question_index: 0,
-      host_score: 0,
-      player_score: 0,
-      current_transcript: '',
-      mc_answer_index: null,
-      host_mc_index: null,
-      player_mc_index: null,
-      host_transcript: '',
-      player_transcript: '',
-      host_correct: null,
-      player_correct: null,
-      host_done: false,
-      player_done: false,
       answer_correct: null,
       last_points: 0,
-      last_scorer: null,
       phase_deadline: null,
-      // Clear the rematch votes for the next round.
-      rematch_host: false,
-      rematch_player: false,
     });
   }, [gameId]);
 
-  // Vote to rematch. A rematch only starts once the host AND at least
-  // one other player have voted (see GameScreen). Voting is idempotent.
-  const voteRematch = useCallback(async (votingRole: PlayerRole) => {
-    await updateGame(gameId, votingRole === 'host'
-      ? { rematch_host: true }
-      : { rematch_player: true });
-  }, [gameId]);
+  // Vote to rematch (idempotent).
+  const voteRematch = useCallback(async () => {
+    const meNow = playersRef.current.find((p) => p.client_id === clientId);
+    if (!meNow) return;
+    await updatePlayer(meNow.id, { rematch: true });
+  }, [clientId]);
 
   return {
     game,
+    players,
+    me,
     loading,
     error,
     timeLeft,
     timeLeftMs,
     timerTotal: phaseTotalSeconds(game),
+    join,
     submitMCAnswer,
     startGame,
     updateTranscript,
@@ -588,5 +517,4 @@ export {
   THINK_TIME_SECONDS,
   QUESTION_TIME_SECONDS,
   VOICE_ANSWER_SECONDS,
-  MC_GRACE_SECONDS,
 };

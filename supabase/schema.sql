@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS games (
   num_questions          INTEGER NOT NULL CHECK (num_questions BETWEEN 3 AND 10),
   mc_mode                BOOLEAN DEFAULT FALSE,
 
+  -- Host-chosen on the create screen. FALSE (default) = no cameras
+  -- requested; players still get a mic (voice answers + peer audio work).
+  cameras_enabled        BOOLEAN DEFAULT FALSE,
+
   -- Game mode:
   --   'think'   → locked think countdown before answering (default, fair)
   --   'classic' → buzz immediately when the question appears (original)
@@ -148,6 +152,55 @@ ALTER PUBLICATION supabase_realtime ADD TABLE games;
 CREATE INDEX IF NOT EXISTS games_created_at_idx ON games (created_at DESC);
 
 -- -------------------------------------------------------
+-- 5. PLAYERS TABLE — one row per participant (up to 6 players)
+--    All PER-PLAYER state lives here so six people can answer at the
+--    same time without clobbering each other. The games row above keeps
+--    only SHARED state (question, phase, deadline). The host_*/player_*
+--    columns on `games` are legacy (2-player era) and unused by the app.
+-- -------------------------------------------------------
+CREATE TABLE IF NOT EXISTS players (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+
+  game_id     UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+
+  -- Stable per-browser id (localStorage) → a reload re-attaches to the
+  -- SAME row instead of taking a new seat.
+  client_id   TEXT NOT NULL,
+  name        TEXT NOT NULL,
+
+  -- 'host' (creator, slot 0, can start/rematch) or 'player' (slots 1..5).
+  role        TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('host', 'player')),
+  slot        INTEGER NOT NULL CHECK (slot BETWEEN 0 AND 5),
+
+  score       INTEGER NOT NULL DEFAULT 0,
+
+  -- Per-round state (reset at the start of every question)
+  mc_index    INTEGER DEFAULT NULL,           -- MC pick 0-3, NULL = none
+  transcript  TEXT NOT NULL DEFAULT '',        -- voice answer this round
+  correct     BOOLEAN DEFAULT NULL,            -- judged correct? NULL before
+  done        BOOLEAN NOT NULL DEFAULT FALSE,  -- voice "Done" lock-in
+
+  rematch     BOOLEAN NOT NULL DEFAULT FALSE,  -- rematch vote
+
+  UNIQUE (game_id, slot),
+  UNIQUE (game_id, client_id)
+);
+
+ALTER TABLE players ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow full anonymous access to players" ON players;
+CREATE POLICY "Allow full anonymous access to players"
+  ON players FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE players;
+
+CREATE INDEX IF NOT EXISTS players_game_id_idx ON players (game_id);
+
+-- -------------------------------------------------------
 -- Done! You can verify with:
 --   SELECT * FROM games LIMIT 5;
+--   SELECT * FROM players LIMIT 5;
 -- -------------------------------------------------------

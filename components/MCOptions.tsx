@@ -1,15 +1,12 @@
 'use client';
 // ============================================================
-// MCOptions — Multiple choice answer buttons
+// MCOptions — Multiple choice answer buttons (multiplayer)
 //
-// Both players answer independently. While the round is open each
-// player sees ONLY their own pick highlighted (neutral accent — not a
-// right/wrong colour, since the answer isn't revealed yet). At the
-// reveal (result phase) the grid shows:
-//   - the correct option in green (✓)
-//   - each player's pick tagged ("You" / the opponent's name)
-//   - wrong picks in red
-// No full-screen colour flash — the grid itself shows the outcome.
+// Every player answers independently. While the round is open each
+// player sees ONLY their own pick highlighted (neutral accent — the
+// answer isn't revealed yet). At the reveal (result phase) the grid
+// shows the correct option in green (✓), the viewer's own wrong pick in
+// red (✗), and a small count of how many players chose each option.
 // ============================================================
 
 import React from 'react';
@@ -20,13 +17,12 @@ interface MCOptionsProps {
   correctAnswer?: string;
   /** This viewer's own pick (0-3) or null. */
   myPick?:        number | null;
-  /** The opponent's pick — only shown at the reveal. */
-  opponentPick?:  number | null;
+  /** How many players chose each option (length 4) — shown at the reveal. */
+  pickCounts?:    number[];
   /** Can this viewer still click an option? */
   canSelect:      boolean;
-  /** Labels for the pick tags. */
+  /** Label for the "your pick" tag. */
   youLabel?:      string;
-  opponentLabel?: string;
   onSelect:       (index: number) => void;
 }
 
@@ -36,10 +32,9 @@ export default function MCOptions({
   options,
   correctAnswer,
   myPick = null,
-  opponentPick = null,
+  pickCounts,
   canSelect,
   youLabel = 'You',
-  opponentLabel = 'Guest 1',
   onSelect,
 }: MCOptionsProps) {
   const revealed = correctAnswer != null;
@@ -48,12 +43,10 @@ export default function MCOptions({
     <div className="grid grid-cols-2 gap-2 lg:gap-3 w-full max-w-lg">
       {options.map((option, i) => {
         const pickedByMe  = myPick === i;
-        const pickedByOpp = revealed && opponentPick === i;
         const isCorrect   = revealed && option === correctAnswer;
-        const isWrongPick = revealed && (pickedByMe || pickedByOpp) && !isCorrect;
+        const isWrongPick = revealed && pickedByMe && !isCorrect;
+        const count       = pickCounts?.[i] ?? 0;
 
-        // Colours: neutral by default. Only the reveal shows green/red.
-        // Before the reveal, MY pick gets a calm accent highlight.
         let borderColour = 'var(--border)';
         let background   = 'var(--bg-card)';
         if (isCorrect) {
@@ -117,7 +110,7 @@ export default function MCOptions({
               {option}
             </span>
 
-            {/* Who-picked tags (mine while open; both at the reveal) */}
+            {/* Tags: your pick (always) + how many chose this (reveal only) */}
             <span className="flex flex-col items-end gap-0.5 ml-auto flex-shrink-0">
               {pickedByMe && (
                 <span
@@ -127,19 +120,19 @@ export default function MCOptions({
                   {youLabel}
                 </span>
               )}
-              {pickedByOpp && (
+              {revealed && count > 0 && (
                 <span
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide"
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
                   style={{ background: 'var(--bg-base)', color: 'var(--text-secondary)' }}
                 >
-                  {opponentLabel}
+                  ×{count}
                 </span>
               )}
             </span>
 
             {/* Correct/wrong icon (reveal only) */}
-            {isCorrect    && <span className="text-[var(--correct)] text-lg">✓</span>}
-            {isWrongPick  && <span className="text-[var(--wrong)] text-lg">✗</span>}
+            {isCorrect   && <span className="text-[var(--correct)] text-lg">✓</span>}
+            {isWrongPick && <span className="text-[var(--wrong)] text-lg">✗</span>}
           </button>
         );
       })}

@@ -1,96 +1,69 @@
 'use client';
 // ============================================================
-// ScoreBoard — Live score display
+// ScoreBoard — Live multiplayer leaderboard
 //
-// Shows HOST vs GUEST scores with a "VS" divider.
-// Animates score changes with a brief flash.
-//
-// TO CHANGE SCORING: see judgeAnswer() in useGameState.ts
-// Currently: +1 point for correct answer
+// Shows every player's score as a compact, wrapping row sorted highest
+// first. The local player is highlighted, and a score that just changed
+// briefly flashes gold.
 // ============================================================
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useLocale } from '@/context/LocaleProvider';
+import type { Player } from '@/lib/types';
 
 interface ScoreBoardProps {
-  hostScore:   number;
-  playerScore: number;
-  hostLabel?:  string;    // default "HOST"
-  playerLabel?: string;   // default "GUEST"
+  players: Player[];
+  meId:    string;
 }
 
-export default function ScoreBoard({
-  hostScore,
-  playerScore,
-  hostLabel   = 'HOST',
-  playerLabel = 'GUEST',
-}: ScoreBoardProps) {
-  const { t } = useLocale();
-  // Track previous scores to flash the changed one
-  const prevHostRef   = useRef(hostScore);
-  const prevPlayerRef = useRef(playerScore);
-  const [hostFlash,   setHostFlash]   = useState(false);
-  const [playerFlash, setPlayerFlash] = useState(false);
+export default function ScoreBoard({ players, meId }: ScoreBoardProps) {
+  // Track previous scores so we can flash the ones that changed.
+  const prevScores = useRef<Record<string, number>>({});
+  const [flashing, setFlashing] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (hostScore !== prevHostRef.current) {
-      prevHostRef.current = hostScore;
-      setHostFlash(true);
-      setTimeout(() => setHostFlash(false), 800);
+    const changed: Record<string, boolean> = {};
+    for (const p of players) {
+      if (prevScores.current[p.id] !== undefined && prevScores.current[p.id] !== p.score) {
+        changed[p.id] = true;
+      }
+      prevScores.current[p.id] = p.score;
     }
-  }, [hostScore]);
+    if (Object.keys(changed).length > 0) {
+      setFlashing((f) => ({ ...f, ...changed }));
+      const t = setTimeout(() => setFlashing({}), 800);
+      return () => clearTimeout(t);
+    }
+  }, [players]);
 
-  useEffect(() => {
-    if (playerScore !== prevPlayerRef.current) {
-      prevPlayerRef.current = playerScore;
-      setPlayerFlash(true);
-      setTimeout(() => setPlayerFlash(false), 800);
-    }
-  }, [playerScore]);
+  const ranked = [...players].sort((a, b) => b.score - a.score || a.slot - b.slot);
 
   return (
-    <div className="flex items-center justify-center gap-6">
-      {/* Host score */}
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-          {hostLabel}
-        </span>
-        <span
-          className="text-5xl font-bold tabular-nums transition-all duration-300"
-          style={{
-            color: hostFlash ? 'var(--gold)' : 'var(--text-primary)',
-            transform: hostFlash ? 'scale(1.12)' : 'scale(1)',
-          }}
-        >
-          {hostScore}
-        </span>
-      </div>
-
-      {/* VS divider */}
-      <div className="flex flex-col items-center">
-        <span
-          className="text-xs font-medium tracking-wider"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          {t('score.vs')}
-        </span>
-      </div>
-
-      {/* Player score */}
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-          {playerLabel}
-        </span>
-        <span
-          className="text-5xl font-bold tabular-nums transition-all duration-300"
-          style={{
-            color: playerFlash ? 'var(--gold)' : 'var(--text-primary)',
-            transform: playerFlash ? 'scale(1.12)' : 'scale(1)',
-          }}
-        >
-          {playerScore}
-        </span>
-      </div>
+    <div className="flex items-center justify-center flex-wrap gap-2">
+      {ranked.map((p) => {
+        const isMe  = p.id === meId;
+        const flash = flashing[p.id];
+        return (
+          <div
+            key={p.id}
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1 border transition-all duration-300"
+            style={{
+              background: isMe ? 'var(--bg-elevated)' : 'var(--bg-card)',
+              borderColor: isMe ? 'var(--accent)' : 'var(--border)',
+              transform: flash ? 'scale(1.08)' : 'scale(1)',
+            }}
+          >
+            <span className="text-xs font-medium text-[var(--text-secondary)] truncate max-w-[88px]">
+              {p.name}
+            </span>
+            <span
+              className="text-base font-bold tabular-nums transition-colors duration-300"
+              style={{ color: flash ? 'var(--gold)' : 'var(--text-primary)' }}
+            >
+              {p.score}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

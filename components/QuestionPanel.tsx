@@ -1,20 +1,16 @@
 'use client';
 // ============================================================
-// QuestionPanel — Middle 40% section
+// QuestionPanel — central game column (question, timer, answers)
 //
-// Displays everything in the centre column:
-//   - Current question text
-//   - Countdown timer (circular, smooth)
-//   - Live scoreboard
+// Displays:
+//   - Current question text + circular countdown
+//   - Live multiplayer leaderboard
 //   - Multiple-choice options  OR  the voice answer area
-//   - Live voice transcript (your own, while you speak)
-//   - Per-player result reveal (who said what / correct answer)
+//   - Per-player result reveal (everyone's answer + ✓/✗)
 //
-// VOICE MODE HAS NO BUZZER: after the question both players simply talk.
-// Each player's spoken answer is judged independently, so both can score.
-//
-// This component receives all its data as props — no hooks here.
-// Easier for future developers to modify and test.
+// No buzzer: in voice mode everyone talks; in MC mode everyone picks.
+// Each answer is judged independently so every correct player scores.
+// All data arrives as props — no hooks here.
 // ============================================================
 
 import React from 'react';
@@ -22,25 +18,27 @@ import MCOptions  from './MCOptions';
 import ScoreBoard from './ScoreBoard';
 import CountdownTimer from './CountdownTimer';
 import { useLocale } from '@/context/LocaleProvider';
-import type { Game, PlayerRole } from '@/lib/types';
+import type { Game, Player } from '@/lib/types';
 
 interface QuestionPanelProps {
   game:            Game;
-  role:            PlayerRole;
+  me:              Player;
+  players:         Player[];
   timeLeft:        number;
-  timeLeftMs:      number; // fractional ms — drives the smooth timer ring
+  timeLeftMs:      number;
   timerTotal:      number;
   transcript:      string;  // this viewer's OWN live answer (speech or typed)
   iAmDone:         boolean; // this viewer locked in their voice answer
-  speechSupported: boolean; // false on browsers without the Speech API
+  speechSupported: boolean;
   onMCSelect:      (index: number) => void;
-  onTypeAnswer:    (text: string) => void; // fallback: type instead of speak
-  onFinish:        () => void;             // lock in the voice answer early
+  onTypeAnswer:    (text: string) => void;
+  onFinish:        () => void;
 }
 
 export default function QuestionPanel({
   game,
-  role,
+  me,
+  players,
   timeLeft,
   timeLeftMs,
   timerTotal,
@@ -54,28 +52,25 @@ export default function QuestionPanel({
   const { t } = useLocale();
   const currentQuestion = game.questions[game.current_question_index];
   const phase           = game.phase;
-  const isHost          = role === 'host';
 
-  // This viewer's own multiple-choice pick (each player answers separately).
-  const myMcPick = isHost ? game.host_mc_index : game.player_mc_index;
-  const iHavePicked = myMcPick !== null;
-  const someonePicked = game.host_mc_index !== null || game.player_mc_index !== null;
+  const myMcPick     = me.mc_index;
+  const iHavePicked   = myMcPick !== null;
+  const someonePicked = players.some((p) => p.mc_index !== null);
 
-  // Voice result data (per player). "me" = this viewer, "opp" = the other.
-  const myTranscript  = isHost ? game.host_transcript   : game.player_transcript;
-  const oppTranscript = isHost ? game.player_transcript  : game.host_transcript;
-  const myCorrect     = isHost ? game.host_correct       : game.player_correct;
-  const oppCorrect    = isHost ? game.player_correct      : game.host_correct;
-  const oppLabel      = t('game.streamer');
+  // How many players chose each option (shown at the reveal).
+  const pickCounts = [0, 0, 0, 0];
+  for (const p of players) {
+    if (p.mc_index !== null && p.mc_index >= 0 && p.mc_index < 4) {
+      pickCounts[p.mc_index] += 1;
+    }
+  }
 
   return (
     <div
       className="relative flex flex-col h-full"
       style={{ background: 'var(--bg-base)', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}
     >
-      {/* ======================================================
-          TOP BAR — topic + progress
-      ====================================================== */}
+      {/* ---- TOP BAR — topic + progress ---- */}
       <div
         className="flex items-center justify-between px-6 py-2 lg:py-3"
         style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}
@@ -98,32 +93,19 @@ export default function QuestionPanel({
         </div>
       </div>
 
-      {/* ======================================================
-          SCORES — always visible
-      ====================================================== */}
-      <div className="px-6 pt-2 pb-1 lg:pt-4 lg:pb-2">
-        <ScoreBoard
-          hostScore={game.host_score}
-          playerScore={game.player_score}
-          hostLabel={t('game.host')}
-          playerLabel={t('game.streamer')}
-        />
+      {/* ---- SCORES — always visible ---- */}
+      <div className="px-4 pt-2 pb-1 lg:pt-3 lg:pb-2">
+        <ScoreBoard players={players} meId={me.id} />
       </div>
 
-      {/* ======================================================
-          QUESTION TEXT + TIMER
-      ====================================================== */}
+      {/* ---- QUESTION TEXT + TIMER ---- */}
       <div className="flex-1 flex flex-col items-center justify-start lg:justify-center gap-2.5 lg:gap-6 px-4 lg:px-8 py-2 lg:py-2 pb-4 overflow-y-auto">
 
-        {/* Timer — during the locked think countdown, the MC pick phase
-            (incl. the grace window), or the voice answer window. Kept
-            visible across these so the layout doesn't jump. */}
         {(phase === 'thinking' || phase === 'question' || phase === 'answering') && (
           <CountdownTimer current={timeLeft} total={timerTotal} remainingMs={timeLeftMs} />
         )}
 
-        {/* Think-mode lock banner — both players read the question but
-            can't answer yet. Unlocks for everyone at the same instant. */}
+        {/* Think-mode lock banner */}
         {phase === 'thinking' && (
           <div className="text-center">
             <p className="text-xl font-semibold" style={{ color: 'var(--accent)' }}>
@@ -135,9 +117,7 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Status line for the MC pick phase — ONE fixed-height row so the
-            message can change (go cue / someone answered / locked) without
-            shifting the question and options below it. */}
+        {/* MC pick-phase status line (fixed height so layout doesn't jump) */}
         {phase === 'question' && game.mc_mode && (
           <div className="min-h-[1.75rem] flex items-center justify-center text-center px-2">
             {iHavePicked ? (
@@ -156,7 +136,7 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Voice answer cue — both players speak at once (no buzzer). */}
+        {/* Voice answer cue */}
         {phase === 'answering' && !iAmDone && (
           <div className="text-center">
             <p className="text-xl font-semibold" style={{ color: 'var(--correct)' }}>
@@ -168,7 +148,7 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* After locking in — waiting for the opponent (or the timer). */}
+        {/* Locked in — waiting for the others / timer */}
         {phase === 'answering' && iAmDone && (
           <div className="text-center flex flex-col items-center gap-2">
             <span className="text-3xl" style={{ color: 'var(--correct)' }}>{'\u2713'}</span>
@@ -181,7 +161,7 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Checking indicator — AI is judging both answers */}
+        {/* Checking indicator */}
         {phase === 'checking' && (
           <div className="text-center flex flex-col items-center gap-2">
             <div className="w-7 h-7 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
@@ -191,8 +171,7 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* Question text — the big centrepiece. Hidden on the result screen
-            so the per-player reveal has room. */}
+        {/* Question text */}
         {currentQuestion && phase !== 'ended' && phase !== 'result' && (
           <div className="text-center">
             <p className="text-lg lg:text-2xl font-semibold leading-snug text-[var(--text-primary)]">
@@ -201,30 +180,23 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* ---- MC Options (multiple choice mode) ----
-            Visible (but disabled) during 'thinking' so both players can
-            read the choices, then become clickable when the lock lifts.
-            Each player answers independently; once I've picked, my choice
-            locks (the opponent still has the grace window to also answer). */}
+        {/* ---- MC Options ---- */}
         {game.mc_mode && currentQuestion?.options &&
           (phase === 'thinking' || phase === 'question' || phase === 'result') && (
           <MCOptions
             options={currentQuestion.options}
             correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
             myPick={myMcPick}
-            opponentPick={isHost ? game.player_mc_index : game.host_mc_index}
+            pickCounts={phase === 'result' ? pickCounts : undefined}
             canSelect={phase === 'question' && !iHavePicked}
             youLabel={t('mc.you')}
-            opponentLabel={oppLabel}
             onSelect={onMCSelect}
           />
         )}
 
-        {/* ---- Voice answer area: live "heard" box + type fallback + Done ----
-            Hidden once locked in (the waiting state above shows instead). */}
+        {/* ---- Voice answer area ---- */}
         {phase === 'answering' && !game.mc_mode && !iAmDone && (
           <div className="w-full flex flex-col gap-2.5">
-            {/* Live transcript — what the mic / typing has so far. */}
             <div
               className="w-full rounded-xl p-4 border min-h-[4.5rem]"
               style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
@@ -241,8 +213,6 @@ export default function QuestionPanel({
               </p>
             </div>
 
-            {/* Type fallback — always available; the only path if the
-                browser has no speech support. Typing stops the mic. */}
             <input
               type="text"
               value={transcript}
@@ -257,7 +227,6 @@ export default function QuestionPanel({
               onKeyDown={(e) => { if (e.key === 'Enter') onFinish(); }}
             />
 
-            {/* Done — lock in early so we don't wait out the whole window. */}
             <button
               onClick={onFinish}
               className="w-full px-6 py-2.5 rounded-xl font-semibold text-white transition-colors"
@@ -270,26 +239,21 @@ export default function QuestionPanel({
           </div>
         )}
 
-        {/* ---- Voice RESULT reveal (per player) ----
-            Shows both players' spoken answers with ✓/✗ and the correct
-            answer. No full-screen flash — clearer and no layout jump. */}
+        {/* ---- Voice RESULT reveal (every player) ---- */}
         {phase === 'result' && !game.mc_mode && (
-          <div className="w-full flex flex-col gap-2.5">
-            <TranscriptResult
-              label={t('mc.you')}
-              text={myTranscript}
-              correct={myCorrect}
-              emptyHint={t('game.saidNothing')}
-            />
-            <TranscriptResult
-              label={oppLabel}
-              text={oppTranscript}
-              correct={oppCorrect}
-              emptyHint={t('game.saidNothing')}
-            />
+          <div className="w-full flex flex-col gap-2 max-w-lg">
+            {players.map((p) => (
+              <TranscriptResult
+                key={p.id}
+                label={p.id === me.id ? t('mc.you') : p.name}
+                text={p.transcript}
+                correct={p.correct}
+                emptyHint={t('game.saidNothing')}
+              />
+            ))}
             {currentQuestion?.correct_answer && (
               <div
-                className="w-full rounded-xl px-4 py-3 border text-center"
+                className="w-full rounded-xl px-4 py-3 border text-center mt-1"
                 style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
               >
                 <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
@@ -302,17 +266,6 @@ export default function QuestionPanel({
             )}
           </div>
         )}
-
-        {/* ---- Waiting for player message ---- */}
-        {phase === 'waiting' && (
-          <div className="text-center">
-            <p className="text-[var(--text-secondary)] text-base">
-              {isHost
-                ? t('game.waitShareLink')
-                : t('game.waitHostStart')}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -320,7 +273,6 @@ export default function QuestionPanel({
 
 // ------------------------------------------------------------
 // One player's spoken answer on the result screen.
-// Green border/✓ if judged correct, red/✗ if wrong, neutral if blank.
 // ------------------------------------------------------------
 function TranscriptResult({
   label, text, correct, emptyHint,

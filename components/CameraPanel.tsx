@@ -24,6 +24,10 @@ interface CameraPanelProps {
   mirrored?:  boolean;
   error?:     string | null;
   className?: string;
+  /** Live score to show on the tile (multiplayer). Omit to hide. */
+  score?:     number;
+  /** Round outcome for the badge: true=✓, false=✗, null/undefined=none. */
+  correct?:   boolean | null;
 }
 
 export default function CameraPanel({
@@ -33,6 +37,8 @@ export default function CameraPanel({
   mirrored = false,
   error,
   className = '',
+  score,
+  correct = null,
 }: CameraPanelProps) {
   const { t } = useLocale();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -108,22 +114,40 @@ export default function CameraPanel({
         />
       )}
 
-      {/* ---- Player label badge at bottom ---- */}
+      {/* ---- Round result badge (top-left) ---- */}
+      {correct !== null && (
+        <div
+          className="absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center text-base font-bold text-white"
+          style={{ background: correct ? 'var(--correct)' : 'var(--wrong)' }}
+        >
+          {correct ? '\u2713' : '\u2717'}
+        </div>
+      )}
+
+      {/* ---- Player label + score badge at bottom ---- */}
       <div
-        className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2"
+        className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 gap-2"
         style={{ background: 'rgba(0,0,0,0.6)' }}
       >
-        <span className="text-xs font-semibold tracking-wider uppercase text-[var(--text-primary)]">
+        <span className="text-xs font-semibold tracking-wider uppercase text-[var(--text-primary)] truncate">
           {label}
         </span>
-        {/* Live indicator dot */}
-        <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+        {typeof score === 'number' ? (
           <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{ background: stream ? 'var(--correct)' : 'var(--text-muted)' }}
-          />
-          {stream ? t('game.live') : t('game.offline')}
-        </span>
+            className="flex-shrink-0 text-sm font-bold tabular-nums px-2 py-0.5 rounded-md"
+            style={{ background: 'var(--bg-card)', color: 'var(--gold)' }}
+          >
+            {score}
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{ background: stream ? 'var(--correct)' : 'var(--text-muted)' }}
+            />
+            {stream ? t('game.live') : t('game.offline')}
+          </span>
+        )}
       </div>
 
       {/* ---- Mic active indicator (top-right corner) ---- */}

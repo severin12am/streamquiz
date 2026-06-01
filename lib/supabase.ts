@@ -11,7 +11,8 @@
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
-import type { Game } from './types';
+import type { Game, Player, PlayerRole } from './types';
+import { MAX_PLAYERS } from './types';
 
 const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '';
 const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -188,4 +189,170 @@ export async function fetchGame(gameId: string): Promise<Game | null> {
     return null;
   }
   return data as Game;
+}
+
+// ============================================================
+// PLAYERS (multiplayer — up to 6 per game)
+// All per-player state lives in its own table so every client only
+// writes its OWN row; six people can answer at once with no clobbering.
+// ============================================================
+
+// -------------------------------------------------------
+// Subscribe to ANY change (insert/update/delete) of the players in a
+// game. The callback gets no payload — callers just refetch the full
+// list (simple + always-consistent for a handful of rows).
+// -------------------------------------------------------
+export function subscribeToPlayers(gameId: string, onChange: () => void) {
+  return supabase
+    .channel(`players:${gameId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'players',
+        filter: `game_id=eq.${gameId}`,
+      },
+      () => onChange()
+    )
+    .subscribe();
+}
+
+// -------------------------------------------------------
+// Fetch all players in a game, ordered by seat.
+// -------------------------------------------------------
+export async function fetchPlayers(gameId: string): Promise<Player[]> {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('game_id', gameId)
+    .order('slot', { ascending: true });
+
+  if (error) {
+    console.error('[StreamQuiz] fetchPlayers error:', error.message);
+    return [];
+  }
+  return (data ?? []) as Player[];
+}
+
+// -------------------------------------------------------
+// Update a single player row (partial). Each client only ever calls
+// this for ITS OWN row during a round, so there's no contention.
+// -------------------------------------------------------
+export async function updatePlayer(playerId: string, patch: Partial<Player>) {
+  const { error } = await supabase
+    .from('players')
+    .update(patch)
+    .eq('id', playerId);
+
+  if (error) {
+    console.error('[StreamQuiz] updatePlayer error:', error.message);
+    throw error;
+  }
+}
+
+// -------------------------------------------------------
+// Reset every player's PER-ROUND state (called by the one client that
+// wins the "advance to next question" guard).
+// -------------------------------------------------------
+export async function resetPlayersForRound(gameId: string) {
+  const { error } = await supabase
+    .from('players')
+    .update({ mc_index: null, transcript: '', correct: null, done: false })
+    .eq('game_id', gameId);
+  if (error) console.error('[StreamQuiz] resetPlayersForRound error:', error.message);
+}
+
+// -------------------------------------------------------
+// Reset every player for a brand-new match (scores + votes + round).
+// -------------------------------------------------------
+export async function resetPlayersForMatch(gameId: string) {
+  const { error } = await supabase
+    .from('players')
+    .update({
+      score: 0,
+      mc_index: null,
+      transcript: '',
+      correct: null,
+      done: false,
+      rematch: false,
+    })
+    .eq('game_id', gameId);
+  if (error) console.error('[StreamQuiz] resetPlayersForMatch error:', error.message);
+}
+
+// -------------------------------------------------------
+// JOIN a game — claim a seat (or re-attach to an existing one).
+//
+//   • If this browser (client_id) already has a row → reconnect to it.
+//   • Otherwise claim the lowest free slot: the host takes slot 0,
+//     guests take 1..5. The UNIQUE(game_id, slot) constraint guarantees
+//     two people can't grab the same seat — on a collision we just
+//     refetch and retry. Returns null if the game is full.
+// -------------------------------------------------------
+export async function joinGame(
+  gameId: string,
+  clientId: string,
+  name: string,
+  asHost: boolean
+): Promise<Player | null> {
+  // Reconnect path: we already have a seat in this game.
+  const { data: existing } = await supabase
+    .from('players')
+    .select('*')
+    .eq('game_id', gameId)
+    .eq('client_id', clientId)
+    .maybeSingle();
+
+  if (existing) {
+    const row = existing as Player;
+    if (name && row.name !== name) {
+      await supabase.from('players').update({ name }).eq('id', row.id);
+      row.name = name;
+    }
+    return row;
+  }
+
+  // Claim a fresh seat (retry on a slot collision).
+  for (let attempt = 0; attempt < MAX_PLAYERS + 2; attempt++) {
+    const players = await fetchPlayers(gameId);
+    const taken = new Set(players.map((p) => p.slot));
+
+    let slot = -1;
+    let role: PlayerRole = 'player';
+
+    if (asHost && !taken.has(0)) {
+      slot = 0;
+      role = 'host';
+    } else {
+      for (let s = 1; s < MAX_PLAYERS; s++) {
+        if (!taken.has(s)) {
+          slot = s;
+          break;
+        }
+      }
+    }
+
+    if (slot === -1) return null; // game full
+
+    const { data, error } = await supabase
+      .from('players')
+      .insert({ game_id: gameId, client_id: clientId, name, role, slot })
+      .select('*')
+      .single();
+
+    if (!error && data) return data as Player;
+
+    // A concurrent tab may have inserted OUR row, or grabbed the slot.
+    const { data: mine } = await supabase
+      .from('players')
+      .select('*')
+      .eq('game_id', gameId)
+      .eq('client_id', clientId)
+      .maybeSingle();
+    if (mine) return mine as Player;
+    // else: slot was taken → loop and pick the next free one
+  }
+
+  return null;
 }

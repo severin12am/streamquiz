@@ -32,6 +32,7 @@ export default function CreateGame() {
   const [numQuestions, setNumQuestions] = useState(5);
   const [mcMode,       setMcMode]       = useState(false);
   const [gameMode,     setGameMode]     = useState<GameMode>('think'); // default: fair think race
+  const [camerasEnabled, setCamerasEnabled] = useState(false); // default: cameras OFF (mics only)
 
   // ---- UI state ----
   const [loading,       setLoading]       = useState(false);
@@ -88,6 +89,7 @@ export default function CreateGame() {
           num_questions: numQuestions,
           mc_mode: mcMode,
           game_mode: gameMode,
+          cameras_enabled: camerasEnabled,
           questions,
           status: 'waiting',
           phase: 'waiting',
@@ -305,6 +307,31 @@ export default function CreateGame() {
           <span
             className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
             style={{ left: mcMode ? '26px' : '4px' }}
+          />
+        </button>
+      </div>
+
+      {/* ---- Cameras toggle (off by default — mics still work) ---- */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-[var(--text-primary)]">
+            {t('create.cameraTitle')}
+          </p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            {t('create.cameraHint')}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={camerasEnabled}
+          onClick={() => setCamerasEnabled(!camerasEnabled)}
+          className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
+          style={{ background: camerasEnabled ? 'var(--accent)' : 'var(--border-strong)' }}
+        >
+          <span
+            className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
+            style={{ left: camerasEnabled ? '26px' : '4px' }}
           />
         </button>
       </div>
