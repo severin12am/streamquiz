@@ -63,15 +63,38 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // ----------------------------------------------------------
   // 2. WebRTC camera mesh (one connection per other player)
   // ----------------------------------------------------------
+  const camerasEnabled = game?.cameras_enabled ?? false;
   const {
-    localStream, remoteStreams, cameraError, startCamera,
-  } = useMeshWebRTC(gameId, me?.id ?? '', game?.cameras_enabled ?? false);
+    localStream, remoteStreams, connected, cameraError, startCamera,
+  } = useMeshWebRTC(gameId, me?.id ?? '', camerasEnabled);
+
+  // TEMP DEBUG — log WebRTC-related game + stream state
+  useEffect(() => {
+    console.log('[WebRTC] GameScreen state', {
+      gameId,
+      playerId: me?.id ?? '(not seated)',
+      playerName: me?.name,
+      camerasEnabled,
+      hasLocalStream: !!localStream,
+      localStreamId: localStream?.id ?? null,
+      localTracks: localStream?.getTracks().map((t) => t.kind) ?? [],
+      remotePeerIds: Object.keys(remoteStreams),
+      connectedPeers: connected,
+      cameraError,
+    });
+  }, [gameId, me?.id, me?.name, camerasEnabled, localStream, remoteStreams, connected, cameraError]);
 
   // Start the camera as soon as we've taken a seat (so the mesh can form
   // while we're still in the lobby).
   useEffect(() => {
-    if (me) startCamera();
-  }, [me, startCamera]);
+    if (me) {
+      console.log('[Camera] GameScreen calling startCamera', {
+        playerId: me.id,
+        camerasEnabled,
+      });
+      startCamera();
+    }
+  }, [me, startCamera, camerasEnabled]);
 
   // ----------------------------------------------------------
   // 3. Speech recognition (voice answering)

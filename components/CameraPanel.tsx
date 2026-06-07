@@ -17,6 +17,9 @@
 import React, { useEffect, useRef } from 'react';
 import { useLocale } from '@/context/LocaleProvider';
 
+// TEMP DEBUG — remove when WebRTC remote-video issue is resolved
+const CAMERA_DEBUG = true;
+
 interface CameraPanelProps {
   stream:     MediaStream | null;
   label:      string;
@@ -49,15 +52,49 @@ export default function CameraPanel({
   // which would otherwise show a frozen/black frame.
   useEffect(() => {
     const video = videoRef.current;
+    if (CAMERA_DEBUG) {
+      if (!video) {
+        console.log('[Camera] effect — no video element yet', { label, mirrored, hasStream: !!stream });
+      } else if (!stream) {
+        console.log('[Camera] no stream — showing placeholder', { label, mirrored, error });
+      } else {
+        console.log('[Camera] attaching stream to <video>', {
+          label,
+          mirrored,
+          streamId: stream.id,
+          muted: mirrored,
+          tracks: stream.getTracks().map((t) => ({
+            kind: t.kind,
+            enabled: t.enabled,
+            readyState: t.readyState,
+            muted: t.muted,
+          })),
+        });
+      }
+    }
+
     if (video && stream) {
       video.srcObject = stream;
-      video.play().catch((err) => {
-        // Autoplay was blocked — log it; user interaction (clicking
-        // Start) usually unblocks it on the next attempt.
-        console.warn('[CameraPanel] video.play() blocked:', err?.message);
-      });
+      video.play()
+        .then(() => {
+          if (CAMERA_DEBUG) {
+            console.log('[Camera] video.play() succeeded', {
+              label,
+              mirrored,
+              videoWidth: video.videoWidth,
+              videoHeight: video.videoHeight,
+              readyState: video.readyState,
+              paused: video.paused,
+            });
+          }
+        })
+        .catch((err) => {
+          // Autoplay was blocked — log it; user interaction (clicking
+          // Start) usually unblocks it on the next attempt.
+          console.warn('[Camera] video.play() blocked', { label, mirrored, error: err?.message });
+        });
     }
-  }, [stream]);
+  }, [stream, label, mirrored, error]);
 
   return (
     <div

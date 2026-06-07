@@ -29,6 +29,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { WebRTCSignal } from '@/lib/types';
 
+// TEMP DEBUG — remove when WebRTC remote-video issue is resolved
+const WEBRTC_DEBUG = true;
+function logWebRTC(...args: unknown[]) {
+  if (WEBRTC_DEBUG) console.log('[WebRTC]', ...args);
+}
+function logSignaling(...args: unknown[]) {
+  if (WEBRTC_DEBUG) console.log('[Signaling]', ...args);
+}
+
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'turn:freeturn.net:3478',  username: 'free', credential: 'free' },
@@ -41,12 +50,15 @@ async function fetchIceServers(): Promise<RTCIceServer[]> {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
+        logWebRTC('ICE servers fetched from /api/ice-servers', { count: data.iceServers.length });
         return data.iceServers as RTCIceServer[];
       }
     }
+    logWebRTC('ICE servers API returned no servers, using fallback');
   } catch (err) {
-    console.warn('[Mesh] Could not fetch /api/ice-servers, using fallback:', err);
+    console.warn('[WebRTC] Could not fetch /api/ice-servers, using fallback:', err);
   }
+  logWebRTC('Using fallback ICE servers', { count: FALLBACK_ICE_SERVERS.length });
   return FALLBACK_ICE_SERVERS;
 }
 
@@ -87,7 +99,14 @@ export function useMeshWebRTC(
   // startCamera — request the webcam + mic once
   // -------------------------------------------------------
   const startCamera = useCallback(async () => {
-    if (localStreamRef.current) return;
+    if (localStreamRef.current) {
+      logWebRTC('startCamera skipped — local stream already exists', {
+        camerasEnabled,
+        trackCount: localStreamRef.current.getTracks().length,
+      });
+      return;
+    }
+    logWebRTC('startCamera called', { camerasEnabled, videoRequested: camerasEnabled });
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         // Mic is always requested; video only when the host enabled cameras.
@@ -103,25 +122,70 @@ export function useMeshWebRTC(
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
+      console.log('[Camera] getUserMedia success', {
+        camerasEnabled,
+        streamId: stream.id,
+        tracks: stream.getTracks().map((t) => ({
+          kind: t.kind,
+          enabled: t.enabled,
+          readyState: t.readyState,
+          label: t.label,
+        })),
+      });
     } catch (err) {
       const msg = err instanceof DOMException
         ? `Camera/mic error: ${err.message}. Please allow access and reload.`
         : 'Could not access your camera/mic.';
       setCameraError(msg);
-      console.error('[Mesh] getUserMedia failed:', err);
+      console.error('[Camera] getUserMedia failed', { camerasEnabled, error: err });
     }
   }, [camerasEnabled]);
 
   // -------------------------------------------------------
   // Main effect: presence + per-peer perfect negotiation
   // -------------------------------------------------------
+  // TEMP DEBUG — log when remoteStreams React state changes
   useEffect(() => {
-    if (!localStream || !gameId || !myId) return;
+    if (!WEBRTC_DEBUG) return;
+    const keys = Object.keys(remoteStreams);
+    logWebRTC('remoteStreams state updated', {
+      peerCount: keys.length,
+      peerIds: keys,
+      streams: keys.map((id) => ({
+        peerId: id,
+        streamId: remoteStreams[id]?.id,
+        tracks: remoteStreams[id]?.getTracks().map((t) => ({
+          kind: t.kind,
+          enabled: t.enabled,
+          readyState: t.readyState,
+        })),
+      })),
+    });
+  }, [remoteStreams]);
+
+  useEffect(() => {
+    if (!localStream || !gameId || !myId) {
+      logWebRTC('mesh effect waiting for prerequisites', {
+        hasLocalStream: !!localStream,
+        gameId: gameId || '(empty)',
+        myId: myId || '(empty)',
+        camerasEnabled,
+      });
+      return;
+    }
+
+    logWebRTC('mesh effect starting', {
+      gameId,
+      myId,
+      camerasEnabled,
+      localTracks: localStream.getTracks().map((t) => t.kind),
+    });
 
     let cancelled = false;
     const peers = peersRef.current;
 
     const removeRemoteStream = (peerId: string) => {
+      logWebRTC('removing remote stream from state', { peerId });
       setRemoteStreams((prev) => {
         if (!(peerId in prev)) return prev;
         const next = { ...prev };
@@ -145,13 +209,30 @@ export function useMeshWebRTC(
       });
       channelRef.current = channel;
 
-      const sendSignal = (signal: WebRTCSignal) =>
+      const sendSignal = (signal: WebRTCSignal) => {
+        logSignaling('SEND', {
+          type: signal.type,
+          from: signal.from,
+          to: signal.to,
+          ...(signal.type === 'ice-candidate'
+            ? { candidate: (signal.payload as RTCIceCandidateInit).candidate?.slice(0, 60) }
+            : { sdpType: (signal.payload as RTCSessionDescriptionInit).type }),
+        });
         channel.send({ type: 'broadcast', event: 'signal', payload: signal });
+      };
 
       // ---- create (or reuse) the connection to one peer ----
       const ensurePeer = (peerId: string): PeerConn => {
         const existing = peers.get(peerId);
-        if (existing) return existing;
+        if (existing) {
+          logWebRTC('ensurePeer reusing existing connection', {
+            peerId,
+            connectionState: existing.pc.connectionState,
+            iceConnectionState: existing.pc.iceConnectionState,
+            signalingState: existing.pc.signalingState,
+          });
+          return existing;
+        }
 
         const pc = new RTCPeerConnection({ iceServers });
         const entry: PeerConn = {
@@ -163,13 +244,44 @@ export function useMeshWebRTC(
         };
         peers.set(peerId, entry);
 
+        logWebRTC('peer connection CREATED', {
+          peerId,
+          myId,
+          polite: entry.polite,
+          iceServerCount: iceServers.length,
+        });
+
         // Send our camera + mic to this peer.
-        localStream!.getTracks().forEach((t) => pc.addTrack(t, localStream!));
+        localStream!.getTracks().forEach((t) => {
+          const sender = pc.addTrack(t, localStream!);
+          logWebRTC('addTrack to peer', {
+            peerId,
+            trackKind: t.kind,
+            trackId: t.id,
+            senderTrack: sender.track?.id,
+          });
+        });
 
         pc.ontrack = (event) => {
           const [stream] = event.streams;
+          logWebRTC('ontrack fired', {
+            peerId,
+            streamId: stream?.id ?? '(no stream)',
+            trackCount: event.streams.length,
+            tracks: event.track
+              ? [{ kind: event.track.kind, id: event.track.id, readyState: event.track.readyState }]
+              : [],
+          });
           if (stream) {
+            logWebRTC('storing remote stream in React state', {
+              peerId,
+              streamId: stream.id,
+              videoTracks: stream.getVideoTracks().length,
+              audioTracks: stream.getAudioTracks().length,
+            });
             setRemoteStreams((prev) => ({ ...prev, [peerId]: stream }));
+          } else {
+            console.warn('[WebRTC] ontrack received but no stream in event.streams', { peerId });
           }
         };
 
@@ -181,10 +293,17 @@ export function useMeshWebRTC(
               to: peerId,
               payload: candidate.toJSON(),
             });
+          } else {
+            logSignaling('ICE gathering complete (null candidate)', { peerId });
           }
         };
 
         pc.onnegotiationneeded = async () => {
+          logWebRTC('onnegotiationneeded', {
+            peerId,
+            signalingState: pc.signalingState,
+            makingOffer: entry.makingOffer,
+          });
           try {
             entry.makingOffer = true;
             await pc.setLocalDescription();
@@ -197,7 +316,7 @@ export function useMeshWebRTC(
               });
             }
           } catch (err) {
-            console.error('[Mesh] negotiate failed:', err);
+            console.error('[WebRTC] negotiate failed', { peerId, error: err });
           } finally {
             entry.makingOffer = false;
           }
@@ -205,21 +324,38 @@ export function useMeshWebRTC(
 
         pc.onconnectionstatechange = () => {
           const state = pc.connectionState;
+          logWebRTC('connectionStateChange', { peerId, state, polite: entry.polite });
           setConnected((prev) => ({ ...prev, [peerId]: state === 'connected' }));
           if (state === 'connected') setCameraError(null);
           if (state === 'failed' && !entry.polite) {
-            try { pc.restartIce(); } catch (err) { console.error(err); }
+            logWebRTC('connection failed — impolite peer restarting ICE', { peerId });
+            try { pc.restartIce(); } catch (err) { console.error('[WebRTC] restartIce failed', { peerId, err }); }
           }
         };
 
         pc.oniceconnectionstatechange = () => {
+          logWebRTC('iceConnectionStateChange', {
+            peerId,
+            iceConnectionState: pc.iceConnectionState,
+            connectionState: pc.connectionState,
+            polite: entry.polite,
+          });
           if (pc.iceConnectionState === 'disconnected' && !entry.polite) {
+            logWebRTC('ICE disconnected — scheduling restartIce in 2s', { peerId });
             setTimeout(() => {
               if (!cancelled && pc.iceConnectionState === 'disconnected') {
-                try { pc.restartIce(); } catch (err) { console.error(err); }
+                try { pc.restartIce(); } catch (err) { console.error('[WebRTC] restartIce failed', { peerId, err }); }
               }
             }, 2000);
           }
+        };
+
+        pc.onicegatheringstatechange = () => {
+          logWebRTC('iceGatheringStateChange', { peerId, iceGatheringState: pc.iceGatheringState });
+        };
+
+        pc.onsignalingstatechange = () => {
+          logWebRTC('signalingStateChange', { peerId, signalingState: pc.signalingState });
         };
 
         return entry;
@@ -228,6 +364,11 @@ export function useMeshWebRTC(
       const teardownPeer = (peerId: string) => {
         const entry = peers.get(peerId);
         if (!entry) return;
+        logWebRTC('peer connection TORN DOWN', {
+          peerId,
+          finalConnectionState: entry.pc.connectionState,
+          finalIceState: entry.pc.iceConnectionState,
+        });
         try { entry.pc.close(); } catch { /* noop */ }
         peers.delete(peerId);
         removeRemoteStream(peerId);
@@ -236,7 +377,21 @@ export function useMeshWebRTC(
       // ---- incoming routed signals (Perfect Negotiation core) ----
       channel.on('broadcast', { event: 'signal' }, async ({ payload }) => {
         const signal = payload as WebRTCSignal;
-        if (signal.to !== myId || signal.from === myId) return;
+        logSignaling('RECV (broadcast)', {
+          type: signal.type,
+          from: signal.from,
+          to: signal.to,
+          myId,
+          forMe: signal.to === myId,
+          fromSelf: signal.from === myId,
+        });
+
+        if (signal.to !== myId || signal.from === myId) {
+          if (signal.to !== myId) {
+            logSignaling('IGNORE — not addressed to this peer', { expected: myId, got: signal.to });
+          }
+          return;
+        }
 
         const entry = ensurePeer(signal.from);
         const { pc } = entry;
@@ -249,9 +404,26 @@ export function useMeshWebRTC(
               (entry.makingOffer || pc.signalingState !== 'stable');
 
             entry.ignoreOffer = !entry.polite && offerCollision;
-            if (entry.ignoreOffer) return;
+            logSignaling('handling SDP', {
+              from: signal.from,
+              sdpType: description.type,
+              signalingState: pc.signalingState,
+              makingOffer: entry.makingOffer,
+              polite: entry.polite,
+              offerCollision,
+              ignoreOffer: entry.ignoreOffer,
+            });
+            if (entry.ignoreOffer) {
+              logSignaling('IGNORE offer — impolite side yielding to collision', { from: signal.from });
+              return;
+            }
 
             await pc.setRemoteDescription(description);
+            logSignaling('setRemoteDescription OK', {
+              from: signal.from,
+              sdpType: description.type,
+              newSignalingState: pc.signalingState,
+            });
             if (description.type === 'offer') {
               await pc.setLocalDescription();
               if (pc.localDescription) {
@@ -267,12 +439,18 @@ export function useMeshWebRTC(
             const candidate = signal.payload as RTCIceCandidateInit;
             try {
               await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              logSignaling('addIceCandidate OK', {
+                from: signal.from,
+                candidate: candidate.candidate?.slice(0, 60),
+              });
             } catch (err) {
-              if (!entry.ignoreOffer) console.error('[Mesh] addIceCandidate failed:', err);
+              if (!entry.ignoreOffer) {
+                console.error('[Signaling] addIceCandidate failed', { from: signal.from, error: err });
+              }
             }
           }
         } catch (err) {
-          console.error('[Mesh] signal handling error:', err);
+          console.error('[Signaling] signal handling error', { from: signal.from, type: signal.type, error: err });
         }
       });
 
@@ -282,23 +460,49 @@ export function useMeshWebRTC(
         const state = channel.presenceState() as Record<string, unknown[]>;
         const online = new Set(Object.keys(state));
 
+        logSignaling('presence reconcile', {
+          myId,
+          onlinePeerIds: [...online],
+          activePeerConnections: [...peers.keys()],
+        });
+
         // Open a connection to any newly-present peer.
         online.forEach((peerId) => {
-          if (peerId !== myId && !peers.has(peerId)) ensurePeer(peerId);
+          if (peerId !== myId && !peers.has(peerId)) {
+            logSignaling('presence: new peer online — opening connection', { peerId });
+            ensurePeer(peerId);
+          }
         });
         // Tear down peers that have gone offline.
         peers.forEach((_entry, peerId) => {
-          if (!online.has(peerId)) teardownPeer(peerId);
+          if (!online.has(peerId)) {
+            logSignaling('presence: peer offline — tearing down', { peerId });
+            teardownPeer(peerId);
+          }
         });
       };
 
-      channel.on('presence', { event: 'sync' }, reconcile);
-      channel.on('presence', { event: 'join' }, reconcile);
-      channel.on('presence', { event: 'leave' }, reconcile);
+      channel.on('presence', { event: 'sync' }, () => {
+        logSignaling('presence event: sync');
+        reconcile();
+      });
+      channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        logSignaling('presence event: join', { key, newPresences });
+        reconcile();
+      });
+      channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        logSignaling('presence event: leave', { key, leftPresences });
+        reconcile();
+      });
 
       channel.subscribe(async (status) => {
+        logSignaling('broadcast channel status', { status, channel: `webrtc:${gameId}`, myId });
         if (status === 'SUBSCRIBED') {
           await channel.track({ id: myId, at: Date.now() });
+          logSignaling('presence tracked', { myId });
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Signaling] channel subscription failed', { status, gameId, myId });
         }
       });
     }
@@ -306,6 +510,7 @@ export function useMeshWebRTC(
     setup();
 
     return () => {
+      logWebRTC('mesh effect cleanup', { myId, peerCount: peers.size });
       cancelled = true;
       peers.forEach((entry) => { try { entry.pc.close(); } catch { /* noop */ } });
       peers.clear();
@@ -316,6 +521,7 @@ export function useMeshWebRTC(
         channelRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- camerasEnabled logged only; omit to avoid re-running mesh
   }, [localStream, gameId, myId]);
 
   // -------------------------------------------------------

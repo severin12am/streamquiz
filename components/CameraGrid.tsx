@@ -7,9 +7,12 @@
 // result reveal. Replaces the old fixed 2-camera layout.
 // ============================================================
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import CameraPanel from './CameraPanel';
 import type { Player } from '@/lib/types';
+
+// TEMP DEBUG — remove when WebRTC remote-video issue is resolved
+const GRID_DEBUG = true;
 
 interface CameraGridProps {
   players:       Player[];
@@ -42,6 +45,34 @@ export default function CameraGrid({
   showResult,
   className = '',
 }: CameraGridProps) {
+  const prevLogRef = useRef('');
+
+  // TEMP DEBUG — log stream assignment per tile when inputs change
+  useEffect(() => {
+    if (!GRID_DEBUG) return;
+    const summary = players.map((p) => {
+      const isMe = p.id === me.id;
+      const stream = isMe ? localStream : (remoteStreams[p.id] ?? null);
+      return {
+        playerId: p.id,
+        name: p.name,
+        isMe,
+        hasStream: !!stream,
+        streamId: stream?.id ?? null,
+        videoTracks: stream?.getVideoTracks().length ?? 0,
+      };
+    });
+    const key = JSON.stringify(summary);
+    if (key === prevLogRef.current) return;
+    prevLogRef.current = key;
+    console.log('[Camera] CameraGrid stream assignment', {
+      playerCount: players.length,
+      remoteStreamKeys: Object.keys(remoteStreams),
+      tiles: summary,
+      cameraError: cameraError ?? null,
+    });
+  }, [players, me.id, localStream, remoteStreams, cameraError]);
+
   return (
     <div className={`grid ${gridColsClass(players.length)} auto-rows-fr gap-1.5 ${className}`}>
       {players.map((p) => {
