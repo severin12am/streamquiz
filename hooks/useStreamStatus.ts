@@ -80,7 +80,7 @@ export function useStreamStatus(stream: MediaStream | null): StreamStatus {
     // Build an analyser if (and only if) there's an audio track to measure.
     const audioTrack = stream?.getAudioTracks()[0] ?? null;
     const audioCtx = audioTrack ? getSharedAudioContext() : null;
-    if (audioTrack && audioCtx) {
+    if (stream && audioTrack && audioCtx) {
       try {
         audioCtx.resume?.().catch(() => {});
         source = audioCtx.createMediaStreamSource(stream);
