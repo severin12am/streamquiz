@@ -151,6 +151,35 @@ export async function updateGameIfPhase(
 }
 
 // -------------------------------------------------------
+// Helper: GUARDED deadline change — compare-and-swap on phase_deadline.
+// Only applies if the row is BOTH in the expected phase AND still has the
+// exact deadline we last saw. Used to shrink the countdown the instant the
+// first player answers: every client may try, but only the FIRST one (whose
+// expected deadline still matches) wins, and a second shrink can't happen
+// because the deadline has already changed. Returns true if THIS call won.
+// -------------------------------------------------------
+export async function updateGameIfDeadline(
+  gameId: string,
+  expectedPhase: string,
+  expectedDeadline: string,
+  patch: Partial<Game>
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('games')
+    .update(patch)
+    .eq('id', gameId)
+    .eq('phase', expectedPhase)
+    .eq('phase_deadline', expectedDeadline)
+    .select('id');
+
+  if (error) {
+    console.error('[StreamQuiz] updateGameIfDeadline error:', error.message);
+    return false;
+  }
+  return Array.isArray(data) && data.length > 0;
+}
+
+// -------------------------------------------------------
 // Helper: GUARDED update with extra conditions.
 // Like updateGameIfPhase, but also lets you require certain columns
 // to currently be NULL (e.g. "only write my pick if I haven't picked

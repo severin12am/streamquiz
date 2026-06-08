@@ -12,15 +12,19 @@ import CameraPanel from './CameraPanel';
 import type { Player, GamePhase } from '@/lib/types';
 import { playerColor } from '@/lib/player-colors';
 
-// TEMP DEBUG — remove when WebRTC remote-video issue is resolved
-const GRID_DEBUG = true;
+// Flip to true to print per-tile stream assignment logs while debugging.
+const GRID_DEBUG = false;
 
 interface CameraGridProps {
   players:       Player[];
   me:            Player;
   localStream:   MediaStream | null;
   remoteStreams: Record<string, MediaStream>;
+  /** Per-peer connection state, keyed by player id. */
+  connected:     Record<string, boolean>;
   cameraError:   string | null;
+  /** Host turned cameras on for this game. */
+  camerasEnabled: boolean;
   /** Highlight every tile (the voice answering phase). */
   speaking:      boolean;
   /** Show each player's ✓/✗ outcome (result phase). */
@@ -44,7 +48,9 @@ export default function CameraGrid({
   me,
   localStream,
   remoteStreams,
+  connected,
   cameraError,
+  camerasEnabled,
   speaking,
   showResult,
   phase,
@@ -100,6 +106,9 @@ export default function CameraGrid({
             correct={showResult ? p.correct : null}
             color={playerColor(p.slot)}
             answered={answered}
+            isLocal={isMe}
+            camerasEnabled={camerasEnabled}
+            connected={isMe ? undefined : !!connected[p.id]}
             className="h-full w-full rounded-lg"
           />
         );

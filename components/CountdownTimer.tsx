@@ -45,7 +45,7 @@ export default function CountdownTimer({ current, total, remainingMs }: Countdow
     :               'var(--timer-urgent)';  // red    ≤5s
 
   return (
-    <div className="relative flex items-center justify-center w-[84px] h-[84px] lg:w-[120px] lg:h-[120px]">
+    <div className="relative flex items-center justify-center w-[60px] h-[60px] lg:w-[120px] lg:h-[120px]">
       {/* Background track */}
       <svg
         className="absolute inset-0 -rotate-90 w-full h-full"
@@ -76,7 +76,7 @@ export default function CountdownTimer({ current, total, remainingMs }: Countdow
 
       {/* Number in the centre */}
       <span
-        className="relative z-10 text-2xl lg:text-3xl font-bold tabular-nums"
+        className="relative z-10 text-xl lg:text-3xl font-bold tabular-nums"
         style={{ color: colour, transition: 'color 0.3s ease' }}
       >
         {display}

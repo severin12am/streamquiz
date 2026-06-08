@@ -29,8 +29,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { WebRTCSignal } from '@/lib/types';
 
-// TEMP DEBUG — remove when WebRTC remote-video issue is resolved
-const WEBRTC_DEBUG = true;
+// Flip to true to print verbose WebRTC/signaling logs while debugging.
+const WEBRTC_DEBUG = false;
 function logWebRTC(...args: unknown[]) {
   if (WEBRTC_DEBUG) console.log('[WebRTC]', ...args);
 }
@@ -70,6 +70,10 @@ export interface UseMeshWebRTCReturn {
   connected:     Record<string, boolean>;
   cameraError:   string | null;
   startCamera:   () => Promise<void>;
+  /** Is my mic currently being transmitted to the other players? */
+  micEnabled:    boolean;
+  /** Enable/disable sending my mic to peers (push-to-talk / answer phase). */
+  setMicEnabled: (on: boolean) => void;
 }
 
 interface PeerConn {
@@ -90,6 +94,9 @@ export function useMeshWebRTC(
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [connected,     setConnected]     = useState<Record<string, boolean>>({});
   const [cameraError,   setCameraError]   = useState<string | null>(null);
+  // Mic starts MUTED: others only hear you during the answer phase or while
+  // you hold the push-to-talk button (see setMicEnabled below).
+  const [micEnabled,    setMicEnabledState] = useState(false);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const peersRef       = useRef<Map<string, PeerConn>>(new Map());
@@ -120,6 +127,10 @@ export function useMeshWebRTC(
           : false,
         audio: true,
       });
+      // Start muted — we only broadcast the mic when answering or when the
+      // player holds push-to-talk. (Speech recognition uses its own capture,
+      // so voice answers still transcribe even while the peer mic is muted.)
+      stream.getAudioTracks().forEach((track) => { track.enabled = false; });
       localStreamRef.current = stream;
       setLocalStream(stream);
       console.log('[Camera] getUserMedia success', {
@@ -140,6 +151,16 @@ export function useMeshWebRTC(
       console.error('[Camera] getUserMedia failed', { camerasEnabled, error: err });
     }
   }, [camerasEnabled]);
+
+  // -------------------------------------------------------
+  // setMicEnabled — toggle whether our mic reaches the other players.
+  // Flips the local audio track's `enabled` flag (instant, no renegotiation).
+  // -------------------------------------------------------
+  const setMicEnabled = useCallback((on: boolean) => {
+    const tracks = localStreamRef.current?.getAudioTracks() ?? [];
+    tracks.forEach((track) => { track.enabled = on; });
+    setMicEnabledState(on);
+  }, []);
 
   // -------------------------------------------------------
   // Main effect: presence + per-peer perfect negotiation
@@ -534,5 +555,5 @@ export function useMeshWebRTC(
     };
   }, []);
 
-  return { localStream, remoteStreams, connected, cameraError, startCamera };
+  return { localStream, remoteStreams, connected, cameraError, startCamera, micEnabled, setMicEnabled };
 }

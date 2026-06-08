@@ -34,6 +34,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   supabase, subscribeToGame, subscribeToPlayers, updateGame, updateGameIfPhase,
+  updateGameIfDeadline,
   fetchGame, fetchPlayers, updatePlayer, joinGame,
   resetPlayersForRound, resetPlayersForMatch, serverNow, syncServerClock,
 } from '@/lib/supabase';
@@ -48,6 +49,10 @@ const QUESTION_TIME_SECONDS = 15;   // MC: time to pick before the round resolve
 const VOICE_ANSWER_SECONDS  = 12;   // voice: time everyone has to speak
 const RESULT_TIME_SECONDS   = 5;    // how long the result screen shows
 const CHECK_TIMEOUT_SECONDS = 15;   // safety: max time to wait for AI judging
+// The moment the FIRST player locks in an answer, everyone else gets only
+// this many seconds left to respond (it's a race — answer first). Applies to
+// both multiple-choice ('question') and voice ('answering') rounds.
+const FIRST_ANSWER_GRACE_SECONDS = 4;
 
 // -------------------------------------------------------
 // NETWORK RESILIENCE SETTINGS
@@ -142,6 +147,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   const judgingRef     = useRef(false);
   const actedDeadline  = useRef<string | null>(null);
   const earlyDoneRef   = useRef<string | null>(null);
+  const shrunkDeadline = useRef<string | null>(null);
 
   const me = players.find((p) => p.client_id === clientId) ?? null;
 
@@ -346,6 +352,22 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
       setTimeLeft(secondsUntil(g.phase_deadline));
       setTimeLeftMs(msUntil(g.phase_deadline));
 
+      // --- FIRST-ANSWER RACE: as soon as ONE player has answered, cut the
+      //     remaining time down to FIRST_ANSWER_GRACE_SECONDS so the rest
+      //     have to hurry. Compare-and-swap on the deadline keeps it safe:
+      //     only one client wins and it can only fire once per round. ---
+      if ((g.phase === 'question' || g.phase === 'answering') &&
+          g.phase_deadline &&
+          shrunkDeadline.current !== g.phase_deadline &&
+          roster.some((p) => hasAnswered(p, g.mc_mode)) &&
+          msUntil(g.phase_deadline) > (FIRST_ANSWER_GRACE_SECONDS + 0.4) * 1000) {
+        shrunkDeadline.current = g.phase_deadline;
+        updateGameIfDeadline(gameId, g.phase, g.phase_deadline, {
+          phase_deadline: deadlineIn(FIRST_ANSWER_GRACE_SECONDS),
+        });
+        return;
+      }
+
       // --- EARLY ADVANCE: everyone has answered before the timer ends. ---
       const everyoneAnswered =
         roster.length > 0 && roster.every((p) => hasAnswered(p, g.mc_mode));
@@ -517,4 +539,5 @@ export {
   THINK_TIME_SECONDS,
   QUESTION_TIME_SECONDS,
   VOICE_ANSWER_SECONDS,
+  FIRST_ANSWER_GRACE_SECONDS,
 };

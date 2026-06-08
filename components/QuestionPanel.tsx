@@ -114,7 +114,7 @@ export default function QuestionPanel({
       </div>
 
       {/* ---- QUESTION TEXT + TIMER ---- */}
-      <div className="flex-1 flex flex-col items-center justify-start lg:justify-center gap-2.5 lg:gap-6 px-4 lg:px-8 py-2 lg:py-2 pb-4 overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-start lg:justify-center gap-2 lg:gap-6 px-4 lg:px-8 py-1.5 lg:py-2 pb-4 overflow-y-auto">
 
         {(phase === 'thinking' || phase === 'question' || phase === 'answering') && (
           <CountdownTimer current={timeLeft} total={timerTotal} remainingMs={timeLeftMs} />
@@ -249,8 +249,11 @@ export default function QuestionPanel({
               onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
             >
-              {t('game.done')}
+              {t('game.doneOptional')}
             </button>
+            <p className="text-center text-xs text-[var(--text-muted)]">
+              {t('game.autoSubmitHint')}
+            </p>
           </div>
         )}
 

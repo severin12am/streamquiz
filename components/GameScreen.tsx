@@ -66,35 +66,47 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const camerasEnabled = game?.cameras_enabled ?? false;
   const {
     localStream, remoteStreams, connected, cameraError, startCamera,
+    micEnabled, setMicEnabled,
   } = useMeshWebRTC(gameId, me?.id ?? '', camerasEnabled);
-
-  // TEMP DEBUG — log WebRTC-related game + stream state
-  useEffect(() => {
-    console.log('[WebRTC] GameScreen state', {
-      gameId,
-      playerId: me?.id ?? '(not seated)',
-      playerName: me?.name,
-      camerasEnabled,
-      hasLocalStream: !!localStream,
-      localStreamId: localStream?.id ?? null,
-      localTracks: localStream?.getTracks().map((t) => t.kind) ?? [],
-      remotePeerIds: Object.keys(remoteStreams),
-      connectedPeers: connected,
-      cameraError,
-    });
-  }, [gameId, me?.id, me?.name, camerasEnabled, localStream, remoteStreams, connected, cameraError]);
 
   // Start the camera as soon as we've taken a seat (so the mesh can form
   // while we're still in the lobby).
   useEffect(() => {
-    if (me) {
-      console.log('[Camera] GameScreen calling startCamera', {
-        playerId: me.id,
-        camerasEnabled,
-      });
-      startCamera();
-    }
-  }, [me, startCamera, camerasEnabled]);
+    if (me) startCamera();
+  }, [me, startCamera]);
+
+  // ----------------------------------------------------------
+  // Push-to-talk — your mic is muted by default. It opens to the other
+  // players (a) automatically while you answer out loud, and (b) while you
+  // hold the talk button to chat between questions.
+  // ----------------------------------------------------------
+  const [pttHeld, setPttHeld] = useState(false);
+  const isAnswering = game?.phase === 'answering';
+  useEffect(() => {
+    // `localStream` in deps so the desired mic state is re-applied once the
+    // mic track actually exists (it's captured a moment after we seat).
+    setMicEnabled(isAnswering || pttHeld);
+  }, [isAnswering, pttHeld, setMicEnabled, localStream]);
+
+  // Hold SPACE to talk (ignored while typing in an input).
+  useEffect(() => {
+    const isTyping = () => {
+      const el = document.activeElement;
+      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat && !isTyping()) { e.preventDefault(); setPttHeld(true); }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !isTyping()) { e.preventDefault(); setPttHeld(false); }
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, []);
 
   // ----------------------------------------------------------
   // 3. Speech recognition (voice answering)
@@ -104,13 +116,42 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const typedModeRef = React.useRef(false);
   useEffect(() => { typedModeRef.current = typedMode; }, [typedMode]);
 
+  // Keep the latest draft in a ref so we can guarantee a final save when the
+  // answering phase ends (no "Done" click required).
+  const answerDraftRef = React.useRef('');
+
+  // Throttle transcript writes to Supabase. Live speech fires many interim
+  // results per second; writing every one floods the DB and the LAST words
+  // could land after judging (the old "you gave no answer" bug). We instead
+  // write at most ~3×/sec and always flush the final value.
+  const TRANSCRIPT_THROTTLE_MS = 350;
+  const writeState = React.useRef<{ last: number; timer: ReturnType<typeof setTimeout> | null }>({
+    last: 0, timer: null,
+  });
+  const pushTranscript = useCallback((text: string) => {
+    answerDraftRef.current = text;
+    const s = writeState.current;
+    const now = Date.now();
+    const elapsed = now - s.last;
+    if (elapsed >= TRANSCRIPT_THROTTLE_MS) {
+      s.last = now;
+      updateTranscript(text);
+    } else if (!s.timer) {
+      s.timer = setTimeout(() => {
+        s.timer = null;
+        s.last = Date.now();
+        updateTranscript(answerDraftRef.current);
+      }, TRANSCRIPT_THROTTLE_MS - elapsed);
+    }
+  }, [updateTranscript]);
+
   const onTranscriptUpdate = useCallback(
     (text: string) => {
       if (typedModeRef.current) return;
       setAnswerDraft(text);
-      updateTranscript(text);
+      pushTranscript(text);
     },
-    [updateTranscript]
+    [pushTranscript]
   );
 
   const { isListening, isSupported, startListening, stopListening } =
@@ -119,7 +160,24 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   useEffect(() => {
     setAnswerDraft('');
     setTypedMode(false);
+    answerDraftRef.current = '';
   }, [game?.current_question_index]);
+
+  // Auto-submit: when the answering phase ends, save whatever was said/typed
+  // and mark it in — so you never lose an answer by not pressing "Done".
+  const prevPhaseRef = React.useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    const cur = game?.phase;
+    prevPhaseRef.current = cur;
+    if (prev === 'answering' && cur && cur !== 'answering' && !game?.mc_mode) {
+      const s = writeState.current;
+      if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+      if (!iAmDone && answerDraftRef.current.trim()) {
+        finishAnswer(answerDraftRef.current);
+      }
+    }
+  }, [game?.phase, game?.mc_mode, iAmDone, finishAnswer]);
 
   useEffect(() => {
     if (!game) return;
@@ -136,12 +194,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     if (!typedMode) setTypedMode(true);
     if (isListening) stopListening();
     setAnswerDraft(text);
-    updateTranscript(text);
-  }, [typedMode, isListening, stopListening, updateTranscript]);
+    pushTranscript(text);
+  }, [typedMode, isListening, stopListening, pushTranscript]);
 
   const handleFinishAnswer = useCallback(() => {
     if (isListening) stopListening();
-    finishAnswer(answerDraft);
+    const s = writeState.current;
+    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    finishAnswer(answerDraftRef.current || answerDraft);
   }, [isListening, stopListening, finishAnswer, answerDraft]);
 
   // ----------------------------------------------------------
@@ -288,13 +348,15 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   return (
     <div className="relative flex flex-col lg:flex-row h-screen w-screen overflow-hidden">
       {/* ---- Camera mesh (all players) ---- */}
-      <div className="h-[26vh] shrink-0 lg:h-full lg:flex-[2] min-w-0 min-h-0 p-1.5">
+      <div className="h-[44vh] shrink-0 lg:h-full lg:flex-[2] min-w-0 min-h-0 p-1.5">
         <CameraGrid
           players={players}
           me={me}
           localStream={localStream}
           remoteStreams={remoteStreams}
+          connected={connected}
           cameraError={cameraError}
+          camerasEnabled={camerasEnabled}
           speaking={speaking}
           showResult={showResult}
           phase={game.phase}
@@ -320,6 +382,26 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           onFinish={handleFinishAnswer}
         />
       </div>
+
+      {/* ---- Push-to-talk button (hold to chat between questions) ---- */}
+      <button
+        type="button"
+        onPointerDown={(e) => { e.preventDefault(); setPttHeld(true); }}
+        onPointerUp={() => setPttHeld(false)}
+        onPointerLeave={() => setPttHeld(false)}
+        onPointerCancel={() => setPttHeld(false)}
+        aria-label={t('ptt.hold')}
+        className="fixed z-30 bottom-3 right-3 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm text-white shadow-lg select-none touch-none transition-transform active:scale-95"
+        style={{
+          background: micEnabled ? 'var(--correct)' : 'var(--bg-elevated)',
+          border: `1px solid ${micEnabled ? 'var(--correct)' : 'var(--border-strong)'}`,
+        }}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+        </svg>
+        {isAnswering ? t('ptt.answerLive') : pttHeld ? t('ptt.talking') : t('ptt.hold')}
+      </button>
 
       {/* ---- Winner overlay ---- */}
       {game.phase === 'ended' && (
