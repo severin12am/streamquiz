@@ -31,6 +31,10 @@ interface CameraPanelProps {
   score?:     number;
   /** Round outcome for the badge: true=✓, false=✗, null/undefined=none. */
   correct?:   boolean | null;
+  /** Stable per-player identity colour. */
+  color?:     string;
+  /** Has this player answered this round? Shows a small status dot. */
+  answered?:  boolean | null;
 }
 
 export default function CameraPanel({
@@ -42,6 +46,8 @@ export default function CameraPanel({
   className = '',
   score,
   correct = null,
+  color,
+  answered = null,
 }: CameraPanelProps) {
   const { t } = useLocale();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,7 +108,7 @@ export default function CameraPanel({
       style={{
         border: isSpeaking
           ? '2px solid var(--buzz-red)'
-          : '2px solid var(--border)',
+          : `2px solid ${color ?? 'var(--border)'}`,
         transition: 'border-color 0.2s ease',
       }}
     >
@@ -166,8 +172,27 @@ export default function CameraPanel({
         className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 gap-2"
         style={{ background: 'rgba(0,0,0,0.6)' }}
       >
-        <span className="text-xs font-semibold tracking-wider uppercase text-[var(--text-primary)] truncate">
-          {label}
+        <span className="flex items-center gap-1.5 min-w-0">
+          {color && (
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ background: color }}
+            />
+          )}
+          <span className="text-xs font-semibold tracking-wider uppercase text-white truncate">
+            {label}
+          </span>
+          {/* Answered-this-round dot */}
+          {answered !== null && (
+            <span
+              className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+              style={{
+                background: answered ? 'var(--correct)' : 'transparent',
+                border: answered ? 'none' : '1.5px solid rgba(255,255,255,0.6)',
+              }}
+              title={answered ? 'Answered' : 'Thinking…'}
+            />
+          )}
         </span>
         {typeof score === 'number' ? (
           <span

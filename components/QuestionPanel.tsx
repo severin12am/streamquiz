@@ -19,6 +19,15 @@ import ScoreBoard from './ScoreBoard';
 import CountdownTimer from './CountdownTimer';
 import { useLocale } from '@/context/LocaleProvider';
 import type { Game, Player } from '@/lib/types';
+import { playerColor, playerInitial } from '@/lib/player-colors';
+
+/** One player's pick on an MC option (shown at the reveal). */
+export interface OptionPick {
+  id:     string;
+  name:   string;
+  colour: string;
+  isMe:   boolean;
+}
 
 interface QuestionPanelProps {
   game:            Game;
@@ -57,11 +66,17 @@ export default function QuestionPanel({
   const iHavePicked   = myMcPick !== null;
   const someonePicked = players.some((p) => p.mc_index !== null);
 
-  // How many players chose each option (shown at the reveal).
-  const pickCounts = [0, 0, 0, 0];
+  // WHO chose each option (shown at the reveal so everyone can see what
+  // each player picked — colour-coded by player).
+  const picksByOption: OptionPick[][] = [[], [], [], []];
   for (const p of players) {
     if (p.mc_index !== null && p.mc_index >= 0 && p.mc_index < 4) {
-      pickCounts[p.mc_index] += 1;
+      picksByOption[p.mc_index].push({
+        id: p.id,
+        name: p.name,
+        colour: playerColor(p.slot),
+        isMe: p.id === me.id,
+      });
     }
   }
 
@@ -95,7 +110,7 @@ export default function QuestionPanel({
 
       {/* ---- SCORES — always visible ---- */}
       <div className="px-4 pt-2 pb-1 lg:pt-3 lg:pb-2">
-        <ScoreBoard players={players} meId={me.id} />
+        <ScoreBoard players={players} meId={me.id} phase={phase} />
       </div>
 
       {/* ---- QUESTION TEXT + TIMER ---- */}
@@ -187,7 +202,7 @@ export default function QuestionPanel({
             options={currentQuestion.options}
             correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
             myPick={myMcPick}
-            pickCounts={phase === 'result' ? pickCounts : undefined}
+            picksByOption={phase === 'result' ? picksByOption : undefined}
             canSelect={phase === 'question' && !iHavePicked}
             youLabel={t('mc.you')}
             onSelect={onMCSelect}
@@ -242,15 +257,20 @@ export default function QuestionPanel({
         {/* ---- Voice RESULT reveal (every player) ---- */}
         {phase === 'result' && !game.mc_mode && (
           <div className="w-full flex flex-col gap-2 max-w-lg">
-            {players.map((p) => (
-              <TranscriptResult
-                key={p.id}
-                label={p.id === me.id ? t('mc.you') : p.name}
-                text={p.transcript}
-                correct={p.correct}
-                emptyHint={t('game.saidNothing')}
-              />
-            ))}
+            {[...players]
+              .sort((a, b) => a.slot - b.slot)
+              .map((p) => (
+                <TranscriptResult
+                  key={p.id}
+                  name={p.name}
+                  isMe={p.id === me.id}
+                  youLabel={t('mc.you')}
+                  colour={playerColor(p.slot)}
+                  text={p.transcript}
+                  correct={p.correct}
+                  emptyHint={t('game.saidNothing')}
+                />
+              ))}
             {currentQuestion?.correct_answer && (
               <div
                 className="w-full rounded-xl px-4 py-3 border text-center mt-1"
@@ -272,37 +292,54 @@ export default function QuestionPanel({
 }
 
 // ------------------------------------------------------------
-// One player's spoken answer on the result screen.
+// One player's spoken answer on the result screen. Colour-coded by
+// player (avatar) so it's obvious whose answer this is, with a clear
+// ✓ / ✗ outcome badge.
 // ------------------------------------------------------------
 function TranscriptResult({
-  label, text, correct, emptyHint,
+  name, isMe, youLabel, colour, text, correct, emptyHint,
 }: {
-  label: string;
+  name: string;
+  isMe: boolean;
+  youLabel: string;
+  colour: string;
   text: string;
   correct: boolean | null;
   emptyHint: string;
 }) {
   const said = text && text.trim().length > 0;
-  const colour = correct ? 'var(--correct)' : said ? 'var(--wrong)' : 'var(--border-strong)';
+  const outcome = correct ? 'var(--correct)' : said ? 'var(--wrong)' : 'var(--border-strong)';
   return (
     <div
-      className="w-full rounded-xl px-4 py-2.5 border flex items-center gap-3"
-      style={{ background: 'var(--bg-card)', borderColor: colour }}
+      className="w-full rounded-xl px-3 py-2.5 border flex items-center gap-3"
+      style={{
+        background: isMe ? 'var(--bg-elevated)' : 'var(--bg-card)',
+        borderColor: colour,
+        borderLeftWidth: 4,
+      }}
     >
+      {/* Colour avatar (player identity) */}
       <span
-        className="text-lg font-bold w-5 text-center shrink-0"
-        style={{ color: colour }}
+        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
+        style={{ background: colour }}
       >
-        {correct ? '\u2713' : said ? '\u2717' : '\u2013'}
+        {playerInitial(name)}
       </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-          {label}
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: colour }}>
+          {name}{isMe ? ` (${youLabel})` : ''}
         </p>
         <p className="text-sm text-[var(--text-primary)] italic truncate">
           {said ? `\u201C${text}\u201D` : emptyHint}
         </p>
       </div>
+      {/* Outcome badge */}
+      <span
+        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold text-white"
+        style={{ background: outcome }}
+      >
+        {correct ? '\u2713' : said ? '\u2717' : '\u2013'}
+      </span>
     </div>
   );
 }

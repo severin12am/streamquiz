@@ -58,7 +58,7 @@ export default function JoinScreen({ asHost, full, onJoin }: JoinScreenProps) {
         {full ? (
           <p
             className="rounded-xl px-4 py-3 text-sm"
-            style={{ background: 'rgba(229,72,77,0.12)', border: '1px solid var(--wrong)', color: '#f2a3a5' }}
+            style={{ background: 'rgba(214,87,69,0.10)', border: '1px solid var(--wrong)', color: 'var(--wrong)' }}
           >
             {t('join.full')}
           </p>

@@ -9,7 +9,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import CameraPanel from './CameraPanel';
-import type { Player } from '@/lib/types';
+import type { Player, GamePhase } from '@/lib/types';
+import { playerColor } from '@/lib/player-colors';
 
 // TEMP DEBUG — remove when WebRTC remote-video issue is resolved
 const GRID_DEBUG = true;
@@ -24,6 +25,9 @@ interface CameraGridProps {
   speaking:      boolean;
   /** Show each player's ✓/✗ outcome (result phase). */
   showResult:    boolean;
+  /** Current phase + answer style — used to show who has answered. */
+  phase?:        GamePhase;
+  mcMode?:       boolean;
   className?:    string;
 }
 
@@ -43,8 +47,11 @@ export default function CameraGrid({
   cameraError,
   speaking,
   showResult,
+  phase,
+  mcMode = false,
   className = '',
 }: CameraGridProps) {
+  const showAnswered = phase === 'question' || phase === 'answering';
   const prevLogRef = useRef('');
 
   // TEMP DEBUG — log stream assignment per tile when inputs change
@@ -78,6 +85,9 @@ export default function CameraGrid({
       {players.map((p) => {
         const isMe   = p.id === me.id;
         const stream = isMe ? localStream : (remoteStreams[p.id] ?? null);
+        const answered = showAnswered
+          ? (mcMode ? p.mc_index !== null : p.done)
+          : null;
         return (
           <CameraPanel
             key={p.id}
@@ -88,6 +98,8 @@ export default function CameraGrid({
             error={isMe ? cameraError : null}
             score={p.score}
             correct={showResult ? p.correct : null}
+            color={playerColor(p.slot)}
+            answered={answered}
             className="h-full w-full rounded-lg"
           />
         );

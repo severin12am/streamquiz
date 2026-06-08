@@ -10,6 +10,8 @@
 // ============================================================
 
 import React from 'react';
+import { playerInitial } from '@/lib/player-colors';
+import type { OptionPick } from './QuestionPanel';
 
 interface MCOptionsProps {
   options:        [string, string, string, string];
@@ -17,8 +19,8 @@ interface MCOptionsProps {
   correctAnswer?: string;
   /** This viewer's own pick (0-3) or null. */
   myPick?:        number | null;
-  /** How many players chose each option (length 4) — shown at the reveal. */
-  pickCounts?:    number[];
+  /** WHO chose each option (length 4) — shown at the reveal, colour-coded. */
+  picksByOption?: OptionPick[][];
   /** Can this viewer still click an option? */
   canSelect:      boolean;
   /** Label for the "your pick" tag. */
@@ -32,7 +34,7 @@ export default function MCOptions({
   options,
   correctAnswer,
   myPick = null,
-  pickCounts,
+  picksByOption,
   canSelect,
   youLabel = 'You',
   onSelect,
@@ -45,7 +47,7 @@ export default function MCOptions({
         const pickedByMe  = myPick === i;
         const isCorrect   = revealed && option === correctAnswer;
         const isWrongPick = revealed && pickedByMe && !isCorrect;
-        const count       = pickCounts?.[i] ?? 0;
+        const picks       = picksByOption?.[i] ?? [];
 
         let borderColour = 'var(--border)';
         let background   = 'var(--bg-card)';
@@ -110,9 +112,10 @@ export default function MCOptions({
               {option}
             </span>
 
-            {/* Tags: your pick (always) + how many chose this (reveal only) */}
-            <span className="flex flex-col items-end gap-0.5 ml-auto flex-shrink-0">
-              {pickedByMe && (
+            {/* Tags */}
+            <span className="flex flex-col items-end gap-1 ml-auto flex-shrink-0">
+              {/* Your pick tag while the round is still open (pre-reveal) */}
+              {pickedByMe && !revealed && (
                 <span
                   className="text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide"
                   style={{ background: 'var(--bg-base)', color: 'var(--accent)' }}
@@ -120,12 +123,25 @@ export default function MCOptions({
                   {youLabel}
                 </span>
               )}
-              {revealed && count > 0 && (
-                <span
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                  style={{ background: 'var(--bg-base)', color: 'var(--text-secondary)' }}
-                >
-                  ×{count}
+
+              {/* At the reveal: colour avatars of everyone who chose this */}
+              {revealed && picks.length > 0 && (
+                <span className="flex items-center gap-1 flex-wrap justify-end max-w-[120px]">
+                  {picks.map((pick) => (
+                    <span
+                      key={pick.id}
+                      title={pick.name}
+                      className="flex items-center justify-center rounded-full text-[10px] font-bold text-white"
+                      style={{
+                        background: pick.colour,
+                        width: 20,
+                        height: 20,
+                        boxShadow: pick.isMe ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text-primary)' : 'none',
+                      }}
+                    >
+                      {playerInitial(pick.name)}
+                    </span>
+                  ))}
                 </span>
               )}
             </span>

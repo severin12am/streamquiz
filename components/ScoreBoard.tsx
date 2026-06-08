@@ -3,19 +3,26 @@
 // ScoreBoard — Live multiplayer leaderboard
 //
 // Shows every player's score as a compact, wrapping row sorted highest
-// first. The local player is highlighted, and a score that just changed
-// briefly flashes gold.
+// first. Each player has a STABLE colour (by seat) shown as an avatar so
+// they're easy to tell apart everywhere. The local player is highlighted,
+// and a score that just changed briefly flashes gold.
+//
+// During an answer phase a small dot shows WHO has already answered
+// (filled in the player's colour) vs. who's still thinking (hollow).
 // ============================================================
 
 import React, { useEffect, useRef, useState } from 'react';
-import type { Player } from '@/lib/types';
+import type { Player, GamePhase } from '@/lib/types';
+import { playerColor, playerInitial } from '@/lib/player-colors';
 
 interface ScoreBoardProps {
   players: Player[];
   meId:    string;
+  /** Current phase — used to show who has already answered. */
+  phase?:  GamePhase;
 }
 
-export default function ScoreBoard({ players, meId }: ScoreBoardProps) {
+export default function ScoreBoard({ players, meId, phase }: ScoreBoardProps) {
   // Track previous scores so we can flash the ones that changed.
   const prevScores = useRef<Record<string, number>>({});
   const [flashing, setFlashing] = useState<Record<string, boolean>>({});
@@ -37,24 +44,52 @@ export default function ScoreBoard({ players, meId }: ScoreBoardProps) {
 
   const ranked = [...players].sort((a, b) => b.score - a.score || a.slot - b.slot);
 
+  // Whether we should show "answered" dots, and how to read "answered".
+  const showAnswered = phase === 'question' || phase === 'answering';
+  const hasAnswered = (p: Player) =>
+    phase === 'question' ? p.mc_index !== null : p.done;
+
   return (
     <div className="flex items-center justify-center flex-wrap gap-2">
       {ranked.map((p) => {
-        const isMe  = p.id === meId;
-        const flash = flashing[p.id];
+        const isMe   = p.id === meId;
+        const flash  = flashing[p.id];
+        const colour = playerColor(p.slot);
+        const answered = hasAnswered(p);
         return (
           <div
             key={p.id}
-            className="flex items-center gap-2 rounded-lg px-2.5 py-1 border transition-all duration-300"
+            className="flex items-center gap-2 rounded-lg pl-1 pr-2.5 py-1 border transition-all duration-300"
             style={{
               background: isMe ? 'var(--bg-elevated)' : 'var(--bg-card)',
               borderColor: isMe ? 'var(--accent)' : 'var(--border)',
               transform: flash ? 'scale(1.08)' : 'scale(1)',
             }}
           >
-            <span className="text-xs font-medium text-[var(--text-secondary)] truncate max-w-[88px]">
+            {/* Colour avatar (player identity) */}
+            <span
+              className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+              style={{ background: colour }}
+            >
+              {playerInitial(p.name)}
+            </span>
+            <span
+              className="text-xs font-medium truncate max-w-[88px]"
+              style={{ color: 'var(--text-secondary)' }}
+            >
               {p.name}
             </span>
+            {/* Answered indicator (only during an open answer phase) */}
+            {showAnswered && (
+              <span
+                className="inline-block w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200"
+                style={{
+                  background: answered ? colour : 'transparent',
+                  border: answered ? 'none' : '1.5px solid var(--border-strong)',
+                }}
+                title={answered ? 'Answered' : 'Thinking…'}
+              />
+            )}
             <span
               className="text-base font-bold tabular-nums transition-colors duration-300"
               style={{ color: flash ? 'var(--gold)' : 'var(--text-primary)' }}

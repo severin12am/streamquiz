@@ -11,6 +11,7 @@ import React from 'react';
 import { useLocale } from '@/context/LocaleProvider';
 import type { AnswerClip } from '@/hooks/useMediaRecorder';
 import type { Player } from '@/lib/types';
+import { playerColor, playerInitial } from '@/lib/player-colors';
 
 interface WinnerScreenProps {
   players: Player[];
@@ -37,25 +38,54 @@ export default function WinnerScreen({
   const topScore = ranked.length > 0 ? ranked[0].score : 0;
   const winners = ranked.filter((p) => p.score === topScore && topScore > 0);
   const isTie = winners.length !== 1;
+  const soleWinner = !isTie && topScore > 0 ? winners[0] : null;
 
   return (
     <div
       className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 p-8 overflow-y-auto"
-      style={{ background: 'rgba(13,13,16,0.97)', backdropFilter: 'blur(8px)' }}
+      style={{ background: 'rgba(238,243,236,0.96)', backdropFilter: 'blur(8px)' }}
     >
-      {/* ---- Winner label ---- */}
-      <div className="text-center">
-        <p className="text-[var(--text-muted)] text-xs font-semibold tracking-wider uppercase mb-3">
+      {/* ---- Winner banner ---- */}
+      <div className="flex flex-col items-center text-center">
+        <span className="text-5xl lg:text-6xl mb-2" aria-hidden>
+          {topScore === 0 ? '🤝' : '🏆'}
+        </span>
+        <p className="text-[var(--text-muted)] text-xs font-semibold tracking-[0.2em] uppercase mb-3">
           {topScore === 0 ? t('winner.result') : isTie ? t('winner.winners') : t('winner.winner')}
         </p>
-        <p
-          className="text-4xl lg:text-6xl font-bold tracking-tight"
-          style={{ color: topScore === 0 ? 'var(--text-primary)' : 'var(--gold)' }}
-        >
-          {topScore === 0
-            ? t('winner.tie')
-            : winners.map((w) => w.name).join(', ')}
-        </p>
+
+        {/* Sole winner — big colour avatar + name */}
+        {soleWinner ? (
+          <div className="flex flex-col items-center gap-3">
+            <span
+              className="w-20 h-20 lg:w-24 lg:h-24 rounded-full flex items-center justify-center text-3xl lg:text-4xl font-bold text-white"
+              style={{
+                background: playerColor(soleWinner.slot),
+                boxShadow: '0 0 0 4px var(--bg-base), 0 0 0 7px var(--gold)',
+              }}
+            >
+              {playerInitial(soleWinner.name)}
+            </span>
+            <p
+              className="text-4xl lg:text-6xl font-bold tracking-tight"
+              style={{ color: playerColor(soleWinner.slot) }}
+            >
+              {soleWinner.name}
+            </p>
+            <p className="text-lg font-semibold" style={{ color: 'var(--gold)' }}>
+              {soleWinner.score} {t('score.points')}
+            </p>
+          </div>
+        ) : (
+          <p
+            className="text-4xl lg:text-6xl font-bold tracking-tight"
+            style={{ color: topScore === 0 ? 'var(--text-primary)' : 'var(--gold)' }}
+          >
+            {topScore === 0
+              ? t('winner.tie')
+              : winners.map((w) => w.name).join(', ')}
+          </p>
+        )}
       </div>
 
       {/* ---- Final scores (ranked) ---- */}
@@ -65,20 +95,27 @@ export default function WinnerScreen({
         </p>
         {ranked.map((p, i) => {
           const isWinner = p.score === topScore && topScore > 0;
+          const colour = playerColor(p.slot);
           return (
             <div
               key={p.id}
               className="flex items-center gap-3 rounded-xl px-4 py-2.5 border"
               style={{
-                background: 'var(--bg-card)',
-                borderColor: p.id === meId ? 'var(--accent)' : 'var(--border)',
+                background: isWinner ? 'rgba(200,146,47,0.10)' : 'var(--bg-card)',
+                borderColor: isWinner ? 'var(--gold)' : p.id === meId ? 'var(--accent)' : 'var(--border)',
               }}
             >
               <span
                 className="w-6 text-center text-sm font-bold tabular-nums"
                 style={{ color: isWinner ? 'var(--gold)' : 'var(--text-muted)' }}
               >
-                {i + 1}
+                {isWinner ? '🏆' : i + 1}
+              </span>
+              <span
+                className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                style={{ background: colour }}
+              >
+                {playerInitial(p.name)}
               </span>
               <span className="text-sm font-medium text-[var(--text-primary)] truncate flex-1">
                 {p.name}
@@ -133,11 +170,14 @@ export default function WinnerScreen({
             <span
               key={p.id}
               className="flex items-center gap-1.5"
-              style={{ color: p.rematch ? 'var(--correct)' : 'var(--text-muted)' }}
+              style={{ color: p.rematch ? 'var(--text-primary)' : 'var(--text-muted)' }}
             >
               <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: p.rematch ? 'var(--correct)' : 'var(--border-strong)' }}
+                className="w-2.5 h-2.5 rounded-full"
+                style={{
+                  background: p.rematch ? playerColor(p.slot) : 'transparent',
+                  border: p.rematch ? 'none' : '1.5px solid var(--border-strong)',
+                }}
               />
               {p.name}
             </span>

@@ -54,6 +54,24 @@ export function rememberQuestions(topic: string, questions: Question[]): void {
   writeStore(store);
 }
 
+/**
+ * Drop any questions whose text was already seen this session for the
+ * topic (case-insensitive), plus de-dupe within the batch. Used on
+ * rematch so a fresh game never repeats earlier questions even if the
+ * generator slips one through.
+ */
+export function filterUnseenQuestions(topic: string, questions: Question[]): Question[] {
+  const seen = new Set(getPreviousQuestions(topic).map((q) => q.trim().toLowerCase()));
+  const out: Question[] = [];
+  for (const q of questions) {
+    const key = String(q.question ?? '').trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(q);
+  }
+  return out;
+}
+
 /** Session history plus extra texts (e.g. current game), deduped. */
 export function mergePreviousQuestions(topic: string, extra: string[]): string[] {
   const combined = [...getPreviousQuestions(topic), ...extra];

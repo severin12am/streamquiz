@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLocale } from '@/context/LocaleProvider';
 import { MAX_PLAYERS, type Player } from '@/lib/types';
+import { playerColor, playerInitial } from '@/lib/player-colors';
 
 interface LobbyProps {
   players:   Player[];
@@ -51,9 +52,9 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
             >
               <span
                 className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                style={{ background: p.role === 'host' ? 'var(--gold)' : 'var(--accent)' }}
+                style={{ background: playerColor(p.slot) }}
               >
-                {p.slot + 1}
+                {playerInitial(p.name)}
               </span>
               <span className="text-sm font-medium text-[var(--text-primary)] truncate">
                 {p.name}

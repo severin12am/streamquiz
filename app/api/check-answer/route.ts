@@ -52,6 +52,62 @@ function normalise(text: string): string {
     .trim();
 }
 
+// Minimum character similarity (0..1) for a local match. Spoken answers
+// and speech-to-text often differ by a few characters from the canonical
+// answer; a 70% character match accepts those near-misses locally without
+// needing the AI judge.
+const CHAR_MATCH_THRESHOLD = 0.7;
+
+// Levenshtein edit distance between two strings (iterative, O(n·m)).
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  let curr = new Array<number>(b.length + 1);
+
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        prev[j] + 1,        // deletion
+        curr[j - 1] + 1,    // insertion
+        prev[j - 1] + cost  // substitution
+      );
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[b.length];
+}
+
+// Character-similarity ratio (0..1): 1 = identical, 0 = completely different.
+function similarity(a: string, b: string): number {
+  if (!a && !b) return 1;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+// Best similarity between a candidate answer and the transcript: compares
+// against the whole transcript AND against every word-window the same
+// length as the candidate (so "the answer is pacific ocean" still matches
+// "pacific ocean" strongly even with extra filler words around it).
+function bestSimilarity(transcript: string, candidate: string): number {
+  if (!candidate) return 0;
+  let best = similarity(transcript, candidate);
+
+  const words = transcript.split(' ').filter(Boolean);
+  const span = candidate.split(' ').filter(Boolean).length || 1;
+  for (let i = 0; i + span <= words.length; i++) {
+    const window = words.slice(i, i + span).join(' ');
+    const s = similarity(window, candidate);
+    if (s > best) best = s;
+  }
+  return best;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { question, correct_answer, accepted_answers, transcript } =
@@ -75,13 +131,18 @@ export async function POST(req: NextRequest) {
       .filter(Boolean);
 
     for (const candidate of candidates) {
+      if (candidate.length === 0) continue;
+
       // Correct if the transcript contains the answer, OR the answer
       // contains the transcript (handles short one-word answers).
-      if (
-        candidate.length > 0 &&
-        (normTranscript.includes(candidate) || candidate.includes(normTranscript))
-      ) {
+      if (normTranscript.includes(candidate) || candidate.includes(normTranscript)) {
         return NextResponse.json({ correct: true, method: 'local' });
+      }
+
+      // Otherwise accept a close character match (>= 70%) — tolerates
+      // speech-to-text slips, typos, and minor misspellings.
+      if (bestSimilarity(normTranscript, candidate) >= CHAR_MATCH_THRESHOLD) {
+        return NextResponse.json({ correct: true, method: 'local-fuzzy' });
       }
     }
 

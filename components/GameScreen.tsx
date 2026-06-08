@@ -28,7 +28,7 @@ import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
 import { getClientId } from '@/lib/client-id';
 import { useLocale }    from '@/context/LocaleProvider';
 import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
-import { mergePreviousQuestions, rememberQuestions } from '@/lib/question-history';
+import { mergePreviousQuestions, rememberQuestions, filterUnseenQuestions } from '@/lib/question-history';
 
 interface GameScreenProps {
   gameId: string;
@@ -185,8 +185,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       if (res.ok) {
         const { questions } = (await res.json()) as { questions: Question[] };
         if (Array.isArray(questions) && questions.length > 0) {
-          rememberQuestions(game.topic, questions);
-          await rematch(questions);
+          // Cache-aware dedupe: drop any question already seen this session
+          // for this topic so a rematch never repeats. If the generator
+          // returned only repeats (rare), fall back to its raw output so the
+          // rematch can still proceed.
+          const unseen = filterUnseenQuestions(game.topic, questions);
+          const finalQuestions = unseen.length > 0 ? unseen : questions;
+          rememberQuestions(game.topic, finalQuestions);
+          await rematch(finalQuestions);
           return;
         }
       }
@@ -291,6 +297,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           cameraError={cameraError}
           speaking={speaking}
           showResult={showResult}
+          phase={game.phase}
+          mcMode={game.mc_mode}
           className="h-full"
         />
       </div>

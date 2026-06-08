@@ -2,42 +2,46 @@
 
 /* ============================================================
    StreamQuiz — Global Styles
-   A calm, uniform dark theme. No gradients, no neon glows.
+   A calm, LIGHT theme built around a "lagoon" palette:
+   one dominating colour (deep lagoon teal) + one secondary
+   colour (soft sage green). No gradients, no neon glows.
    Edit the palette below to retheme the whole app.
    ============================================================ */
 
 :root {
-  /* --- Surfaces (dark, neutral, layered) --- */
-  --bg-base:     #0d0d10;  /* app background */
-  --bg-panel:    #141418;  /* large panels (camera columns) */
-  --bg-card:     #1b1b21;  /* cards / inputs */
-  --bg-elevated: #232329;  /* hover / raised elements */
-  --border:      #2c2c34;  /* default hairline border */
-  --border-strong:#3a3a44; /* emphasised border */
+  /* --- Surfaces (light, airy, layered) --- */
+  --bg-base:     #eef3ec;  /* app background — soft sage-tinted off-white */
+  --bg-panel:    #e4ece0;  /* large panels (camera columns) */
+  --bg-card:     #ffffff;  /* cards / inputs */
+  --bg-elevated: #dde7d6;  /* hover / raised elements */
+  --border:      #d3decb;  /* default hairline border */
+  --border-strong:#bccfb1; /* emphasised border */
 
   /* --- Accent + status (solid, muted, never neon) --- */
-  --accent:      #6366f1;  /* primary actions */
-  --accent-hover:#7c7ef6;
-  --correct:     #22a06b;  /* correct answer */
-  --wrong:       #e5484d;  /* wrong answer */
-  --buzz-red:    #e5484d;  /* BUZZ button */
-  --gold:        #d6a838;  /* winner accent (muted, not bright yellow) */
+  --accent:      #2f7d77;  /* DOMINATING colour — lagoon teal */
+  --accent-hover:#276964;
+  --secondary:       #9cc081;  /* SECONDARY colour — soft sage green */
+  --secondary-strong:#86ad6a;
+  --correct:     #2f9e6f;  /* correct answer */
+  --wrong:       #d65745;  /* wrong answer */
+  --buzz-red:    #d65745;  /* BUZZ button */
+  --gold:        #c8922f;  /* winner accent (warm, not bright yellow) */
 
   /* --- Text --- */
-  --text-primary:   #ededf2;
-  --text-secondary: #9a9aab;
-  --text-muted:     #62626f;
+  --text-primary:   #1d2b27;
+  --text-secondary: #50605a;
+  --text-muted:     #84938a;
 
   /* --- Timer states --- */
-  --timer-ok:      #22a06b;
-  --timer-warning: #d6953b;
-  --timer-urgent:  #e5484d;
+  --timer-ok:      #2f9e6f;
+  --timer-warning: #cf9a3b;
+  --timer-urgent:  #d65745;
 
   background: var(--bg-base);
   color: var(--text-primary);
 }
 
-/* Always dark, regardless of OS preference */
+/* Always light, regardless of OS preference */
 html, body {
   background: var(--bg-base);
   color: var(--text-primary);
@@ -72,16 +76,16 @@ video {
   border-radius: 16px;
 }
 .elevated {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 2px rgba(31, 58, 52, 0.06), 0 12px 32px rgba(31, 58, 52, 0.12);
 }
 
 /* ------------------------------------------------------------
    "Speaking" indicator — a soft pulsing ring (no neon colour).
    ------------------------------------------------------------ */
 @keyframes speaking-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.45); }
-  70%  { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(47, 125, 119, 0.45); }
+  70%  { box-shadow: 0 0 0 10px rgba(47, 125, 119, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(47, 125, 119, 0); }
 }
 .speaking-pulse {
   animation: speaking-ring 1.4s ease-out infinite;
