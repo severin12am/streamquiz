@@ -81,6 +81,10 @@ interface PeerConn {
   makingOffer: boolean;
   ignoreOffer: boolean;
   polite: boolean;
+  /** ICE candidates that arrived before remoteDescription was set. They are
+   *  buffered here and flushed once the description is applied — dropping
+   *  them (the old behavior) breaks connectivity in one direction. */
+  pendingCandidates: RTCIceCandidateInit[];
 }
 
 export function useMeshWebRTC(
@@ -262,6 +266,7 @@ export function useMeshWebRTC(
           ignoreOffer: false,
           // Deterministic politeness: lower id yields on a collision.
           polite: myId < peerId,
+          pendingCandidates: [],
         };
         peers.set(peerId, entry);
 
@@ -445,6 +450,21 @@ export function useMeshWebRTC(
               sdpType: description.type,
               newSignalingState: pc.signalingState,
             });
+
+            // Flush any ICE candidates that arrived before this description.
+            if (entry.pendingCandidates.length > 0) {
+              const queued = entry.pendingCandidates;
+              entry.pendingCandidates = [];
+              logSignaling('flushing buffered ICE candidates', {
+                from: signal.from,
+                count: queued.length,
+              });
+              for (const c of queued) {
+                try { await pc.addIceCandidate(new RTCIceCandidate(c)); }
+                catch (err) { console.warn('[Signaling] flushed candidate failed', { from: signal.from, err }); }
+              }
+            }
+
             if (description.type === 'offer') {
               await pc.setLocalDescription();
               if (pc.localDescription) {
@@ -458,15 +478,26 @@ export function useMeshWebRTC(
             }
           } else if (signal.type === 'ice-candidate') {
             const candidate = signal.payload as RTCIceCandidateInit;
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(candidate));
-              logSignaling('addIceCandidate OK', {
+            // If the remote description isn't set yet, the candidate can't be
+            // added — buffer it and flush after setRemoteDescription. Dropping
+            // it (old behavior) is what caused one-way / missing video.
+            if (!pc.remoteDescription) {
+              entry.pendingCandidates.push(candidate);
+              logSignaling('buffering ICE candidate (no remoteDescription yet)', {
                 from: signal.from,
-                candidate: candidate.candidate?.slice(0, 60),
+                queued: entry.pendingCandidates.length,
               });
-            } catch (err) {
-              if (!entry.ignoreOffer) {
-                console.error('[Signaling] addIceCandidate failed', { from: signal.from, error: err });
+            } else {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                logSignaling('addIceCandidate OK', {
+                  from: signal.from,
+                  candidate: candidate.candidate?.slice(0, 60),
+                });
+              } catch (err) {
+                if (!entry.ignoreOffer) {
+                  console.error('[Signaling] addIceCandidate failed', { from: signal.from, error: err });
+                }
               }
             }
           }

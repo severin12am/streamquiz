@@ -76,20 +76,30 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   }, [me, startCamera]);
 
   // ----------------------------------------------------------
-  // Push-to-talk — your mic is muted by default. It opens to the other
-  // players (a) automatically while you answer out loud, and (b) while you
-  // hold the talk button to chat between questions.
+  // Mic policy depends on the answer style:
+  //   • Multiple-choice mode → mic is ALWAYS ON. There's no spoken answer,
+  //     so there's nothing to confuse it with — everyone can just chat.
+  //   • Voice mode → mic is MUTED by default (so your chatter isn't mistaken
+  //     for an answer). It opens automatically while you answer out loud, and
+  //     while you HOLD the push-to-talk button to talk between questions.
   // ----------------------------------------------------------
-  const [pttHeld, setPttHeld] = useState(false);
+  const voiceMode  = !!game && !game.mc_mode;
   const isAnswering = game?.phase === 'answering';
+  const [pttHeld, setPttHeld] = useState(false);
   useEffect(() => {
     // `localStream` in deps so the desired mic state is re-applied once the
     // mic track actually exists (it's captured a moment after we seat).
-    setMicEnabled(isAnswering || pttHeld);
-  }, [isAnswering, pttHeld, setMicEnabled, localStream]);
+    if (!game) return;
+    if (!voiceMode) {
+      setMicEnabled(true);            // MC mode: open mic for everyone
+    } else {
+      setMicEnabled(isAnswering || pttHeld);
+    }
+  }, [game, voiceMode, isAnswering, pttHeld, setMicEnabled, localStream]);
 
-  // Hold SPACE to talk (ignored while typing in an input).
+  // Hold SPACE to talk (voice mode only; ignored while typing in an input).
   useEffect(() => {
+    if (!voiceMode) return;
     const isTyping = () => {
       const el = document.activeElement;
       return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
@@ -106,7 +116,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, []);
+  }, [voiceMode]);
 
   // ----------------------------------------------------------
   // 3. Speech recognition (voice answering)
@@ -383,25 +393,29 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         />
       </div>
 
-      {/* ---- Push-to-talk button (hold to chat between questions) ---- */}
-      <button
-        type="button"
-        onPointerDown={(e) => { e.preventDefault(); setPttHeld(true); }}
-        onPointerUp={() => setPttHeld(false)}
-        onPointerLeave={() => setPttHeld(false)}
-        onPointerCancel={() => setPttHeld(false)}
-        aria-label={t('ptt.hold')}
-        className="fixed z-30 bottom-3 right-3 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm text-white shadow-lg select-none touch-none transition-transform active:scale-95"
-        style={{
-          background: micEnabled ? 'var(--correct)' : 'var(--bg-elevated)',
-          border: `1px solid ${micEnabled ? 'var(--correct)' : 'var(--border-strong)'}`,
-        }}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-        </svg>
-        {isAnswering ? t('ptt.answerLive') : pttHeld ? t('ptt.talking') : t('ptt.hold')}
-      </button>
+      {/* ---- Push-to-talk button (voice mode only; hold to chat) ----
+           In MC mode the mic is always open, so no button is needed. */}
+      {voiceMode && (
+        <button
+          type="button"
+          onPointerDown={(e) => { e.preventDefault(); setPttHeld(true); }}
+          onPointerUp={() => setPttHeld(false)}
+          onPointerLeave={() => setPttHeld(false)}
+          onPointerCancel={() => setPttHeld(false)}
+          disabled={isAnswering}
+          aria-label={t('ptt.hold')}
+          className="fixed z-30 bottom-3 right-3 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm text-white shadow-lg select-none touch-none transition-transform active:scale-95"
+          style={{
+            background: micEnabled ? 'var(--correct)' : 'var(--bg-elevated)',
+            border: `1px solid ${micEnabled ? 'var(--correct)' : 'var(--border-strong)'}`,
+          }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+          </svg>
+          {isAnswering ? t('ptt.answerLive') : pttHeld ? t('ptt.talking') : t('ptt.hold')}
+        </button>
+      )}
 
       {/* ---- Winner overlay ---- */}
       {game.phase === 'ended' && (
