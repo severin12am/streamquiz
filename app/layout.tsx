@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StreamQuiz — Live Quiz Show",
-  description: "Real-time two-player quiz show for streamers",
+  title: "WhoSmarter — Live Quiz Show",
+  description: "Real-time multiplayer quiz show — who’s smarter?",
 };
 
 export default function RootLayout({

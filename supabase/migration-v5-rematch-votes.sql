@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v5: Rematch voting
+-- WhoSmarter — Migration v5: Rematch voting
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor.
 -- Safe to run multiple times (IF NOT EXISTS).

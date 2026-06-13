@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v4: Simultaneous multiple-choice answers
+-- WhoSmarter — Migration v4: Simultaneous multiple-choice answers
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor.
 -- Safe to run multiple times (IF NOT EXISTS).

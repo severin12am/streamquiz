@@ -1,5 +1,5 @@
 // ============================================================
-// StreamQuiz — i18n helpers
+// WhoSmarter — i18n helpers
 // ============================================================
 
 import {
@@ -13,7 +13,7 @@ import { messages, type Locale } from './messages';
 export type { Locale };
 export { messages, LOCALES, languageInstructionFor, speechLangFor };
 
-export const LOCALE_STORAGE_KEY = 'streamquiz-locale';
+export const LOCALE_STORAGE_KEY = 'whosmarter-locale';
 
 type MessageTree = Record<string, unknown>;
 

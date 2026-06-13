@@ -1,5 +1,5 @@
 // ============================================================
-// StreamQuiz — TypeScript Types
+// WhoSmarter — TypeScript Types
 // Central place for all shared types. If you add a DB column,
 // add the matching field here too.
 // ============================================================

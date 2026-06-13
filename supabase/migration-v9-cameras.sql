@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v9: CAMERA TOGGLE
+-- WhoSmarter — Migration v9: CAMERA TOGGLE
 -- Run this in your Supabase SQL Editor on an EXISTING project.
 -- (Fresh projects can just run schema.sql, which already includes this.)
 -- ============================================================

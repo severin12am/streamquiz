@@ -1,4 +1,4 @@
-# StreamQuiz
+# WhoSmarter
 
 A real-time live quiz show for **up to 6 players**, each on their own camera. Built with Next.js, Supabase, and OpenAI.
 
@@ -12,16 +12,16 @@ A real-time live quiz show for **up to 6 players**, each on their own camera. Bu
 ### 1. Push to GitHub
 ```bash
 git add .
-git commit -m "Initial StreamQuiz app"
+git commit -m "Initial WhoSmarter app"
 # Create a new repo on github.com, then:
-git remote add origin https://github.com/YOUR_USERNAME/streamquiz.git
+git remote add origin https://github.com/YOUR_USERNAME/whosmarter.git
 git branch -M main
 git push -u origin main
 ```
 
 ### 2. Connect Netlify
 1. Go to [app.netlify.com](https://app.netlify.com) → **Add new site** → **Import an existing project**
-2. Choose **GitHub** → select your `streamquiz` repo
+2. Choose **GitHub** → select your `whosmarter` repo
 3. Netlify should auto-detect Next.js. Confirm:
    - **Build command:** `npm run build`
    - **Publish directory:** leave default (Netlify Next.js plugin handles this)
@@ -38,7 +38,7 @@ In Netlify → **Site configuration** → **Environment variables**, add:
 Click **Deploy site**.
 
 ### 4. Share the live URL
-Netlify gives you something like `https://streamquiz.netlify.app`. Share that with friends — cameras and sync work over HTTPS.
+Netlify gives you something like `https://whosmarter.netlify.app`. Share that with friends — cameras and sync work over HTTPS.
 
 ---
 

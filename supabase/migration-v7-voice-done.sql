@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v7: "Done" lock-in for voice mode
+-- WhoSmarter — Migration v7: "Done" lock-in for voice mode
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor. Safe to re-run.
 --

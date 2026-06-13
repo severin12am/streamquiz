@@ -5,7 +5,7 @@
 
 import type { Question } from './types';
 
-const STORAGE_KEY = 'streamquiz-recent-questions';
+const STORAGE_KEY = 'whosmarter-recent-questions';
 const MAX_PER_TOPIC = 24;
 
 type Store = Record<string, string[]>;

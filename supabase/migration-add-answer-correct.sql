@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration: add answer_correct column
+-- WhoSmarter — Migration: add answer_correct column
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor if you created your
 -- database BEFORE auto-judging was added.

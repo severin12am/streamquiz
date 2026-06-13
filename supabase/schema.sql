@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Supabase Database Schema
+-- WhoSmarter — Supabase Database Schema
 -- Run this entire file in your Supabase SQL Editor once.
 -- ============================================================
 -- 

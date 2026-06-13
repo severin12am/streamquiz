@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v8: MULTIPLAYER (up to 6 players)
+-- WhoSmarter — Migration v8: MULTIPLAYER (up to 6 players)
 -- Run this in your Supabase SQL Editor on an EXISTING project.
 -- (Fresh projects can just run schema.sql, which already includes this.)
 -- ============================================================

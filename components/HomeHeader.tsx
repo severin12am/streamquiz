@@ -12,7 +12,7 @@ export default function HomeHeader() {
         <LanguageSwitcher />
       </div>
       <h1 className="text-5xl font-bold tracking-tight mb-3 text-[var(--text-primary)]">
-        StreamQuiz
+        Who<span style={{ color: 'var(--accent)' }}>S</span>marter
       </h1>
       <p className="text-[var(--text-secondary)] text-lg">{t('app.tagline')}</p>
       <div className="flex items-center justify-center gap-3 mt-6 text-sm text-[var(--text-muted)]">

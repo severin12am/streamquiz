@@ -142,7 +142,7 @@ export default function WinnerScreen({
               <a
                 key={i}
                 href={clip.url}
-                download={`streamquiz-q${clip.questionIndex + 1}-${clip.role}.webm`}
+                download={`whosmarter-q${clip.questionIndex + 1}-${clip.role}.webm`}
                 className="flex items-center justify-between px-4 py-3 rounded-xl border transition-colors"
                 style={{
                   background: 'var(--bg-card)',

@@ -1,5 +1,5 @@
 // ============================================================
-// StreamQuiz — UI strings
+// WhoSmarter — UI strings
 //
 // Add a new language: add lib/i18n/locales/{code}.ts, import here,
 // register in lib/i18n/locale-meta.ts.

@@ -1,5 +1,5 @@
 // ============================================================
-// StreamQuiz — Supabase Client
+// WhoSmarter — Supabase Client
 //
 // Uses the singleton pattern so the same client instance is
 // reused across the entire app (important for Realtime subs).
@@ -21,7 +21,7 @@ export const isMisconfigured = !supabaseUrl || !supabaseKey;
 
 if (isMisconfigured && typeof window !== 'undefined') {
   console.warn(
-    '[StreamQuiz] Supabase env vars missing. ' +
+    '[WhoSmarter] Supabase env vars missing. ' +
     'Copy .env.local.example → .env.local and fill in your keys, then restart the dev server.'
   );
 }
@@ -115,7 +115,7 @@ export async function updateGame(gameId: string, patch: Partial<Game>) {
     .eq('id', gameId);
 
   if (error) {
-    console.error('[StreamQuiz] updateGame error:', error.message);
+    console.error('[WhoSmarter] updateGame error:', error.message);
     throw error;
   }
 }
@@ -143,7 +143,7 @@ export async function updateGameIfPhase(
     .select('id');
 
   if (error) {
-    console.error('[StreamQuiz] updateGameIfPhase error:', error.message);
+    console.error('[WhoSmarter] updateGameIfPhase error:', error.message);
     return false;
   }
   // data is the array of rows that matched + were updated
@@ -173,7 +173,7 @@ export async function updateGameIfDeadline(
     .select('id');
 
   if (error) {
-    console.error('[StreamQuiz] updateGameIfDeadline error:', error.message);
+    console.error('[WhoSmarter] updateGameIfDeadline error:', error.message);
     return false;
   }
   return Array.isArray(data) && data.length > 0;
@@ -197,7 +197,7 @@ export async function updateGameGuarded(
 
   const { data, error } = await q.select('id');
   if (error) {
-    console.error('[StreamQuiz] updateGameGuarded error:', error.message);
+    console.error('[WhoSmarter] updateGameGuarded error:', error.message);
     return false;
   }
   return Array.isArray(data) && data.length > 0;
@@ -214,7 +214,7 @@ export async function fetchGame(gameId: string): Promise<Game | null> {
     .single();
 
   if (error) {
-    console.error('[StreamQuiz] fetchGame error:', error.message);
+    console.error('[WhoSmarter] fetchGame error:', error.message);
     return null;
   }
   return data as Game;
@@ -258,7 +258,7 @@ export async function fetchPlayers(gameId: string): Promise<Player[]> {
     .order('slot', { ascending: true });
 
   if (error) {
-    console.error('[StreamQuiz] fetchPlayers error:', error.message);
+    console.error('[WhoSmarter] fetchPlayers error:', error.message);
     return [];
   }
   return (data ?? []) as Player[];
@@ -275,7 +275,7 @@ export async function updatePlayer(playerId: string, patch: Partial<Player>) {
     .eq('id', playerId);
 
   if (error) {
-    console.error('[StreamQuiz] updatePlayer error:', error.message);
+    console.error('[WhoSmarter] updatePlayer error:', error.message);
     throw error;
   }
 }
@@ -289,7 +289,7 @@ export async function resetPlayersForRound(gameId: string) {
     .from('players')
     .update({ mc_index: null, transcript: '', correct: null, done: false })
     .eq('game_id', gameId);
-  if (error) console.error('[StreamQuiz] resetPlayersForRound error:', error.message);
+  if (error) console.error('[WhoSmarter] resetPlayersForRound error:', error.message);
 }
 
 // -------------------------------------------------------
@@ -307,7 +307,7 @@ export async function resetPlayersForMatch(gameId: string) {
       rematch: false,
     })
     .eq('game_id', gameId);
-  if (error) console.error('[StreamQuiz] resetPlayersForMatch error:', error.message);
+  if (error) console.error('[WhoSmarter] resetPlayersForMatch error:', error.message);
 }
 
 // -------------------------------------------------------

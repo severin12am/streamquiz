@@ -1,6 +1,6 @@
-# StreamQuiz — Complete Project Documentation
+# WhoSmarter — Complete Project Documentation
 
-This document is the authoritative, in-depth reference for the **StreamQuiz** codebase. It covers what the app does, how it is built, how data flows, and where to change behavior. For a quick start, see [README.md](./README.md).
+This document is the authoritative, in-depth reference for the **WhoSmarter** codebase. It covers what the app does, how it is built, how data flows, and where to change behavior. For a quick start, see [README.md](./README.md).
 
 ---
 
@@ -37,7 +37,7 @@ This document is the authoritative, in-depth reference for the **StreamQuiz** co
 
 ## 1. Overview
 
-**StreamQuiz** is a real-time, multiplayer live quiz show for up to **6 players**. Each participant joins from their own browser, optionally shares their camera and microphone, and competes simultaneously on AI-generated questions. The experience is designed to feel like a TV quiz show: countdown timers, live scoreboards, camera tiles, and a winner screen at the end.
+**WhoSmarter** is a real-time, multiplayer live quiz show for up to **6 players**. Each participant joins from their own browser, optionally shares their camera and microphone, and competes simultaneously on AI-generated questions. The experience is designed to feel like a TV quiz show: countdown timers, live scoreboards, camera tiles, and a winner screen at the end.
 
 ### Core concept
 
@@ -176,8 +176,8 @@ Every participant runs the **same** `GameScreen` component. Host-only actions ar
 
 ### Identity persistence
 
-- **`client_id`**: UUID stored in `localStorage` (`streamquiz-client-id`). Survives page reloads so a player re-attaches to the same seat.
-- **Display name**: Saved in `localStorage` (`streamquiz-player-name`) and prefilled on JoinScreen.
+- **`client_id`**: UUID stored in `localStorage` (`whosmarter-client-id`). Survives page reloads so a player re-attaches to the same seat.
+- **Display name**: Saved in `localStorage` (`whosmarter-player-name`) and prefilled on JoinScreen.
 
 ---
 
@@ -535,7 +535,7 @@ Prompts enforce: single unambiguous answers, JSON-only output, topic spread, no 
 
 ### Locale selection
 
-1. `localStorage` (`streamquiz-locale`)
+1. `localStorage` (`whosmarter-locale`)
 2. Browser language (`ru*` → Russian)
 3. Default: English
 
@@ -827,7 +827,7 @@ Chronological themes from git history:
 
 | Era | Changes |
 |-----|---------|
-| Initial | 2-player StreamQuiz, WebRTC cameras, buzzer mechanic |
+| Initial | 2-player WhoSmarter, WebRTC cameras, buzzer mechanic |
 | WebRTC hardening | Perfect Negotiation, ICE restart, TURN support |
 | Game design | Deadline-driven state machine, steal/streaks (later removed) |
 | Fairness | Think race mode, MC grace window, simultaneous answers |

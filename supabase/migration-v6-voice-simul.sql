@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v6: Buzz-free voice mode (both talk)
+-- WhoSmarter — Migration v6: Buzz-free voice mode (both talk)
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor. Safe to re-run.
 --

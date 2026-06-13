@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v2: Steal mechanic, streaks, and
+-- WhoSmarter — Migration v2: Steal mechanic, streaks, and
 --                            deadline-based robust transitions
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor (Dashboard → SQL Editor

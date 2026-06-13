@@ -1,6 +1,6 @@
-# StreamQuiz — React Native iOS Implementation Guide
+# WhoSmarter — React Native iOS Implementation Guide
 
-This document is written for an agent (or developer) building a **React Native iOS app from scratch** that achieves **feature parity** with the existing StreamQuiz web app.
+This document is written for an agent (or developer) building a **React Native iOS app from scratch** that achieves **feature parity** with the existing WhoSmarter web app.
 
 Read this file **together with**:
 
@@ -63,9 +63,9 @@ Web uses `localStorage`. iOS equivalent:
 
 | Web key | RN storage | Purpose |
 |---------|------------|---------|
-| `streamquiz-client-id` | `@react-native-async-storage/async-storage` | Stable UUID per install — survives reload, re-attaches seat |
-| `streamquiz-player-name` | AsyncStorage | Prefill join screen |
-| `streamquiz-locale` | AsyncStorage | `en` or `ru` |
+| `whosmarter-client-id` | `@react-native-async-storage/async-storage` | Stable UUID per install — survives reload, re-attaches seat |
+| `whosmarter-player-name` | AsyncStorage | Prefill join screen |
+| `whosmarter-locale` | AsyncStorage | `en` or `ru` |
 
 Use `crypto.randomUUID()` (via `expo-crypto` or `react-native-get-random-values` polyfill) for new client IDs.
 
@@ -84,7 +84,7 @@ These choices minimize iOS pain and match web capabilities:
 | Storage | `@react-native-async-storage/async-storage` | Replaces localStorage |
 | Speech (voice mode) | `@react-native-voice/voice` | iOS Speech framework bridge; more reliable than Web Speech API |
 | Permissions | `expo-camera` / `expo-av` or RN permissions API | Camera + mic before `getUserMedia` |
-| Deep links | `expo-linking` + iOS Universal Links (optional v1: custom URL scheme) | Join `streamquiz://game/{id}` or `https://yourdomain.com/game/{id}` |
+| Deep links | `expo-linking` + iOS Universal Links (optional v1: custom URL scheme) | Join `whosmarter://game/{id}` or `https://yourdomain.com/game/{id}` |
 | QR display | `react-native-qrcode-svg` | Lobby + create screen |
 | Share link | `expo-clipboard` + `expo-sharing` or Share API | Copy invite URL |
 | Env vars | `expo-constants` + `app.config.ts` `extra` | See §4 |
@@ -101,7 +101,7 @@ These choices minimize iOS pain and match web capabilities:
 # .env (Expo)
 EXPO_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-EXPO_PUBLIC_API_BASE_URL=https://streamquiz.netlify.app   # NO trailing slash
+EXPO_PUBLIC_API_BASE_URL=https://whosmarter.netlify.app   # NO trailing slash
 ```
 
 All API calls use:
@@ -295,9 +295,9 @@ Fetch ICE servers from API; fall back to same public STUN/TURN list as web if AP
 
 ```xml
 <key>NSCameraUsageDescription</key>
-<string>StreamQuiz uses your camera so other players can see you during the quiz.</string>
+<string>WhoSmarter uses your camera so other players can see you during the quiz.</string>
 <key>NSMicrophoneUsageDescription</key>
-<string>StreamQuiz uses your microphone for voice answers and talking to other players.</string>
+<string>WhoSmarter uses your microphone for voice answers and talking to other players.</string>
 <key>UIBackgroundModes</key>
 <array>
   <string>audio</string>
@@ -508,7 +508,7 @@ On iOS, speech recognition may conflict with WebRTC audio session. **Recommended
 
 ### 12.5 Deep linking
 
-**Minimum v1:** Custom URL scheme `streamquiz://game/{uuid}`
+**Minimum v1:** Custom URL scheme `whosmarter://game/{uuid}`
 
 **Better:** Universal Link `https://your-netlify-domain.app/game/{uuid}` → opens app with `role=player`
 
@@ -618,4 +618,4 @@ When porting, read these web files in this order:
 
 ---
 
-*This guide targets parity with the StreamQuiz web app as documented in `PROJECT.md` (6-player multiplayer, think-race mode, optional cameras, AI judging, OpenRouter via Next.js API, EN/RU).*
+*This guide targets parity with the WhoSmarter web app as documented in `PROJECT.md` (6-player multiplayer, think-race mode, optional cameras, AI judging, OpenRouter via Next.js API, EN/RU).*

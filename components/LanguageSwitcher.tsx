@@ -19,13 +19,13 @@ export default function LanguageSwitcher() {
   return (
     <div className="flex items-center gap-2">
       <label
-        htmlFor="streamquiz-locale"
+        htmlFor="whosmarter-locale"
         className="text-xs text-[var(--text-muted)] uppercase tracking-wider"
       >
         {t('lang.label')}
       </label>
       <select
-        id="streamquiz-locale"
+        id="whosmarter-locale"
         value={locale}
         onChange={(e) => setLocale(e.target.value as Locale)}
         className="rounded-lg px-3 py-1.5 text-xs font-medium outline-none transition-colors cursor-pointer"

@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — Migration v3: Game modes (think race vs classic)
+-- WhoSmarter — Migration v3: Game modes (think race vs classic)
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor.
 -- Safe to run multiple times (uses IF NOT EXISTS / DROP+ADD).

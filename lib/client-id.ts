@@ -7,8 +7,8 @@
 // name so returning players don't have to retype it.
 // ============================================================
 
-const CLIENT_ID_KEY = 'streamquiz-client-id';
-const NAME_KEY      = 'streamquiz-player-name';
+const CLIENT_ID_KEY = 'whosmarter-client-id';
+const NAME_KEY      = 'whosmarter-player-name';
 
 /** Stable id for THIS browser. Created once, then reused forever. */
 export function getClientId(): string {

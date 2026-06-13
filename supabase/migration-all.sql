@@ -1,5 +1,5 @@
 -- ============================================================
--- StreamQuiz — RUN-ALL migration (idempotent)
+-- WhoSmarter — RUN-ALL migration (idempotent)
 -- ============================================================
 -- If you're unsure which migrations you've run, just run THIS file.
 -- It adds every column/constraint the current app needs and is safe
