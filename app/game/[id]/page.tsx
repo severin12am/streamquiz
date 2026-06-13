@@ -3,7 +3,7 @@
 //
 // URL structure:
 //   /game/[id]?role=host    → Host view  (you)
-//   /game/[id]              → Player view (the streamer gets this link)
+//   /game/[id]              → Guest view (share link for players)
 //
 // Both roles render the exact same GameScreen component.
 // The role prop is passed down to determine:

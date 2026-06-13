@@ -1,9 +1,8 @@
 export const fr = {
   app: {
-    tagline: 'Quiz en direct pour vous et votre streamer',
-    stepCreate: 'Créer un quiz',
-    stepShare: 'Partager le lien',
-    stepPlay: 'Jouer en direct',
+    stepCreate: 'Créez un quiz sur mesure',
+    stepShare: 'Invitez vos amis',
+    stepPlay: 'Jouez',
   },
   lang: {
     label: 'Langue',
@@ -82,7 +81,7 @@ export const fr = {
     notFoundHint: 'Vérifiez le lien et réessayez. Si vous êtes l’hôte, créez une nouvelle partie.',
     backHome: 'Retour à l’accueil',
     host: 'Hôte',
-    streamer: 'Invité 1',
+    guest: 'Invité',
     live: 'En direct',
     offline: 'Hors ligne',
     waitingCamera: 'En attente de la caméra',

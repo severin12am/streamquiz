@@ -1,9 +1,8 @@
 export const ja = {
   app: {
-    tagline: 'あなたとストリーマーのためのライブクイズ',
-    stepCreate: 'クイズを作成',
-    stepShare: 'リンクを共有',
-    stepPlay: 'ライブでプレイ',
+    stepCreate: 'オリジナルクイズを作成',
+    stepShare: '友達を招待',
+    stepPlay: 'プレイ',
   },
   lang: {
     label: '言語',
@@ -82,7 +81,7 @@ export const ja = {
     notFoundHint: 'リンクを確認して再試行してください。ホストの場合は新しいゲームを作成してください。',
     backHome: 'ホームに戻る',
     host: 'ホスト',
-    streamer: 'ゲスト1',
+    guest: 'ゲスト',
     live: 'ライブ',
     offline: 'オフライン',
     waitingCamera: 'カメラ待機中',

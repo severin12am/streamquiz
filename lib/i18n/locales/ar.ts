@@ -1,9 +1,8 @@
 export const ar = {
   app: {
-    tagline: 'مسابقة مباشرة لك وللمُبثّ',
-    stepCreate: 'إنشاء مسابقة',
-    stepShare: 'مشاركة الرابط',
-    stepPlay: 'اللعب مباشرة',
+    stepCreate: 'أنشئ مسابقة مخصصة',
+    stepShare: 'ادعُ أصدقاءك',
+    stepPlay: 'العب',
   },
   lang: {
     label: 'اللغة',
@@ -82,7 +81,7 @@ export const ar = {
     notFoundHint: 'تحقق من الرابط وحاول مرة أخرى. إذا كنت المضيف، أنشئ لعبة جديدة.',
     backHome: 'العودة إلى الرئيسية',
     host: 'المضيف',
-    streamer: 'ضيف 1',
+    guest: 'ضيف',
     live: 'مباشر',
     offline: 'غير متصل',
     waitingCamera: 'في انتظار الكاميرا',

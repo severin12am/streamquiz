@@ -14,10 +14,9 @@ import { ja } from './locales/ja';
 export const messages = {
   en: {
     app: {
-      tagline: 'Live quiz show for you and your streamer',
-      stepCreate: 'Create challenge',
-      stepShare: 'Share link',
-      stepPlay: 'Play live',
+      stepCreate: 'Create a custom quiz',
+      stepShare: 'Invite your friends',
+      stepPlay: 'Play',
     },
     lang: {
       label: 'Language',
@@ -96,7 +95,7 @@ export const messages = {
       notFoundHint: "Check the link and try again. If you're the host, create a new game.",
       backHome: 'Back to home',
       host: 'Host',
-      streamer: 'Guest 1',
+      guest: 'Guest',
       live: 'Live',
       offline: 'Offline',
       waitingCamera: 'Waiting for camera',
@@ -193,10 +192,9 @@ export const messages = {
 
   ru: {
     app: {
-      tagline: 'Живая викторина для вас и вашего стримера',
-      stepCreate: 'Создать викторину',
-      stepShare: 'Отправить ссылку',
-      stepPlay: 'Играть вместе',
+      stepCreate: 'Создайте свой квиз',
+      stepShare: 'Пригласите друзей',
+      stepPlay: 'Играйте',
     },
     lang: {
       label: 'Язык',
@@ -275,7 +273,7 @@ export const messages = {
       notFoundHint: 'Проверьте ссылку. Если вы ведущий — создайте новую игру.',
       backHome: 'На главную',
       host: 'Ведущий',
-      streamer: 'Гость 1',
+      guest: 'Гость',
       live: 'В эфире',
       offline: 'Не в сети',
       waitingCamera: 'Ожидание камеры',

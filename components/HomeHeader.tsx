@@ -12,14 +12,20 @@ export default function HomeHeader() {
         <LanguageSwitcher />
       </div>
       <h1 className="text-5xl font-bold tracking-tight mb-3 text-[var(--text-primary)]">
-        Who<span style={{ color: 'var(--accent)' }}>S</span>marter
+        Who
+        <span
+          className="inline-flex items-center justify-center rounded-xl px-2 py-0.5 mx-0.5 align-middle text-white"
+          style={{ background: 'var(--accent)' }}
+        >
+          S
+        </span>
+        marter
       </h1>
-      <p className="text-[var(--text-secondary)] text-lg">{t('app.tagline')}</p>
       <div className="flex items-center justify-center gap-3 mt-6 text-sm text-[var(--text-muted)]">
         <span>{t('app.stepCreate')}</span>
-        <span className="text-[var(--border-strong)]">—</span>
+        <span className="text-[var(--border-strong)]">-</span>
         <span>{t('app.stepShare')}</span>
-        <span className="text-[var(--border-strong)]">—</span>
+        <span className="text-[var(--border-strong)]">-</span>
         <span>{t('app.stepPlay')}</span>
       </div>
     </div>

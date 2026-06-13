@@ -1,9 +1,8 @@
 export const es = {
   app: {
-    tagline: 'Concurso en vivo para ti y tu streamer',
-    stepCreate: 'Crear concurso',
-    stepShare: 'Compartir enlace',
-    stepPlay: 'Jugar en vivo',
+    stepCreate: 'Crea un quiz personalizado',
+    stepShare: 'Invita a tus amigos',
+    stepPlay: 'Juega',
   },
   lang: {
     label: 'Idioma',
@@ -82,7 +81,7 @@ export const es = {
     notFoundHint: 'Comprueba el enlace e inténtalo de nuevo. Si eres el anfitrión, crea una partida nueva.',
     backHome: 'Volver al inicio',
     host: 'Anfitrión',
-    streamer: 'Invitado 1',
+    guest: 'Invitado',
     live: 'En vivo',
     offline: 'Desconectado',
     waitingCamera: 'Esperando cámara',

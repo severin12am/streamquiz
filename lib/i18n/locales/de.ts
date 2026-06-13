@@ -1,9 +1,8 @@
 export const de = {
   app: {
-    tagline: 'Live-Quiz für dich und deinen Streamer',
-    stepCreate: 'Quiz erstellen',
-    stepShare: 'Link teilen',
-    stepPlay: 'Live spielen',
+    stepCreate: 'Erstelle ein eigenes Quiz',
+    stepShare: 'Lade Freunde ein',
+    stepPlay: 'Spielen',
   },
   lang: {
     label: 'Sprache',
@@ -82,7 +81,7 @@ export const de = {
     notFoundHint: 'Prüfe den Link und versuche es erneut. Wenn du der Host bist, erstelle ein neues Spiel.',
     backHome: 'Zur Startseite',
     host: 'Host',
-    streamer: 'Gast 1',
+    guest: 'Gast',
     live: 'Live',
     offline: 'Offline',
     waitingCamera: 'Warten auf Kamera',
