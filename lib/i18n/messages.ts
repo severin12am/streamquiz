@@ -1,9 +1,15 @@
 // ============================================================
-// StreamQuiz — UI strings (English + Russian)
+// StreamQuiz — UI strings
 //
-// Add a new language: copy the `en` block, translate values,
-// register the locale code in lib/i18n/index.ts.
+// Add a new language: add lib/i18n/locales/{code}.ts, import here,
+// register in lib/i18n/locale-meta.ts.
 // ============================================================
+
+import { ar } from './locales/ar';
+import { de } from './locales/de';
+import { es } from './locales/es';
+import { fr } from './locales/fr';
+import { ja } from './locales/ja';
 
 export const messages = {
   en: {
@@ -17,6 +23,11 @@ export const messages = {
       label: 'Language',
       en: 'English',
       ru: 'Russian',
+      es: 'Español',
+      fr: 'Français',
+      de: 'Deutsch',
+      ja: '日本語',
+      ar: 'العربية',
     },
     setup: {
       title: 'Setup required before you can play',
@@ -55,6 +66,8 @@ export const messages = {
       copy: 'Copy',
       copied: 'Copied',
       enterQuiz: 'Enter quiz',
+      adjustShow: 'Adjust',
+      adjustHide: 'Hide settings',
     },
     join: {
       title: 'Join the quiz',
@@ -189,6 +202,11 @@ export const messages = {
       label: 'Язык',
       en: 'English',
       ru: 'Русский',
+      es: 'Español',
+      fr: 'Français',
+      de: 'Deutsch',
+      ja: '日本語',
+      ar: 'العربية',
     },
     setup: {
       title: 'Нужна настройка перед игрой',
@@ -227,6 +245,8 @@ export const messages = {
       copy: 'Копировать',
       copied: 'Скопировано',
       enterQuiz: 'Войти в викторину',
+      adjustShow: 'Настроить',
+      adjustHide: 'Скрыть настройки',
     },
     join: {
       title: 'Войти в викторину',
@@ -349,6 +369,12 @@ export const messages = {
       exit: 'Выход',
     },
   },
+
+  es,
+  fr,
+  de,
+  ja,
+  ar,
 } as const;
 
 export type Locale = keyof typeof messages;

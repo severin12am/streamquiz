@@ -37,6 +37,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     document.documentElement.lang = locale;
+    document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
     localStorage.setItem(LOCALE_STORAGE_KEY, locale);
   }, [locale, ready]);
 

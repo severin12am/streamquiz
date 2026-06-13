@@ -30,11 +30,12 @@ export default function CreateGame() {
   const [topic,        setTopic]        = useState('');
   const [difficulty,   setDifficulty]   = useState<Difficulty>('medium');
   const [numQuestions, setNumQuestions] = useState(5);
-  const [mcMode,       setMcMode]       = useState(false);
-  const [gameMode,     setGameMode]     = useState<GameMode>('think'); // default: fair think race
-  const [camerasEnabled, setCamerasEnabled] = useState(false); // default: cameras OFF (mics only)
+  const [mcMode,       setMcMode]       = useState(true);
+  const [gameMode,     setGameMode]     = useState<GameMode>('classic');
+  const [camerasEnabled, setCamerasEnabled] = useState(true);
 
   // ---- UI state ----
+  const [showAdjust,    setShowAdjust]    = useState(false);
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState<string | null>(null);
   const [shareLink,     setShareLink]     = useState<string | null>(null);
@@ -216,126 +217,6 @@ export default function CreateGame() {
         />
       </div>
 
-      {/* ---- Difficulty ---- */}
-      <div>
-        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-          {t('create.difficulty')}
-        </label>
-        <div className="flex gap-2">
-          {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setDifficulty(d)}
-              className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
-              style={{
-                background: difficulty === d ? 'var(--accent)' : 'var(--bg-base)',
-                border: `1px solid ${difficulty === d ? 'var(--accent)' : 'var(--border)'}`,
-                color: difficulty === d ? 'white' : 'var(--text-secondary)',
-              }}
-            >
-              {d === 'easy' ? t('create.difficultyEasy') : d === 'medium' ? t('create.difficultyMedium') : t('create.difficultyHard')}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ---- Number of questions ---- */}
-      <div>
-        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-          {t('create.questions')}: <span className="text-[var(--text-primary)]">{numQuestions}</span>
-        </label>
-        <input
-          type="range"
-          min={3}
-          max={10}
-          value={numQuestions}
-          onChange={(e) => setNumQuestions(Number(e.target.value))}
-          className="w-full cursor-pointer h-2"
-          style={{ accentColor: 'var(--accent)' }}
-        />
-        <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-          <span>3</span><span>10</span>
-        </div>
-      </div>
-
-      {/* ---- Game mode (think race vs classic buzz) ---- */}
-      <div>
-        <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-          {t('create.modeTitle')}
-        </label>
-        <div className="flex gap-2">
-          {(['think', 'classic'] as GameMode[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setGameMode(m)}
-              className="flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors text-left"
-              style={{
-                background: gameMode === m ? 'var(--accent)' : 'var(--bg-base)',
-                border: `1px solid ${gameMode === m ? 'var(--accent)' : 'var(--border)'}`,
-                color: gameMode === m ? 'white' : 'var(--text-secondary)',
-              }}
-            >
-              {m === 'think' ? t('create.modeThink') : t('create.modeClassic')}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-[var(--text-muted)] mt-1.5">
-          {gameMode === 'think' ? t('create.modeThinkHint') : t('create.modeClassicHint')}
-        </p>
-      </div>
-
-      {/* ---- Multiple Choice toggle ---- */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-[var(--text-primary)]">
-            {t('create.mcTitle')}
-          </p>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            {t('create.mcHint')}
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={mcMode}
-          onClick={() => setMcMode(!mcMode)}
-          className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
-          style={{ background: mcMode ? 'var(--accent)' : 'var(--border-strong)' }}
-        >
-          <span
-            className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
-            style={{ left: mcMode ? '26px' : '4px' }}
-          />
-        </button>
-      </div>
-
-      {/* ---- Cameras toggle (off by default — mics still work) ---- */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-[var(--text-primary)]">
-            {t('create.cameraTitle')}
-          </p>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            {t('create.cameraHint')}
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={camerasEnabled}
-          onClick={() => setCamerasEnabled(!camerasEnabled)}
-          className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
-          style={{ background: camerasEnabled ? 'var(--accent)' : 'var(--border-strong)' }}
-        >
-          <span
-            className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
-            style={{ left: camerasEnabled ? '26px' : '4px' }}
-          />
-        </button>
-      </div>
-
       {/* ---- Error message ---- */}
       {error && (
         <div
@@ -364,6 +245,145 @@ export default function CreateGame() {
           t('create.submit')
         )}
       </button>
+
+      {/* ---- Adjust settings (collapsed by default) ---- */}
+      <button
+        type="button"
+        onClick={() => setShowAdjust((v) => !v)}
+        className="py-2.5 rounded-xl text-sm font-medium transition-colors"
+        style={{
+          background: 'var(--bg-base)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-secondary)',
+        }}
+        aria-expanded={showAdjust}
+      >
+        {showAdjust ? t('create.adjustHide') : t('create.adjustShow')}
+      </button>
+
+      {showAdjust && (
+        <div className="flex flex-col gap-6 pt-1">
+          {/* ---- Difficulty ---- */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+              {t('create.difficulty')}
+            </label>
+            <div className="flex gap-2">
+              {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDifficulty(d)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                  style={{
+                    background: difficulty === d ? 'var(--accent)' : 'var(--bg-base)',
+                    border: `1px solid ${difficulty === d ? 'var(--accent)' : 'var(--border)'}`,
+                    color: difficulty === d ? 'white' : 'var(--text-secondary)',
+                  }}
+                >
+                  {d === 'easy' ? t('create.difficultyEasy') : d === 'medium' ? t('create.difficultyMedium') : t('create.difficultyHard')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ---- Number of questions ---- */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+              {t('create.questions')}: <span className="text-[var(--text-primary)]">{numQuestions}</span>
+            </label>
+            <input
+              type="range"
+              min={3}
+              max={10}
+              value={numQuestions}
+              onChange={(e) => setNumQuestions(Number(e.target.value))}
+              className="w-full cursor-pointer h-2"
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
+              <span>3</span><span>10</span>
+            </div>
+          </div>
+
+          {/* ---- Game mode ---- */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+              {t('create.modeTitle')}
+            </label>
+            <div className="flex gap-2">
+              {(['think', 'classic'] as GameMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setGameMode(m)}
+                  className="flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors text-left"
+                  style={{
+                    background: gameMode === m ? 'var(--accent)' : 'var(--bg-base)',
+                    border: `1px solid ${gameMode === m ? 'var(--accent)' : 'var(--border)'}`,
+                    color: gameMode === m ? 'white' : 'var(--text-secondary)',
+                  }}
+                >
+                  {m === 'think' ? t('create.modeThink') : t('create.modeClassic')}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mt-1.5">
+              {gameMode === 'think' ? t('create.modeThinkHint') : t('create.modeClassicHint')}
+            </p>
+          </div>
+
+          {/* ---- Multiple Choice toggle ---- */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-primary)]">
+                {t('create.mcTitle')}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                {t('create.mcHint')}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={mcMode}
+              onClick={() => setMcMode(!mcMode)}
+              className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
+              style={{ background: mcMode ? 'var(--accent)' : 'var(--border-strong)' }}
+            >
+              <span
+                className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
+                style={{ left: mcMode ? '26px' : '4px' }}
+              />
+            </button>
+          </div>
+
+          {/* ---- Cameras toggle ---- */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-primary)]">
+                {t('create.cameraTitle')}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                {t('create.cameraHint')}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={camerasEnabled}
+              onClick={() => setCamerasEnabled(!camerasEnabled)}
+              className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
+              style={{ background: camerasEnabled ? 'var(--accent)' : 'var(--border-strong)' }}
+            >
+              <span
+                className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
+                style={{ left: camerasEnabled ? '26px' : '4px' }}
+              />
+            </button>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

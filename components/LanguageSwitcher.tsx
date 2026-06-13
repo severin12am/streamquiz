@@ -1,40 +1,46 @@
 'use client';
 
 import { useLocale } from '@/context/LocaleProvider';
-import type { Locale } from '@/lib/i18n';
+import { LOCALES, type Locale } from '@/lib/i18n';
+
+const LOCALE_LABEL_KEYS: Record<Locale, string> = {
+  en: 'lang.en',
+  ru: 'lang.ru',
+  es: 'lang.es',
+  fr: 'lang.fr',
+  de: 'lang.de',
+  ja: 'lang.ja',
+  ar: 'lang.ar',
+};
 
 export default function LanguageSwitcher() {
   const { locale, setLocale, t } = useLocale();
 
-  const options: { code: Locale; label: string }[] = [
-    { code: 'en', label: t('lang.en') },
-    { code: 'ru', label: t('lang.ru') },
-  ];
-
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-[var(--text-muted)] uppercase tracking-wider">
-        {t('lang.label')}
-      </span>
-      <div
-        className="flex rounded-lg overflow-hidden border"
-        style={{ borderColor: 'var(--border)' }}
+      <label
+        htmlFor="streamquiz-locale"
+        className="text-xs text-[var(--text-muted)] uppercase tracking-wider"
       >
-        {options.map(({ code, label }) => (
-          <button
-            key={code}
-            type="button"
-            onClick={() => setLocale(code)}
-            className="px-3 py-1.5 text-xs font-medium transition-colors"
-            style={{
-              background: locale === code ? 'var(--accent)' : 'var(--bg-card)',
-              color: locale === code ? 'white' : 'var(--text-secondary)',
-            }}
-          >
-            {label}
-          </button>
+        {t('lang.label')}
+      </label>
+      <select
+        id="streamquiz-locale"
+        value={locale}
+        onChange={(e) => setLocale(e.target.value as Locale)}
+        className="rounded-lg px-3 py-1.5 text-xs font-medium outline-none transition-colors cursor-pointer"
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        {LOCALES.map((code) => (
+          <option key={code} value={code}>
+            {t(LOCALE_LABEL_KEYS[code])}
+          </option>
         ))}
-      </div>
+      </select>
     </div>
   );
 }

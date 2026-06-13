@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { CreateGamePayload, Difficulty, Question } from '@/lib/types';
 import { sanitizeMcQuestion } from '@/lib/mc-utils';
+import { languageInstructionFor, LOCALES, type Locale } from '@/lib/i18n';
 import { buildQuestionPrompts } from '@/lib/quiz-prompts';
 
 export const dynamic = 'force-dynamic';
@@ -78,10 +79,11 @@ export async function POST(req: NextRequest) {
     }
     const count = Math.min(Math.max(Number(num_questions) || 5, 3), 10);
 
-    const languageInstruction =
-      locale === 'ru'
-        ? 'Write ALL question text and answer options in Russian.'
-        : 'Write all question text and answer options in English.';
+    const safeLocale: Locale =
+      typeof locale === 'string' && (LOCALES as readonly string[]).includes(locale)
+        ? (locale as Locale)
+        : 'en';
+    const languageInstruction = languageInstructionFor(safeLocale);
 
     const { systemPrompt, userPrompt } = buildQuestionPrompts({
       topic,

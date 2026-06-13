@@ -4,6 +4,8 @@
 // add the matching field here too.
 // ============================================================
 
+import type { Locale } from './i18n';
+
 // -------------------------------------------------------
 // Up to SIX players per game: 1 host (slot 0) + 5 guests (slots 1-5).
 // -------------------------------------------------------
@@ -134,7 +136,7 @@ export interface CreateGamePayload {
   /** Round-start mode (defaults to 'think'). */
   game_mode?: GameMode;
   /** UI language — questions are generated in this language. */
-  locale?: 'en' | 'ru';
+  locale?: Locale;
   /** Optional — question texts to avoid repeating (from session or rematch). */
   previous_questions?: string[];
 }

@@ -38,6 +38,35 @@ function logSignaling(...args: unknown[]) {
   if (WEBRTC_DEBUG) console.log('[Signaling]', ...args);
 }
 
+// -------------------------------------------------------
+// Adaptive video quality — scale resolution and bitrate down as more
+// peers join the mesh. Each browser uploads its stream to every other
+// player, so bandwidth grows O(N²); lowering quality for larger games
+// keeps the mesh stable on typical home connections.
+// -------------------------------------------------------
+interface VideoTier {
+  width: number;
+  height: number;
+  frameRate: number;
+  maxBitrateKbps: number;
+}
+
+function videoTierForPeerCount(peerCount: number): VideoTier {
+  if (peerCount <= 2) return { width: 1280, height: 720, frameRate: 30, maxBitrateKbps: 1200 };
+  if (peerCount <= 3) return { width: 960,  height: 540, frameRate: 24, maxBitrateKbps: 900 };
+  return                       { width: 640,  height: 480, frameRate: 20, maxBitrateKbps: 600 };
+}
+
+async function applyBitrateLimit(pc: RTCPeerConnection, maxKbps: number) {
+  for (const sender of pc.getSenders()) {
+    if (sender.track?.kind !== 'video') continue;
+    const params = sender.getParameters();
+    if (!params.encodings?.length) continue;
+    params.encodings[0].maxBitrate = maxKbps * 1000;
+    try { await sender.setParameters(params); } catch { /* not all browsers support this */ }
+  }
+}
+
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'turn:freeturn.net:3478',  username: 'free', credential: 'free' },
@@ -119,14 +148,14 @@ export function useMeshWebRTC(
     }
     logWebRTC('startCamera called', { camerasEnabled, videoRequested: camerasEnabled });
     try {
+      const tier = videoTierForPeerCount(0);
       const stream = await navigator.mediaDevices.getUserMedia({
-        // Mic is always requested; video only when the host enabled cameras.
         video: camerasEnabled
           ? {
-              width:      { ideal: 1280 },
-              height:     { ideal: 720 },
+              width:      { ideal: tier.width },
+              height:     { ideal: tier.height },
               facingMode: 'user',
-              frameRate:  { ideal: 30 },
+              frameRate:  { ideal: tier.frameRate },
             }
           : false,
         audio: true,
@@ -209,6 +238,32 @@ export function useMeshWebRTC(
     let cancelled = false;
     const peers = peersRef.current;
 
+    let lastTierPeerCount = -1;
+
+    const adjustQualityForPeerCount = async (peerCount: number) => {
+      if (peerCount === lastTierPeerCount) return;
+      lastTierPeerCount = peerCount;
+      const tier = videoTierForPeerCount(peerCount);
+      logWebRTC('adjusting video quality', { peerCount, tier });
+
+      const videoTrack = localStream?.getVideoTracks()[0];
+      if (videoTrack) {
+        try {
+          await videoTrack.applyConstraints({
+            width:     { ideal: tier.width },
+            height:    { ideal: tier.height },
+            frameRate: { ideal: tier.frameRate },
+          });
+        } catch (err) {
+          console.warn('[WebRTC] applyConstraints failed (non-fatal):', err);
+        }
+      }
+
+      for (const [, entry] of peers) {
+        applyBitrateLimit(entry.pc, tier.maxBitrateKbps);
+      }
+    };
+
     const removeRemoteStream = (peerId: string) => {
       logWebRTC('removing remote stream from state', { peerId });
       setRemoteStreams((prev) => {
@@ -288,6 +343,10 @@ export function useMeshWebRTC(
           });
         });
 
+        // Apply current bitrate limit based on mesh size.
+        const currentTier = videoTierForPeerCount(peers.size);
+        applyBitrateLimit(pc, currentTier.maxBitrateKbps);
+
         pc.ontrack = (event) => {
           const [stream] = event.streams;
           logWebRTC('ontrack fired', {
@@ -323,6 +382,25 @@ export function useMeshWebRTC(
             logSignaling('ICE gathering complete (null candidate)', { peerId });
           }
         };
+
+        // Prefer VP9 for better compression at lower bitrates.
+        try {
+          const transceivers = pc.getTransceivers();
+          for (const t of transceivers) {
+            if (t.sender.track?.kind !== 'video') continue;
+            if (typeof RTCRtpTransceiver !== 'undefined' && 'setCodecPreferences' in t) {
+              const codecs = RTCRtpReceiver.getCapabilities?.('video')?.codecs ?? [];
+              const vp9  = codecs.filter((c) => c.mimeType === 'video/VP9');
+              const h264 = codecs.filter((c) => c.mimeType === 'video/H264');
+              const rest = codecs.filter((c) => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264');
+              if (vp9.length > 0) {
+                t.setCodecPreferences([...vp9, ...h264, ...rest]);
+              }
+            }
+          }
+        } catch {
+          // setCodecPreferences not supported in all browsers — non-fatal
+        }
 
         pc.onnegotiationneeded = async () => {
           logWebRTC('onnegotiationneeded', {
@@ -532,6 +610,10 @@ export function useMeshWebRTC(
             teardownPeer(peerId);
           }
         });
+
+        // Scale video quality to the current mesh size.
+        const activePeers = [...online].filter((id) => id !== myId).length;
+        adjustQualityForPeerCount(activePeers);
       };
 
       channel.on('presence', { event: 'sync' }, () => {
