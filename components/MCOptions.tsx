@@ -42,7 +42,7 @@ export default function MCOptions({
   const revealed = correctAnswer != null;
 
   return (
-    <div className="grid grid-cols-2 gap-2 lg:gap-3 w-full max-w-lg">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-3 w-full max-w-lg pb-1">
       {options.map((option, i) => {
         const pickedByMe  = myPick === i;
         const isCorrect   = revealed && option === correctAnswer;
@@ -69,7 +69,7 @@ export default function MCOptions({
             onClick={() => canSelect && onSelect(i)}
             aria-disabled={!canSelect || undefined}
             className={[
-              'keycap relative flex items-center gap-2.5 lg:gap-3 p-2.5 lg:p-4 rounded-xl text-left font-medium',
+              'keycap relative flex items-start sm:items-center gap-2.5 lg:gap-3 p-3 sm:p-2.5 lg:p-4 rounded-xl text-left font-medium',
               variantClass,
               canSelect ? 'cursor-pointer' : revealed ? 'keycap-revealed cursor-default' : 'cursor-default opacity-90 pointer-events-none',
             ].join(' ')}
@@ -94,7 +94,7 @@ export default function MCOptions({
             </span>
 
             {/* Option text */}
-            <span className="text-sm leading-tight flex-1 [color:inherit]">
+            <span className="text-sm leading-tight flex-1 min-w-0 break-words [color:inherit]">
               {option}
             </span>
 
@@ -112,7 +112,7 @@ export default function MCOptions({
 
               {/* At the reveal: colour avatars of everyone who chose this */}
               {revealed && picks.length > 0 && (
-                <span className="flex items-center gap-1 flex-wrap justify-end max-w-[120px]">
+                <span className="flex items-center gap-1 flex-wrap justify-end max-w-[88px] sm:max-w-[120px]">
                   {picks.map((pick) => (
                     <span
                       key={pick.id}

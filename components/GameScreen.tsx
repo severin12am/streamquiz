@@ -303,7 +303,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // ----------------------------------------------------------
   if (!clientId || loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin mx-auto mb-4" />
           <p className="text-[var(--text-secondary)]">{t('game.joining')}</p>
@@ -314,7 +314,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
 
   if (error || !game) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <div className="card elevated text-center max-w-md px-8 py-10 mx-4">
           <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
             {error ?? t('game.notFound')}
@@ -355,9 +355,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const showResult = game.phase === 'result';
 
   return (
-    <div className="relative flex flex-col lg:flex-row h-screen w-screen overflow-hidden">
+    <div className="relative flex flex-col lg:flex-row h-dvh w-full min-h-0 overflow-hidden">
       {/* ---- Camera mesh (all players) ---- */}
-      <div className="h-[44vh] shrink-0 lg:h-full lg:flex-[2] min-w-0 min-h-0 p-1.5">
+      <div className="h-[34vh] shrink-0 sm:h-[38vh] lg:h-full lg:flex-[2] min-w-0 min-h-0 p-1 sm:p-1.5">
         <CameraGrid
           players={players}
           me={me}
@@ -389,12 +389,13 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           onMCSelect={(i) => submitMCAnswer(i)}
           onTypeAnswer={handleTypeAnswer}
           onFinish={handleFinishAnswer}
+          voicePttActive={voiceMode && game.phase !== 'ended'}
         />
       </div>
 
       {/* ---- Push-to-talk button (voice mode only; hold to chat) ----
            In MC mode the mic is always open, so no button is needed. */}
-      {voiceMode && (
+      {voiceMode && game.phase !== 'ended' && (
         <button
           type="button"
           onPointerDown={(e) => { e.preventDefault(); setPttHeld(true); }}
@@ -403,14 +404,18 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           onPointerCancel={() => setPttHeld(false)}
           disabled={isAnswering}
           aria-label={t('ptt.hold')}
-          className={`keycap fixed z-30 bottom-3 right-3 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm select-none touch-none ${
+          className={`keycap fixed z-30 flex items-center gap-2 rounded-full font-semibold select-none touch-none
+            end-[max(0.75rem,env(safe-area-inset-right))] bottom-[max(0.75rem,env(safe-area-inset-bottom))]
+            px-3 py-2.5 text-xs sm:px-4 sm:text-sm ${
             micEnabled ? 'keycap-success text-white' : 'keycap-secondary'
           }`}
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
           </svg>
-          {isAnswering ? t('ptt.answerLive') : pttHeld ? t('ptt.talking') : t('ptt.hold')}
+          <span className="hidden min-[400px]:inline">
+            {isAnswering ? t('ptt.answerLive') : pttHeld ? t('ptt.talking') : t('ptt.hold')}
+          </span>
         </button>
       )}
 

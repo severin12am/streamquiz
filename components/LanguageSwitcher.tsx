@@ -64,7 +64,7 @@ export default function LanguageSwitcher() {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={t('lang.label')}
-        className="keycap keycap-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"
+        className="keycap keycap-secondary flex items-center gap-2 rounded-xl px-3 py-2.5 min-h-11 text-sm font-medium"
       >
         <span style={{ color: 'var(--accent)' }}>
           <GlobeIcon />
@@ -76,7 +76,7 @@ export default function LanguageSwitcher() {
         <div
           role="listbox"
           aria-label={t('lang.label')}
-          className="card elevated absolute right-0 top-full z-50 mt-2 min-w-[10.5rem] overflow-hidden py-1.5"
+          className="card elevated absolute end-0 top-full z-50 mt-2 min-w-[10.5rem] overflow-hidden py-1.5"
         >
           {LOCALES.map((code) => {
             const selected = locale === code;

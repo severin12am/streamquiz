@@ -41,10 +41,10 @@ export default function JoinScreen({ asHost, full, onJoin }: JoinScreenProps) {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center p-6">
+    <div className="flex min-h-dvh items-center justify-center p-4 sm:p-6">
       <form
         onSubmit={handleSubmit}
-        className="card elevated flex flex-col gap-5 w-full max-w-sm p-7 text-center"
+        className="card elevated flex flex-col gap-5 w-full max-w-sm p-5 sm:p-7 text-center"
       >
         <div>
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">

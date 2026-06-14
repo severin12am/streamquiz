@@ -244,7 +244,7 @@ export default function CreateGame() {
   return (
     <form
       onSubmit={handleCreate}
-      className="card elevated flex flex-col gap-6 w-full max-w-md p-7"
+      className="card elevated flex flex-col gap-6 w-full max-w-md p-5 sm:p-7"
     >
 
       {/* ---- Topic ---- */}
@@ -350,7 +350,7 @@ export default function CreateGame() {
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
               {t('create.modeTitle')}
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               {(['think', 'classic'] as GameMode[]).map((m) => (
                 <button
                   key={m}

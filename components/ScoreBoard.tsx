@@ -50,14 +50,14 @@ export default function ScoreBoard({ players, meId, phase }: ScoreBoardProps) {
     phase === 'question' ? p.mc_index !== null : p.done;
 
   return (
-    <div className="flex items-center justify-center flex-wrap gap-2">
+    <div className="flex items-center gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:justify-center sm:overflow-visible sm:pb-0">
       {ranked.map((p) => {
         const isMe   = p.id === meId;
         const flash  = flashing[p.id];
         const colour = playerColor(p.slot);
         const answered = hasAnswered(p);
         return (
-          <div key={p.id} className="keycap-chip">
+          <div key={p.id} className="keycap-chip shrink-0">
             <div
               className={`keycap-chip-inner flex items-center gap-2 pl-1 pr-2.5 py-1 transition-all duration-300${isMe ? ' is-me' : ''}`}
               style={{ transform: flash ? 'scale(1.08)' : 'scale(1)' }}
@@ -70,7 +70,7 @@ export default function ScoreBoard({ players, meId, phase }: ScoreBoardProps) {
               {playerInitial(p.name)}
             </span>
             <span
-              className="text-xs font-medium truncate max-w-[88px]"
+              className="text-xs font-medium truncate max-w-[64px] sm:max-w-[88px]"
               style={{ color: 'var(--text-secondary)' }}
             >
               {p.name}

@@ -42,6 +42,7 @@ interface QuestionPanelProps {
   onMCSelect:      (index: number) => void;
   onTypeAnswer:    (text: string) => void;
   onFinish:        () => void;
+  voicePttActive?: boolean;
 }
 
 export default function QuestionPanel({
@@ -57,6 +58,7 @@ export default function QuestionPanel({
   onMCSelect,
   onTypeAnswer,
   onFinish,
+  voicePttActive = false,
 }: QuestionPanelProps) {
   const { t } = useLocale();
   const currentQuestion = game.questions[game.current_question_index];
@@ -87,18 +89,18 @@ export default function QuestionPanel({
     >
       {/* ---- TOP BAR — topic + progress ---- */}
       <div
-        className="flex items-center justify-between px-6 py-2 lg:py-3"
+        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-2 lg:py-3"
         style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}
       >
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
             {t('game.topic')}
           </p>
-          <p className="text-sm font-medium text-[var(--text-secondary)] truncate max-w-[180px]">
+          <p className="text-sm font-medium text-[var(--text-secondary)] truncate">
             {game.topic}
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
             {t('game.question')}
           </p>
@@ -109,12 +111,16 @@ export default function QuestionPanel({
       </div>
 
       {/* ---- SCORES — always visible ---- */}
-      <div className="px-4 pt-2 pb-1 lg:pt-3 lg:pb-2">
+      <div className="px-3 pt-2 pb-1 sm:px-4 lg:pt-3 lg:pb-2">
         <ScoreBoard players={players} meId={me.id} phase={phase} />
       </div>
 
       {/* ---- QUESTION TEXT + TIMER ---- */}
-      <div className="flex-1 flex flex-col items-center justify-start lg:justify-center gap-2 lg:gap-6 px-4 lg:px-8 py-1.5 lg:py-2 pb-4 overflow-y-auto">
+      <div
+        className={`flex-1 flex flex-col items-center justify-start lg:justify-center gap-2 lg:gap-6 px-3 sm:px-4 lg:px-8 py-1.5 lg:py-2 overflow-y-auto ${
+          voicePttActive ? 'pb-24' : 'pb-4'
+        }`}
+      >
 
         {(phase === 'thinking' || phase === 'question' || phase === 'answering') && (
           <CountdownTimer current={timeLeft} total={timerTotal} remainingMs={timeLeftMs} />

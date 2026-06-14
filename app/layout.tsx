@@ -25,6 +25,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      suppressHydrationWarning
     >
       {/*
         body grows with its content and scrolls normally. The game view
@@ -32,7 +33,10 @@ export default function RootLayout({
         h-screen/overflow-hidden container, while taller pages like the
         home/create form can scroll on small mobile screens.
       */}
-      <body className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
+      <body
+        className="min-h-dvh bg-[var(--bg-base)] text-[var(--text-primary)]"
+        suppressHydrationWarning
+      >
         <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>

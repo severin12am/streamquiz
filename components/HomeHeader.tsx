@@ -19,7 +19,7 @@ export default function HomeHeader() {
       <div className="flex justify-end mb-4">
         <LanguageSwitcher />
       </div>
-      <h1 className="text-5xl font-bold tracking-tight mb-3 text-[var(--text-primary)]">
+      <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-3 text-[var(--text-primary)]">
         Who
         <button
           type="button"
@@ -34,11 +34,11 @@ export default function HomeHeader() {
         </button>
         marter
       </h1>
-      <div className="flex items-center justify-center gap-3 mt-6 text-sm text-[var(--text-muted)]">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap items-center justify-center gap-1.5 sm:gap-x-3 sm:gap-y-1 mt-6 text-xs sm:text-sm text-[var(--text-muted)] px-2">
         <span>{t('app.stepCreate')}</span>
-        <span className="text-[var(--border-strong)]">-</span>
+        <span className="hidden sm:inline text-[var(--border-strong)]">-</span>
         <span>{t('app.stepShare')}</span>
-        <span className="text-[var(--border-strong)]">-</span>
+        <span className="hidden sm:inline text-[var(--border-strong)]">-</span>
         <span>{t('app.stepPlay')}</span>
       </div>
     </div>

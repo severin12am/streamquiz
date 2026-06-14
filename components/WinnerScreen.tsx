@@ -42,7 +42,7 @@ export default function WinnerScreen({
 
   return (
     <div
-      className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 p-8 overflow-y-auto"
+      className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 sm:gap-6 p-4 sm:p-8 overflow-y-auto"
       style={{ background: 'rgba(238,243,236,0.96)', backdropFilter: 'blur(8px)' }}
     >
       {/* ---- Winner banner ---- */}
@@ -67,7 +67,7 @@ export default function WinnerScreen({
               {playerInitial(soleWinner.name)}
             </span>
             <p
-              className="text-4xl lg:text-6xl font-bold tracking-tight"
+              className="text-2xl sm:text-4xl lg:text-6xl font-bold tracking-tight max-w-full break-words px-2"
               style={{ color: playerColor(soleWinner.slot) }}
             >
               {soleWinner.name}
@@ -78,7 +78,7 @@ export default function WinnerScreen({
           </div>
         ) : (
           <p
-            className="text-4xl lg:text-6xl font-bold tracking-tight"
+            className="text-2xl sm:text-4xl lg:text-6xl font-bold tracking-tight max-w-full break-words px-2 text-center"
             style={{ color: topScore === 0 ? 'var(--text-primary)' : 'var(--gold)' }}
           >
             {topScore === 0
@@ -175,12 +175,12 @@ export default function WinnerScreen({
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full max-w-sm px-2 sm:px-0">
           {onVoteRematch && (
             <button
               onClick={onVoteRematch}
               disabled={myVote || rematchLoading}
-              className="keycap keycap-primary flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-white"
+              className="keycap keycap-primary flex items-center justify-center gap-2 px-6 sm:px-8 py-3 rounded-xl font-semibold text-white w-full sm:w-auto"
             >
               {rematchLoading && (
                 <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
@@ -196,7 +196,7 @@ export default function WinnerScreen({
           {onExit && (
             <button
               onClick={onExit}
-              className="keycap keycap-secondary px-6 py-3 rounded-xl font-semibold"
+              className="keycap keycap-secondary px-6 py-3 rounded-xl font-semibold w-full sm:w-auto"
             >
               {t('winner.exit')}
             </button>

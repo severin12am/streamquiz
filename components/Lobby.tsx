@@ -28,8 +28,8 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
   const canStart = players.length >= 2;
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="card elevated flex flex-col gap-6 w-full max-w-md p-7">
+    <div className="flex min-h-dvh items-center justify-center p-4 sm:p-6">
+      <div className="card elevated flex flex-col gap-6 w-full max-w-md p-5 sm:p-7">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">
             {t('lobby.title')}
