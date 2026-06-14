@@ -10,6 +10,8 @@
 import React, { useState } from 'react';
 import { useLocale } from '@/context/LocaleProvider';
 import { getSavedName, saveName } from '@/lib/client-id';
+import { playSound } from '@/lib/sounds';
+import SoundToggle from './SoundToggle';
 
 interface JoinScreenProps {
   asHost: boolean;
@@ -32,6 +34,7 @@ export default function JoinScreen({ asHost, full, onJoin }: JoinScreenProps) {
     }
     setError(null);
     setJoining(true);
+    playSound('click');
     try {
       saveName(trimmed);
       await onJoin(trimmed);
@@ -41,7 +44,8 @@ export default function JoinScreen({ asHost, full, onJoin }: JoinScreenProps) {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4 sm:p-6">
+    <div className="relative flex min-h-dvh items-center justify-center p-4 sm:p-6">
+      <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
       <form
         onSubmit={handleSubmit}
         className="card elevated flex flex-col gap-5 w-full max-w-sm p-5 sm:p-7 text-center"

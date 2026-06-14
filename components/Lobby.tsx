@@ -12,6 +12,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useLocale } from '@/context/LocaleProvider';
 import { MAX_PLAYERS, type Player } from '@/lib/types';
 import { playerColor, playerInitial } from '@/lib/player-colors';
+import { playSound } from '@/lib/sounds';
 
 interface LobbyProps {
   players:   Player[];
@@ -101,6 +102,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(shareLink);
+                playSound('click');
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}
@@ -117,7 +119,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
         {isHost ? (
           <div className="flex flex-col items-center gap-2">
             <button
-              onClick={onStart}
+              onClick={() => { playSound('click'); onStart(); }}
               disabled={!canStart}
               className="keycap keycap-primary w-full py-3.5 rounded-xl font-semibold text-base text-white"
             >

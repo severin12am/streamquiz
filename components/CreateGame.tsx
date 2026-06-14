@@ -21,6 +21,8 @@ import { useLocale } from '@/context/LocaleProvider';
 import type { Difficulty, GameMode, CreateGamePayload, Question } from '@/lib/types';
 import KeycapSegSlider from '@/components/KeycapSegSlider';
 import { getPreviousQuestions, rememberQuestions } from '@/lib/question-history';
+import { playSound } from '@/lib/sounds';
+import SoundToggle from '@/components/SoundToggle';
 
 export default function CreateGame() {
   const router = useRouter();
@@ -108,6 +110,7 @@ export default function CreateGame() {
     }
     setError(null);
     setLoading(true);
+    playSound('click');
 
     try {
       // Step 1: Generate questions via OpenAI API route
@@ -174,7 +177,10 @@ export default function CreateGame() {
   }
 
   function handleGoToGame() {
-    if (gameId) router.push(`/game/${gameId}?role=host`);
+    if (gameId) {
+      playSound('click');
+      router.push(`/game/${gameId}?role=host`);
+    }
   }
 
   // -------------------------------------------------------
@@ -182,7 +188,8 @@ export default function CreateGame() {
   // -------------------------------------------------------
   if (shareLink && gameId) {
     return (
-      <div className="flex flex-col items-center gap-8 text-center">
+      <div className="relative flex flex-col items-center gap-8 text-center">
+        <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
         {/* Success heading */}
         <div>
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">
@@ -216,6 +223,7 @@ export default function CreateGame() {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(shareLink);
+                playSound('click');
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}
@@ -242,9 +250,11 @@ export default function CreateGame() {
   // Creation form
   // -------------------------------------------------------
   return (
-    <form
+    <div className="relative w-full max-w-md">
+      <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
+      <form
       onSubmit={handleCreate}
-      className="card elevated flex flex-col gap-6 w-full max-w-md p-5 sm:p-7"
+      className="card elevated flex flex-col gap-6 w-full p-5 sm:p-7"
     >
 
       {/* ---- Topic ---- */}
@@ -415,5 +425,6 @@ export default function CreateGame() {
         </div>
       </div>
     </form>
+    </div>
   );
 }

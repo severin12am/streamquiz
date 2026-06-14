@@ -22,9 +22,11 @@ import JoinScreen     from './JoinScreen';
 import Lobby          from './Lobby';
 
 import { useGameState } from '@/hooks/useGameState';
+import { useGameSounds } from '@/hooks/useGameSounds';
 import { useMeshWebRTC } from '@/hooks/useMeshWebRTC';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
+import SoundToggle from './SoundToggle';
 import { getClientId } from '@/lib/client-id';
 import { useLocale }    from '@/context/LocaleProvider';
 import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
@@ -59,6 +61,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   } = useGameState(gameId, clientId);
 
   const iAmDone = !!me && me.done;
+
+  useGameSounds({ game, players, me, timeLeft });
 
   // ----------------------------------------------------------
   // 2. WebRTC camera mesh (one connection per other player)
@@ -345,7 +349,12 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // Lobby (match not started yet)
   // ----------------------------------------------------------
   if (game.status === 'waiting') {
-    return <Lobby players={players} me={me} shareLink={shareLink} onStart={startGame} />;
+    return (
+      <>
+        <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
+        <Lobby players={players} me={me} shareLink={shareLink} onStart={startGame} />
+      </>
+    );
   }
 
   // ----------------------------------------------------------
@@ -356,6 +365,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
 
   return (
     <div className="relative flex flex-col lg:flex-row h-dvh w-full min-h-0 overflow-hidden">
+      <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
+
       {/* ---- Camera mesh (all players) ---- */}
       <div className="h-[34vh] shrink-0 sm:h-[38vh] lg:h-full lg:flex-[2] min-w-0 min-h-0 p-1 sm:p-1.5">
         <CameraGrid
