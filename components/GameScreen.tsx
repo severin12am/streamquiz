@@ -322,8 +322,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           <p className="text-[var(--text-secondary)] text-sm">{t('game.notFoundHint')}</p>
           <a
             href="/"
-            className="inline-block mt-6 px-6 py-2.5 rounded-xl font-semibold text-white transition-colors"
-            style={{ background: 'var(--accent)' }}
+            className="keycap keycap-primary inline-flex mt-6 px-6 py-2.5 rounded-xl font-semibold text-white"
           >
             {t('game.backHome')}
           </a>
@@ -404,11 +403,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           onPointerCancel={() => setPttHeld(false)}
           disabled={isAnswering}
           aria-label={t('ptt.hold')}
-          className="fixed z-30 bottom-3 right-3 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm text-white shadow-lg select-none touch-none transition-transform active:scale-95"
-          style={{
-            background: micEnabled ? 'var(--correct)' : 'var(--bg-elevated)',
-            border: `1px solid ${micEnabled ? 'var(--correct)' : 'var(--border-strong)'}`,
-          }}
+          className={`keycap fixed z-30 bottom-3 right-3 flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm select-none touch-none ${
+            micEnabled ? 'keycap-success text-white' : 'keycap-secondary'
+          }`}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />

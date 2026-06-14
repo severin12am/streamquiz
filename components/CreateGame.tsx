@@ -13,12 +13,13 @@
 // TO CHANGE DEFAULT VALUES: edit the `useState` defaults below.
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/context/LocaleProvider';
 import type { Difficulty, GameMode, CreateGamePayload, Question } from '@/lib/types';
+import KeycapSegSlider from '@/components/KeycapSegSlider';
 import { getPreviousQuestions, rememberQuestions } from '@/lib/question-history';
 
 export default function CreateGame() {
@@ -41,6 +42,62 @@ export default function CreateGame() {
   const [shareLink,     setShareLink]     = useState<string | null>(null);
   const [gameId,        setGameId]        = useState<string | null>(null);
   const [copied,        setCopied]        = useState(false);
+
+  const adjustPanelRef = useRef<HTMLDivElement>(null);
+  const adjustInnerRef = useRef<HTMLDivElement>(null);
+
+  const measureAdjustPanel = useCallback(() => {
+    const panel = adjustPanelRef.current;
+    const inner = adjustInnerRef.current;
+    if (!panel || !inner) return;
+
+    const width = panel.getBoundingClientRect().width;
+    if (width <= 0) return;
+
+    inner.style.position = 'absolute';
+    inner.style.visibility = 'hidden';
+    inner.style.width = `${width}px`;
+
+    const height = inner.scrollHeight;
+
+    inner.style.position = '';
+    inner.style.visibility = '';
+    inner.style.width = '';
+
+    panel.style.setProperty('--adjust-panel-h', `${height}px`);
+  }, []);
+
+  useLayoutEffect(() => {
+    measureAdjustPanel();
+
+    const panel = adjustPanelRef.current;
+    if (!panel) return;
+
+    const width = panel.getBoundingClientRect().width;
+    if (width <= 0) return;
+
+    panel.style.setProperty('--warm-width', `${width}px`);
+    panel.classList.add('adjust-panel--warm');
+    void panel.offsetHeight;
+    panel.classList.remove('adjust-panel--warm');
+    panel.style.removeProperty('--warm-width');
+  }, [measureAdjustPanel, locale, gameMode]);
+
+  useEffect(() => {
+    const panel = adjustPanelRef.current;
+    const inner = adjustInnerRef.current;
+    if (!panel || !inner) return;
+
+    const ro = new ResizeObserver(() => measureAdjustPanel());
+    ro.observe(panel);
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [measureAdjustPanel]);
+
+  function toggleAdjust() {
+    if (!showAdjust) measureAdjustPanel();
+    setShowAdjust((v) => !v);
+  }
 
   // -------------------------------------------------------
   async function handleCreate(e: React.FormEvent) {
@@ -149,10 +206,8 @@ export default function CreateGame() {
           <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider mb-2 font-semibold">
             {t('create.shareLink')}
           </p>
-          <div
-            className="flex items-center gap-2 rounded-xl border p-3"
-            style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
-          >
+          <div className="keycap-well-frame w-full max-w-md">
+            <div className="keycap-well flex items-center gap-2 p-3">
             <span
               className="flex-1 text-sm text-[var(--text-primary)] truncate font-mono"
             >
@@ -164,21 +219,18 @@ export default function CreateGame() {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}
-              className="flex-shrink-0 text-xs font-semibold hover:underline"
-              style={{ color: copied ? 'var(--correct)' : 'var(--accent)' }}
+              className={`keycap keycap-secondary keycap-compact flex-shrink-0 font-semibold${copied ? ' text-[var(--correct)]' : ''}`}
             >
               {copied ? t('create.copied') : t('create.copy')}
             </button>
+            </div>
           </div>
         </div>
 
         {/* Enter the game */}
         <button
           onClick={handleGoToGame}
-          className="px-12 py-4 rounded-xl font-semibold text-lg text-white transition-colors"
-          style={{ background: 'var(--accent)' }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
+          className="keycap keycap-primary px-12 py-4 rounded-xl font-semibold text-lg text-white"
         >
           {t('create.enterQuiz')}
         </button>
@@ -200,21 +252,17 @@ export default function CreateGame() {
         <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
           {t('create.topic')}
         </label>
-        <input
-          type="text"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          placeholder={t('create.topicPlaceholder')}
-          maxLength={100}
-          className="w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base outline-none transition-colors"
-          style={{
-            background: 'var(--bg-base)',
-            border: '1px solid var(--border)',
-          }}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
-          onBlur={(e)  => (e.target.style.borderColor = 'var(--border)')}
-          autoFocus
-        />
+        <div className="keycap-input-frame">
+          <input
+            type="text"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder={t('create.topicPlaceholder')}
+            maxLength={100}
+            className="keycap-input w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base"
+            autoFocus
+          />
+        </div>
       </div>
 
       {/* ---- Error message ---- */}
@@ -231,10 +279,7 @@ export default function CreateGame() {
       <button
         type="submit"
         disabled={loading}
-        className="py-3.5 rounded-xl font-semibold text-base text-white transition-colors disabled:cursor-not-allowed"
-        style={{ background: loading ? 'var(--bg-elevated)' : 'var(--accent)' }}
-        onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = 'var(--accent-hover)'; }}
-        onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
+        className="keycap keycap-primary py-3.5 rounded-xl font-semibold text-base text-white"
       >
         {loading ? (
           <span className="flex items-center justify-center gap-3 text-[var(--text-secondary)]">
@@ -249,20 +294,22 @@ export default function CreateGame() {
       {/* ---- Adjust settings (collapsed by default) ---- */}
       <button
         type="button"
-        onClick={() => setShowAdjust((v) => !v)}
-        className="py-2.5 rounded-xl text-sm font-medium transition-colors"
-        style={{
-          background: 'var(--bg-base)',
-          border: '1px solid var(--border)',
-          color: 'var(--text-secondary)',
-        }}
+        onClick={toggleAdjust}
+        className="keycap keycap-secondary py-2.5 rounded-xl text-sm font-medium"
         aria-expanded={showAdjust}
+        aria-controls="create-adjust-panel"
       >
         {showAdjust ? t('create.adjustHide') : t('create.adjustShow')}
       </button>
 
-      {showAdjust && (
-        <div className="flex flex-col gap-6 pt-1">
+      <div
+        ref={adjustPanelRef}
+        id="create-adjust-panel"
+        className={`adjust-panel${showAdjust ? ' adjust-panel--open' : ''}`}
+        aria-hidden={!showAdjust}
+        {...(!showAdjust ? { inert: true } : {})}
+      >
+        <div ref={adjustInnerRef} className="adjust-panel-inner flex flex-col gap-6 pt-1">
           {/* ---- Difficulty ---- */}
           <div>
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
@@ -274,12 +321,9 @@ export default function CreateGame() {
                   key={d}
                   type="button"
                   onClick={() => setDifficulty(d)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                  style={{
-                    background: difficulty === d ? 'var(--accent)' : 'var(--bg-base)',
-                    border: `1px solid ${difficulty === d ? 'var(--accent)' : 'var(--border)'}`,
-                    color: difficulty === d ? 'white' : 'var(--text-secondary)',
-                  }}
+                  className={`keycap flex-1 py-2.5 rounded-xl text-sm font-medium ${
+                    difficulty === d ? 'keycap-primary' : 'keycap-secondary'
+                  }`}
                 >
                   {d === 'easy' ? t('create.difficultyEasy') : d === 'medium' ? t('create.difficultyMedium') : t('create.difficultyHard')}
                 </button>
@@ -290,20 +334,15 @@ export default function CreateGame() {
           {/* ---- Number of questions ---- */}
           <div>
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-              {t('create.questions')}: <span className="text-[var(--text-primary)]">{numQuestions}</span>
+              {t('create.questions')}
             </label>
-            <input
-              type="range"
+            <KeycapSegSlider
               min={3}
               max={10}
               value={numQuestions}
-              onChange={(e) => setNumQuestions(Number(e.target.value))}
-              className="w-full cursor-pointer h-2"
-              style={{ accentColor: 'var(--accent)' }}
+              onChange={setNumQuestions}
+              aria-label={t('create.questions')}
             />
-            <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
-              <span>3</span><span>10</span>
-            </div>
           </div>
 
           {/* ---- Game mode ---- */}
@@ -317,12 +356,9 @@ export default function CreateGame() {
                   key={m}
                   type="button"
                   onClick={() => setGameMode(m)}
-                  className="flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors text-left"
-                  style={{
-                    background: gameMode === m ? 'var(--accent)' : 'var(--bg-base)',
-                    border: `1px solid ${gameMode === m ? 'var(--accent)' : 'var(--border)'}`,
-                    color: gameMode === m ? 'white' : 'var(--text-secondary)',
-                  }}
+                  className={`keycap flex-1 py-2.5 px-3 rounded-xl text-sm font-medium text-left ${
+                    gameMode === m ? 'keycap-primary' : 'keycap-secondary'
+                  }`}
                 >
                   {m === 'think' ? t('create.modeThink') : t('create.modeClassic')}
                 </button>
@@ -348,13 +384,10 @@ export default function CreateGame() {
               role="switch"
               aria-checked={mcMode}
               onClick={() => setMcMode(!mcMode)}
-              className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
-              style={{ background: mcMode ? 'var(--accent)' : 'var(--border-strong)' }}
+              className="toggle"
             >
-              <span
-                className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
-                style={{ left: mcMode ? '26px' : '4px' }}
-              />
+              <span className="toggle-well" aria-hidden />
+              <span className="toggle-thumb" aria-hidden />
             </button>
           </div>
 
@@ -373,17 +406,14 @@ export default function CreateGame() {
               role="switch"
               aria-checked={camerasEnabled}
               onClick={() => setCamerasEnabled(!camerasEnabled)}
-              className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
-              style={{ background: camerasEnabled ? 'var(--accent)' : 'var(--border-strong)' }}
+              className="toggle"
             >
-              <span
-                className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200"
-                style={{ left: camerasEnabled ? '26px' : '4px' }}
-              />
+              <span className="toggle-well" aria-hidden />
+              <span className="toggle-thumb" aria-hidden />
             </button>
           </div>
         </div>
-      )}
+      </div>
     </form>
   );
 }

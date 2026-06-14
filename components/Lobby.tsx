@@ -42,14 +42,10 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
         {/* ---- Player list ---- */}
         <div className="flex flex-col gap-2">
           {players.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center gap-3 rounded-xl px-4 py-2.5 border"
-              style={{
-                background: 'var(--bg-card)',
-                borderColor: p.id === me.id ? 'var(--accent)' : 'var(--border)',
-              }}
-            >
+            <div key={p.id} className="keycap-well-frame">
+              <div
+                className={`keycap-well flex items-center gap-3 px-4 py-2.5${p.id === me.id ? ' ring-1 ring-[var(--accent)] ring-inset' : ''}`}
+              >
               <span
                 className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
                 style={{ background: playerColor(p.slot) }}
@@ -69,15 +65,13 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
                   <span style={{ color: 'var(--text-muted)' }}>({t('lobby.you')})</span>
                 )}
               </span>
+              </div>
             </div>
           ))}
           {/* Empty seats */}
           {Array.from({ length: MAX_PLAYERS - players.length }).map((_, i) => (
-            <div
-              key={`empty-${i}`}
-              className="flex items-center gap-3 rounded-xl px-4 py-2.5 border border-dashed"
-              style={{ borderColor: 'var(--border)', opacity: 0.5 }}
-            >
+            <div key={`empty-${i}`} className="keycap-well-frame opacity-50">
+              <div className="keycap-well flex items-center gap-3 px-4 py-2.5 border border-dashed border-[var(--border)]">
               <span
                 className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
                 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
@@ -85,6 +79,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
                 {players.length + i + 1}
               </span>
               <span className="text-sm text-[var(--text-muted)]">—</span>
+              </div>
             </div>
           ))}
         </div>
@@ -98,24 +93,22 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
             <div className="p-3 rounded-2xl" style={{ background: 'white' }}>
               <QRCodeSVG value={shareLink} size={132} />
             </div>
-            <div
-              className="flex items-center gap-2 rounded-xl border p-2.5 w-full"
-              style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
-            >
+            <div className="keycap-well-frame w-full">
+              <div className="keycap-well flex items-center gap-2 p-2.5">
               <span className="flex-1 text-xs text-[var(--text-primary)] truncate font-mono">
                 {shareLink}
               </span>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(shareLink);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-                className="flex-shrink-0 text-xs font-semibold hover:underline"
-                style={{ color: copied ? 'var(--correct)' : 'var(--accent)' }}
-              >
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(shareLink);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className={`keycap keycap-secondary keycap-compact flex-shrink-0 font-semibold${copied ? ' text-[var(--correct)]' : ''}`}
+            >
                 {copied ? t('create.copied') : t('create.copy')}
               </button>
+              </div>
             </div>
           </div>
         )}
@@ -126,10 +119,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
             <button
               onClick={onStart}
               disabled={!canStart}
-              className="w-full py-3.5 rounded-xl font-semibold text-base text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-              style={{ background: 'var(--accent)' }}
-              onMouseEnter={(e) => { if (canStart) e.currentTarget.style.background = 'var(--accent-hover)'; }}
-              onMouseLeave={(e) => { if (canStart) e.currentTarget.style.background = 'var(--accent)'; }}
+              className="keycap keycap-primary w-full py-3.5 rounded-xl font-semibold text-base text-white"
             >
               {t('lobby.start')}
             </button>

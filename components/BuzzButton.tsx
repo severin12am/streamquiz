@@ -35,20 +35,18 @@ export default function BuzzButton({ state, countdown, onBuzz }: BuzzButtonProps
       {/* ---- BUZZ button ---- */}
       <button
         onClick={isClickable ? onBuzz : undefined}
-        disabled={!isClickable}
+        disabled={state === 'disabled'}
+        aria-disabled={!isClickable || undefined}
         className={[
-          'w-36 h-36 rounded-full text-white font-bold text-2xl tracking-wide',
-          'uppercase select-none transition-all duration-150 border',
-          isClickable
-            ? 'cursor-pointer active:scale-95 hover:brightness-110'
-            : 'cursor-not-allowed opacity-60',
-          state === 'buzzed_me'
-            ? 'bg-[var(--buzz-red)] border-white buzz-flash'
-            : state === 'buzzed_them'
-            ? 'bg-[var(--bg-card)] border-[var(--buzz-red)]'
-            : 'bg-[var(--buzz-red)] border-[var(--buzz-red)]',
+          'keycap w-36 h-36 rounded-full font-bold text-2xl tracking-wide',
+          'uppercase select-none',
+          state === 'idle' || state === 'buzzed_me' || state === 'disabled'
+            ? 'keycap-danger'
+            : 'keycap-secondary',
+          state === 'idle' ? 'cursor-pointer' : 'keycap-revealed cursor-not-allowed',
+          state === 'buzzed_me' ? 'buzz-flash' : '',
+          state === 'disabled' ? 'opacity-60' : '',
         ].join(' ')}
-        style={isClickable ? { boxShadow: '0 8px 24px rgba(0,0,0,0.45)' } : undefined}
         aria-label={isClickable ? t('buzz.ariaBuzz') : t('buzz.ariaDisabled')}
       >
         {t('buzz.label')}

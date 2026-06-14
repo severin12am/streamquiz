@@ -3,6 +3,7 @@ export const es = {
     stepCreate: 'Crea un quiz personalizado',
     stepShare: 'Invita a tus amigos',
     stepPlay: 'Juega',
+    logoS: 'Toca la S',
   },
   lang: {
     label: 'Idioma',
@@ -29,7 +30,7 @@ export const es = {
     difficultyEasy: 'Fácil',
     difficultyMedium: 'Media',
     difficultyHard: 'Difícil',
-    questions: 'Preguntas',
+    questions: 'Número de preguntas',
     modeTitle: 'Modo de juego',
     modeThink: 'Carrera de reflexión',
     modeThinkHint: 'Unos segundos bloqueados para pensar, luego todos desbloquean a la vez — la primera respuesta inicia una cuenta atrás de 4 segundos para el resto.',

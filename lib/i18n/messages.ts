@@ -17,6 +17,7 @@ export const messages = {
       stepCreate: 'Create a custom quiz',
       stepShare: 'Invite your friends',
       stepPlay: 'Play',
+      logoS: 'Tap the S',
     },
     lang: {
       label: 'Language',
@@ -43,7 +44,7 @@ export const messages = {
       difficultyEasy: 'Easy',
       difficultyMedium: 'Medium',
       difficultyHard: 'Hard',
-      questions: 'Questions',
+      questions: 'Number of questions',
       modeTitle: 'Game mode',
       modeThink: 'Think race',
       modeThinkHint: 'A few locked seconds to think, then everyone unlocks together — the first answer starts a 4-second countdown for the rest.',
@@ -195,6 +196,7 @@ export const messages = {
       stepCreate: 'Создайте свой квиз',
       stepShare: 'Пригласите друзей',
       stepPlay: 'Играйте',
+      logoS: 'Нажми на S',
     },
     lang: {
       label: 'Язык',
@@ -221,7 +223,7 @@ export const messages = {
       difficultyEasy: 'Лёгкая',
       difficultyMedium: 'Средняя',
       difficultyHard: 'Сложная',
-      questions: 'Вопросов',
+      questions: 'Количество вопросов',
       modeTitle: 'Режим игры',
       modeThink: 'Гонка с раздумьем',
       modeThinkHint: 'Несколько секунд на раздумье, затем доступ открывается всем сразу — после первого ответа у остальных 4 секунды.',

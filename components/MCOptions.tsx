@@ -49,56 +49,42 @@ export default function MCOptions({
         const isWrongPick = revealed && pickedByMe && !isCorrect;
         const picks       = picksByOption?.[i] ?? [];
 
-        let borderColour = 'var(--border)';
-        let background   = 'var(--bg-card)';
-        if (isCorrect) {
-          borderColour = 'var(--correct)';
-          background   = 'rgba(34,160,107,0.12)';
-        } else if (isWrongPick) {
-          borderColour = 'var(--wrong)';
-          background   = 'rgba(229,72,77,0.12)';
-        } else if (pickedByMe && !revealed) {
-          borderColour = 'var(--accent)';
-          background   = 'var(--bg-elevated)';
-        }
-
-        const badgeColour = isCorrect
-          ? 'var(--correct)'
+        const revealedClass = isCorrect
+          ? 'keycap-revealed-correct'
           : isWrongPick
-          ? 'var(--wrong)'
-          : pickedByMe && !revealed
-          ? 'var(--accent)'
-          : 'var(--bg-elevated)';
+          ? 'keycap-revealed-wrong'
+          : 'keycap-revealed-neutral';
+
+        const variantClass = canSelect
+          ? pickedByMe && !revealed
+            ? 'keycap-primary'
+            : 'keycap-secondary'
+          : revealed
+          ? revealedClass
+          : 'keycap-secondary';
 
         return (
           <button
             key={i}
             onClick={() => canSelect && onSelect(i)}
-            disabled={!canSelect}
+            aria-disabled={!canSelect || undefined}
             className={[
-              'relative flex items-center gap-2.5 lg:gap-3 p-2.5 lg:p-4 rounded-xl text-left',
-              'font-medium transition-colors duration-150 border',
-              canSelect ? 'cursor-pointer' : 'cursor-default',
+              'keycap relative flex items-center gap-2.5 lg:gap-3 p-2.5 lg:p-4 rounded-xl text-left font-medium',
+              variantClass,
+              canSelect ? 'cursor-pointer' : revealed ? 'keycap-revealed cursor-default' : 'cursor-default opacity-90 pointer-events-none',
             ].join(' ')}
-            style={{ borderColor: borderColour, background }}
-            onMouseEnter={(e) => {
-              if (canSelect) {
-                e.currentTarget.style.borderColor = 'var(--accent)';
-                e.currentTarget.style.background = 'var(--bg-elevated)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (canSelect) {
-                e.currentTarget.style.borderColor = 'var(--border)';
-                e.currentTarget.style.background = 'var(--bg-card)';
-              }
-            }}
           >
             {/* Letter badge */}
             <span
               className="flex-shrink-0 w-7 h-7 lg:w-8 lg:h-8 rounded-lg flex items-center justify-center text-sm font-semibold"
               style={{
-                background: badgeColour,
+                background: isCorrect
+                  ? 'var(--correct)'
+                  : isWrongPick
+                  ? 'var(--wrong)'
+                  : pickedByMe && !revealed
+                  ? 'var(--accent)'
+                  : 'var(--bg-elevated)',
                 color: isCorrect || isWrongPick || (pickedByMe && !revealed)
                   ? 'white'
                   : 'var(--text-secondary)',
@@ -108,7 +94,7 @@ export default function MCOptions({
             </span>
 
             {/* Option text */}
-            <span className="text-sm text-[var(--text-primary)] leading-tight flex-1">
+            <span className="text-sm leading-tight flex-1 [color:inherit]">
               {option}
             </span>
 

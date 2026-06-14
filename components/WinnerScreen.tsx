@@ -99,12 +99,10 @@ export default function WinnerScreen({
           return (
             <div
               key={p.id}
-              className="flex items-center gap-3 rounded-xl px-4 py-2.5 border"
-              style={{
-                background: isWinner ? 'rgba(200,146,47,0.10)' : 'var(--bg-card)',
-                borderColor: isWinner ? 'var(--gold)' : p.id === meId ? 'var(--accent)' : 'var(--border)',
-              }}
+              className="keycap-well-frame"
+              style={isWinner ? { boxShadow: '0 0 0 2px var(--gold)' } : undefined}
             >
+              <div className="keycap-well flex items-center gap-3 px-4 py-2.5">
               <span
                 className="w-6 text-center text-sm font-bold tabular-nums"
                 style={{ color: isWinner ? 'var(--gold)' : 'var(--text-muted)' }}
@@ -126,6 +124,7 @@ export default function WinnerScreen({
               <span className="text-xl font-bold tabular-nums" style={{ color: isWinner ? 'var(--gold)' : 'var(--text-primary)' }}>
                 {p.score}
               </span>
+              </div>
             </div>
           );
         })}
@@ -143,15 +142,7 @@ export default function WinnerScreen({
                 key={i}
                 href={clip.url}
                 download={`whosmarter-q${clip.questionIndex + 1}-${clip.role}.webm`}
-                className="flex items-center justify-between px-4 py-3 rounded-xl border transition-colors"
-                style={{
-                  background: 'var(--bg-card)',
-                  borderColor: 'var(--border)',
-                  color: 'var(--text-primary)',
-                  textDecoration: 'none',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
+                className="keycap keycap-secondary w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium no-underline"
               >
                 <span className="text-sm">
                   {t('winner.clipLabel', { n: clip.questionIndex + 1, role: clip.role })}
@@ -189,10 +180,7 @@ export default function WinnerScreen({
             <button
               onClick={onVoteRematch}
               disabled={myVote || rematchLoading}
-              className="flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-white transition-colors disabled:opacity-70"
-              style={{ background: 'var(--accent)' }}
-              onMouseEnter={(e) => { if (!myVote && !rematchLoading) e.currentTarget.style.background = 'var(--accent-hover)'; }}
-              onMouseLeave={(e) => { if (!myVote && !rematchLoading) e.currentTarget.style.background = 'var(--accent)'; }}
+              className="keycap keycap-primary flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-white"
             >
               {rematchLoading && (
                 <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
@@ -208,14 +196,7 @@ export default function WinnerScreen({
           {onExit && (
             <button
               onClick={onExit}
-              className="px-6 py-3 rounded-xl font-semibold transition-colors"
-              style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-primary)',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
+              className="keycap keycap-secondary px-6 py-3 rounded-xl font-semibold"
             >
               {t('winner.exit')}
             </button>

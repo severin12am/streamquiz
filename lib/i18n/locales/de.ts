@@ -3,6 +3,7 @@ export const de = {
     stepCreate: 'Erstelle ein eigenes Quiz',
     stepShare: 'Lade Freunde ein',
     stepPlay: 'Spielen',
+    logoS: 'Tippe auf S',
   },
   lang: {
     label: 'Sprache',
@@ -29,7 +30,7 @@ export const de = {
     difficultyEasy: 'Leicht',
     difficultyMedium: 'Mittel',
     difficultyHard: 'Schwer',
-    questions: 'Fragen',
+    questions: 'Anzahl der Fragen',
     modeTitle: 'Spielmodus',
     modeThink: 'Denk-Rennen',
     modeThinkHint: 'Ein paar gesperrte Sekunden zum Nachdenken, dann schalten alle gleichzeitig frei — die erste Antwort startet einen 4-Sekunden-Countdown für die anderen.',

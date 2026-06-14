@@ -3,6 +3,7 @@ export const ja = {
     stepCreate: 'オリジナルクイズを作成',
     stepShare: '友達を招待',
     stepPlay: 'プレイ',
+    logoS: 'Sをタップ',
   },
   lang: {
     label: '言語',

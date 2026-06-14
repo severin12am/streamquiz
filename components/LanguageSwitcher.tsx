@@ -64,12 +64,7 @@ export default function LanguageSwitcher() {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={t('lang.label')}
-        className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors"
-        style={{
-          background: open ? 'var(--bg-elevated)' : 'var(--bg-card)',
-          border: `1px solid ${open ? 'var(--accent)' : 'var(--border)'}`,
-          color: 'var(--text-primary)',
-        }}
+        className="keycap keycap-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"
       >
         <span style={{ color: 'var(--accent)' }}>
           <GlobeIcon />
@@ -95,17 +90,7 @@ export default function LanguageSwitcher() {
                   setLocale(code);
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm font-medium transition-colors"
-                style={{
-                  background: selected ? 'rgba(47, 125, 119, 0.08)' : 'transparent',
-                  color: selected ? 'var(--accent)' : 'var(--text-primary)',
-                }}
-                onMouseEnter={(e) => {
-                  if (!selected) e.currentTarget.style.background = 'var(--bg-elevated)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!selected) e.currentTarget.style.background = 'transparent';
-                }}
+                className={`keycap-menu-item${selected ? ' is-selected' : ''}`}
               >
                 <span
                   className="w-1.5 h-1.5 rounded-full shrink-0"

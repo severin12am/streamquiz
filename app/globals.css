@@ -107,3 +107,665 @@ video {
   from { stroke-dashoffset: 0; }
   to   { stroke-dashoffset: 283; }
 }
+
+/* ------------------------------------------------------------
+   Keycap buttons — shared mechanical press + color variants
+   Usage: class="keycap keycap-primary" (or -secondary, -danger, -success)
+   ------------------------------------------------------------ */
+.keycap {
+  --keycap-travel: 5px;
+  --keycap-face-top: #3a8580;
+  --keycap-face-mid: var(--accent);
+  --keycap-face-bot: #286963;
+  --keycap-wall-1: #1d524e;
+  --keycap-wall-2: #194844;
+  --keycap-wall-3: #16423e;
+  --keycap-stem: #153d39;
+  --keycap-ambient: rgba(15, 35, 32, 0.26);
+  --keycap-text: white;
+  --keycap-text-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+  --keycap-hover-top: #357a75;
+  --keycap-hover-mid: var(--accent-hover);
+  --keycap-hover-bot: #245f57;
+  --keycap-active-top: #2c6b66;
+  --keycap-active-mid: #276964;
+  --keycap-active-bot: #245f57;
+  --keycap-ring: transparent;
+
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(
+    180deg,
+    var(--keycap-face-top) 0%,
+    var(--keycap-face-mid) 42%,
+    var(--keycap-face-bot) 100%
+  );
+  color: var(--keycap-text);
+  border: none;
+  cursor: pointer;
+  text-shadow: var(--keycap-text-shadow);
+  transition:
+    transform 85ms cubic-bezier(0.32, 1.45, 0.58, 1),
+    box-shadow 85ms cubic-bezier(0.32, 1.45, 0.58, 1),
+    background 120ms ease,
+    text-shadow 85ms ease,
+    color 120ms ease;
+  box-shadow:
+    0 1px 0 var(--keycap-wall-1),
+    0 2px 0 var(--keycap-wall-2),
+    0 3px 0 var(--keycap-wall-3),
+    0 var(--keycap-travel) 0 var(--keycap-stem),
+    0 calc(var(--keycap-travel) + 4px) 12px var(--keycap-ambient),
+    inset 0 0 0 1px var(--keycap-ring),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 2px 2px rgba(255, 255, 255, 0.04),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.2),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.08);
+}
+
+.keycap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: box-shadow 85ms cubic-bezier(0.32, 1.45, 0.58, 1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 1px 0 1px rgba(255, 255, 255, 0.03),
+    inset -1px 0 1px rgba(0, 0, 0, 0.05),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.1);
+}
+
+.keycap:not(:disabled):hover {
+  background: linear-gradient(
+    180deg,
+    var(--keycap-hover-top) 0%,
+    var(--keycap-hover-mid) 42%,
+    var(--keycap-hover-bot) 100%
+  );
+}
+
+.keycap:not(:disabled):not(.keycap-logo):active {
+  transform: translateY(var(--keycap-travel)) scale(0.994);
+  text-shadow: 0 0 0 rgba(0, 0, 0, 0.25);
+  background: linear-gradient(
+    180deg,
+    var(--keycap-active-top) 0%,
+    var(--keycap-active-mid) 48%,
+    var(--keycap-active-bot) 100%
+  );
+  box-shadow:
+    0 0 0 transparent,
+    0 1px 2px var(--keycap-ambient),
+    inset 0 0 0 1px var(--keycap-ring),
+    inset 0 5px 10px rgba(0, 0, 0, 0.34),
+    inset 0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.keycap:not(:disabled):not(.keycap-logo):active::before {
+  box-shadow:
+    inset 0 4px 7px rgba(0, 0, 0, 0.26),
+    inset 0 1px 2px rgba(0, 0, 0, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.keycap:disabled {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  text-shadow: none;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.65;
+}
+
+.keycap:disabled::before {
+  box-shadow: none;
+}
+
+/* Teal — primary actions */
+.keycap-primary {
+  /* uses .keycap defaults */
+}
+
+/* Light — secondary / neutral actions (pure white/gray, same depth as primary) */
+.keycap.keycap-secondary {
+  --keycap-travel: 5px;
+  --keycap-face-top: #ffffff;
+  --keycap-face-mid: #f8f8f8;
+  --keycap-face-bot: #ececec;
+  --keycap-wall-1: #d8d8d8;
+  --keycap-wall-2: #cfcfcf;
+  --keycap-wall-3: #c6c6c6;
+  --keycap-stem: #b8b8b8;
+  --keycap-ambient: rgba(0, 0, 0, 0.14);
+  --keycap-text: var(--text-secondary);
+  --keycap-text-shadow: none;
+  --keycap-hover-top: #ffffff;
+  --keycap-hover-mid: #f5f5f5;
+  --keycap-hover-bot: #e8e8e8;
+  --keycap-active-top: #e8e8e8;
+  --keycap-active-mid: #e2e2e2;
+  --keycap-active-bot: #d8d8d8;
+  --keycap-ring: transparent;
+}
+
+.keycap-secondary:not(:disabled):hover {
+  --keycap-text: var(--text-primary);
+}
+
+/* Red — buzz / urgent */
+.keycap-danger {
+  --keycap-travel: 6px;
+  --keycap-face-top: #dc6a5a;
+  --keycap-face-mid: var(--buzz-red);
+  --keycap-face-bot: #b84335;
+  --keycap-wall-1: #9a3a2e;
+  --keycap-wall-2: #8a3429;
+  --keycap-wall-3: #7a2e24;
+  --keycap-stem: #652419;
+  --keycap-ambient: rgba(90, 30, 22, 0.32);
+  --keycap-hover-top: #d06050;
+  --keycap-hover-mid: #c94e3e;
+  --keycap-hover-bot: #ad3f32;
+  --keycap-active-top: #b84335;
+  --keycap-active-mid: #a83c30;
+  --keycap-active-bot: #963528;
+}
+
+/* Green — confirm / mic */
+.keycap-success {
+  --keycap-travel: 4px;
+  --keycap-face-top: #38ad78;
+  --keycap-face-mid: var(--correct);
+  --keycap-face-bot: #268a5e;
+  --keycap-wall-1: #1f7350;
+  --keycap-wall-2: #1a6647;
+  --keycap-wall-3: #155a3e;
+  --keycap-stem: #104d35;
+  --keycap-ambient: rgba(16, 77, 53, 0.24);
+  --keycap-hover-top: #34a070;
+  --keycap-hover-mid: #2b9164;
+  --keycap-hover-bot: #248056;
+  --keycap-active-top: #248056;
+  --keycap-active-mid: #20754c;
+  --keycap-active-bot: #1c6944;
+}
+
+/* ------------------------------------------------------------
+   Toggle switch — bezel frame, recessed well, domed thumb
+   ------------------------------------------------------------ */
+.toggle {
+  --toggle-travel: 26px;
+  --toggle-thumb-y: 0px;
+  --toggle-thumb-scale: 1;
+
+  position: relative;
+  width: 3rem;
+  height: 1.5rem;
+  padding: 2px;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f4f4f4 0%, #e6e6e6 55%, #dcdcdc 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 0 #d0d0d0,
+    0 4px 10px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transition: box-shadow 120ms ease;
+}
+
+.toggle-well {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: linear-gradient(180deg, #a8a8a8 0%, #bcbcbc 38%, #d0d0d0 100%);
+  box-shadow:
+    inset 0 5px 12px rgba(0, 0, 0, 0.32),
+    inset 0 2px 4px rgba(0, 0, 0, 0.18),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.toggle[aria-checked='true'] .toggle-well {
+  background: linear-gradient(180deg, #52aaa4 0%, var(--accent) 38%, var(--accent) 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(47, 125, 119, 0.22);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  z-index: 1;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(ellipse 85% 75% at 38% 30%, #ffffff 0%, #f2f2f2 40%, #d8d8d8 100%);
+  transform: translateY(calc(-50% + var(--toggle-thumb-y))) scale(var(--toggle-thumb-scale));
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.95),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.14),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 100ms cubic-bezier(0.34, 1.65, 0.64, 1),
+    box-shadow 100ms cubic-bezier(0.34, 1.65, 0.64, 1);
+}
+
+.toggle-thumb::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 5px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.toggle[aria-checked='true'] .toggle-thumb {
+  transform: translateX(var(--toggle-travel)) translateY(calc(-50% + var(--toggle-thumb-y))) scale(var(--toggle-thumb-scale));
+}
+
+.toggle:active {
+  --toggle-thumb-y: 1px;
+  --toggle-thumb-scale: 0.96;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.toggle:active .toggle-thumb {
+  box-shadow:
+    0 0 0 transparent,
+    0 1px 3px rgba(0, 0, 0, 0.16),
+    inset 0 4px 9px rgba(0, 0, 0, 0.2),
+    inset 0 2px 3px rgba(0, 0, 0, 0.12);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Inline keycap — single letter in headings */
+.keycap-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: 1;
+  padding: 0.12em 0.32em;
+  margin: 0 0.06em;
+  min-width: 1.1em;
+}
+
+@keyframes logo-s-tap {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  28%  { transform: translateY(5px) rotate(0deg) scale(0.96); }
+  52%  { transform: translateY(-4px) rotate(-4deg) scale(1.07); }
+  72%  { transform: translateY(0) rotate(2deg) scale(1.02); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+.keycap-logo.is-pop {
+  animation: logo-s-tap 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ------------------------------------------------------------
+   Keycap text input — recessed well inside a raised bezel
+   ------------------------------------------------------------ */
+.keycap-input-frame,
+.keycap-well-frame {
+  padding: 2px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f4f4f4 0%, #e6e6e6 55%, #dcdcdc 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 0 #d0d0d0,
+    0 3px 8px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 120ms ease;
+}
+
+.keycap-input-frame:focus-within,
+.keycap-well-frame:focus-within {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 0 #d0d0d0,
+    0 3px 8px rgba(0, 0, 0, 0.08),
+    0 0 0 2px rgba(47, 125, 119, 0.35);
+}
+
+.keycap-input,
+.keycap-well {
+  display: block;
+  border: none;
+  outline: none;
+  background: linear-gradient(180deg, #d6d6d6 0%, #ececec 55%, #f2f2f2 100%);
+  box-shadow:
+    inset 0 4px 10px rgba(0, 0, 0, 0.2),
+    inset 0 1px 3px rgba(0, 0, 0, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.45);
+  transition: box-shadow 100ms ease, background 100ms ease;
+}
+
+.keycap-well {
+  border-radius: 12px;
+}
+
+.keycap-input-frame:focus-within .keycap-input {
+  background: linear-gradient(180deg, #d2d2d2 0%, #e8e8e8 55%, #f5f5f5 100%);
+  box-shadow:
+    inset 0 4px 11px rgba(0, 0, 0, 0.22),
+    inset 0 1px 3px rgba(0, 0, 0, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.keycap-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Compact keycap — copy, toolbar actions */
+.keycap-compact {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: 10px;
+}
+
+a.keycap {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Locked / revealed keycap — pressed flush (MC reveal, buzz states) */
+.keycap-revealed {
+  cursor: default;
+  pointer-events: none;
+  transform: translateY(var(--keycap-travel, 5px)) scale(0.994);
+  box-shadow:
+    0 1px 2px var(--keycap-ambient, rgba(0, 0, 0, 0.14)),
+    inset 0 0 0 1px var(--keycap-ring, transparent),
+    inset 0 2px 5px rgba(0, 0, 0, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.keycap-revealed::before {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.keycap.keycap-revealed:disabled {
+  opacity: 1;
+  cursor: default;
+  transform: translateY(var(--keycap-travel, 5px)) scale(0.994);
+  background: linear-gradient(
+    180deg,
+    var(--keycap-face-top) 0%,
+    var(--keycap-face-mid) 42%,
+    var(--keycap-face-bot) 100%
+  );
+  color: var(--keycap-text, var(--text-primary));
+  box-shadow:
+    0 1px 2px var(--keycap-ambient, rgba(0, 0, 0, 0.14)),
+    inset 0 0 0 1px var(--keycap-ring, transparent),
+    inset 0 2px 5px rgba(0, 0, 0, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.keycap-revealed-neutral {
+  --keycap-face-top: #ececec;
+  --keycap-face-mid: #e4e4e4;
+  --keycap-face-bot: #d8d8d8;
+}
+
+.keycap-revealed-correct {
+  --keycap-face-top: #c4e8d4;
+  --keycap-face-mid: #a8dcc0;
+  --keycap-face-bot: #8ecfaa;
+  --keycap-ring: rgba(47, 158, 111, 0.35);
+  --keycap-text: var(--text-primary);
+}
+
+.keycap-revealed-wrong {
+  --keycap-face-top: #f0ccc7;
+  --keycap-face-mid: #e8b5ae;
+  --keycap-face-bot: #dda098;
+  --keycap-ring: rgba(214, 87, 69, 0.35);
+  --keycap-text: var(--text-primary);
+}
+
+/* Dropdown menu rows */
+.keycap-menu-item {
+  display: flex;
+  width: calc(100% - 12px);
+  margin: 0 6px;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 100ms ease,
+    box-shadow 100ms ease,
+    color 100ms ease;
+}
+
+.keycap-menu-item:hover {
+  background: linear-gradient(180deg, #ececec 0%, #e2e2e2 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.keycap-menu-item.is-selected {
+  background: linear-gradient(180deg, #d4ebe8 0%, #c5e2de 100%);
+  color: var(--accent);
+  box-shadow:
+    inset 0 2px 5px rgba(47, 125, 119, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.55);
+}
+
+/* Score / list chips — subtle raised bezel */
+.keycap-chip {
+  padding: 2px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f0f0f0 0%, #e4e4e4 55%, #dadada 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9),
+    0 2px 0 #d0d0d0,
+    0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.keycap-chip-inner {
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fafafa 0%, #f2f2f2 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.06),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.keycap-chip-inner.is-me {
+  background: linear-gradient(180deg, #e8f2ef 0%, #dceae6 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(47, 125, 119, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 0 0 1px rgba(47, 125, 119, 0.2);
+}
+
+/* ------------------------------------------------------------
+   Adjust settings — expand / collapse
+   ------------------------------------------------------------ */
+.adjust-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 300ms cubic-bezier(0.32, 1.15, 0.52, 1);
+}
+
+.adjust-panel:not(.adjust-panel--open) {
+  pointer-events: none;
+}
+
+.adjust-panel--open {
+  max-height: var(--adjust-panel-h, 36rem);
+}
+
+.adjust-panel-inner {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 200ms ease,
+    transform 300ms cubic-bezier(0.32, 1.15, 0.52, 1);
+}
+
+.adjust-panel--open .adjust-panel-inner {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 40ms, 0ms;
+}
+
+.adjust-panel:not(.adjust-panel--open) .adjust-panel-inner {
+  transition-delay: 0ms, 0ms;
+}
+
+.adjust-panel--warm {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: var(--warm-width, 100%);
+  max-height: var(--adjust-panel-h, 36rem) !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.adjust-panel--warm .adjust-panel-inner {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adjust-panel,
+  .adjust-panel-inner {
+    transition: none;
+  }
+
+  .adjust-panel:not(.adjust-panel--open) {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------
+   Segmented slider — number pill thumb on a thin track
+   ------------------------------------------------------------ */
+.seg-slider {
+  width: 100%;
+}
+
+.seg-slider-rail {
+  position: relative;
+  height: 2rem;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.seg-slider-rail:focus-visible {
+  outline: none;
+}
+
+.seg-slider-rail:focus-visible .seg-slider-handle {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.seg-slider-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.seg-slider-marker {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 0.625rem;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.seg-slider-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 0.375rem;
+  transform: translateY(-50%);
+  border-radius: 9999px 0 0 9999px;
+  background: linear-gradient(180deg, #52aaa4 0%, var(--accent) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  transition: width 100ms cubic-bezier(0.34, 1.45, 0.58, 1);
+}
+
+.seg-slider-handle {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  height: 1.625rem;
+  padding: 0 0.375rem;
+  border-radius: 8px;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, #ffffff 0%, #f4f4f4 45%, #e8e8e8 100%);
+  box-shadow:
+    0 1px 0 #cccccc,
+    0 2px 0 #bdbdbd,
+    0 3px 6px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+  transition:
+    left 100ms cubic-bezier(0.34, 1.45, 0.58, 1),
+    box-shadow 85ms ease,
+    transform 85ms ease;
+}
+
+.seg-slider-rail:active .seg-slider-handle {
+  transform: translateY(calc(-50% + 1px));
+  box-shadow:
+    0 0 0 transparent,
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    inset 0 2px 5px rgba(0, 0, 0, 0.12),
+    inset 0 1px 1px rgba(0, 0, 0, 0.08);
+}

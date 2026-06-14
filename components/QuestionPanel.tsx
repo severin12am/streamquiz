@@ -212,42 +212,35 @@ export default function QuestionPanel({
         {/* ---- Voice answer area ---- */}
         {phase === 'answering' && !game.mc_mode && !iAmDone && (
           <div className="w-full flex flex-col gap-2.5">
-            <div
-              className="w-full rounded-xl p-4 border min-h-[4.5rem]"
-              style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
-            >
-              <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
-                {t('game.yourAnswer')}
-              </p>
-              <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
-                {transcript
-                  ? `\u201C${transcript}\u201D`
-                  : <span className="text-[var(--text-muted)] not-italic">
-                      {speechSupported ? t('game.startSpeaking') : t('game.typeYourAnswer')}
-                    </span>}
-              </p>
+            <div className="keycap-well-frame">
+              <div className="keycap-well w-full p-4 min-h-[4.5rem]">
+                <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
+                  {t('game.yourAnswer')}
+                </p>
+                <p className="text-[var(--text-primary)] text-base italic leading-relaxed">
+                  {transcript
+                    ? `\u201C${transcript}\u201D`
+                    : <span className="text-[var(--text-muted)] not-italic">
+                        {speechSupported ? t('game.startSpeaking') : t('game.typeYourAnswer')}
+                      </span>}
+                </p>
+              </div>
             </div>
 
-            <input
-              type="text"
-              value={transcript}
-              onChange={(e) => onTypeAnswer(e.target.value)}
-              placeholder={t('game.typePlaceholder')}
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none border"
-              style={{
-                background: 'var(--bg-base)',
-                borderColor: 'var(--border)',
-                color: 'var(--text-primary)',
-              }}
-              onKeyDown={(e) => { if (e.key === 'Enter') onFinish(); }}
-            />
+            <div className="keycap-input-frame">
+              <input
+                type="text"
+                value={transcript}
+                onChange={(e) => onTypeAnswer(e.target.value)}
+                placeholder={t('game.typePlaceholder')}
+                className="keycap-input w-full rounded-xl px-3 py-2.5 text-sm text-[var(--text-primary)]"
+                onKeyDown={(e) => { if (e.key === 'Enter') onFinish(); }}
+              />
+            </div>
 
             <button
               onClick={onFinish}
-              className="w-full px-6 py-2.5 rounded-xl font-semibold text-white transition-colors"
-              style={{ background: 'var(--accent)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent-hover)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent)')}
+              className="keycap keycap-primary w-full px-6 py-2.5 rounded-xl font-semibold text-white"
             >
               {t('game.doneOptional')}
             </button>
@@ -275,16 +268,15 @@ export default function QuestionPanel({
                 />
               ))}
             {currentQuestion?.correct_answer && (
-              <div
-                className="w-full rounded-xl px-4 py-3 border text-center mt-1"
-                style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
-              >
-                <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
-                  {t('game.correctAnswer')}
-                </p>
-                <p className="text-lg font-semibold text-[var(--correct)]">
-                  {currentQuestion.correct_answer}
-                </p>
+              <div className="keycap-well-frame mt-1">
+                <div className="keycap-well w-full px-4 py-3 text-center">
+                  <p className="text-[10px] font-semibold tracking-wider text-[var(--text-muted)] mb-1 uppercase">
+                    {t('game.correctAnswer')}
+                  </p>
+                  <p className="text-lg font-semibold text-[var(--correct)]">
+                    {currentQuestion.correct_answer}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -313,14 +305,11 @@ function TranscriptResult({
   const said = text && text.trim().length > 0;
   const outcome = correct ? 'var(--correct)' : said ? 'var(--wrong)' : 'var(--border-strong)';
   return (
-    <div
-      className="w-full rounded-xl px-3 py-2.5 border flex items-center gap-3"
-      style={{
-        background: isMe ? 'var(--bg-elevated)' : 'var(--bg-card)',
-        borderColor: colour,
-        borderLeftWidth: 4,
-      }}
-    >
+    <div className="keycap-well-frame w-full">
+      <div
+        className="keycap-well w-full px-3 py-2.5 flex items-center gap-3"
+        style={{ borderLeft: `4px solid ${colour}` }}
+      >
       {/* Colour avatar (player identity) */}
       <span
         className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
@@ -343,6 +332,7 @@ function TranscriptResult({
       >
         {correct ? '\u2713' : said ? '\u2717' : '\u2013'}
       </span>
+      </div>
     </div>
   );
 }

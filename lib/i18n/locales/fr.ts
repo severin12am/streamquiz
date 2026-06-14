@@ -3,6 +3,7 @@ export const fr = {
     stepCreate: 'Créez un quiz sur mesure',
     stepShare: 'Invitez vos amis',
     stepPlay: 'Jouez',
+    logoS: 'Appuyez sur le S',
   },
   lang: {
     label: 'Langue',
@@ -29,7 +30,7 @@ export const fr = {
     difficultyEasy: 'Facile',
     difficultyMedium: 'Moyen',
     difficultyHard: 'Difficile',
-    questions: 'Questions',
+    questions: 'Nombre de questions',
     modeTitle: 'Mode de jeu',
     modeThink: 'Course réflexion',
     modeThinkHint: 'Quelques secondes verrouillées pour réfléchir, puis tout le monde débloque en même temps — la première réponse lance un compte à rebours de 4 secondes pour les autres.',

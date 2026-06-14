@@ -57,15 +57,11 @@ export default function ScoreBoard({ players, meId, phase }: ScoreBoardProps) {
         const colour = playerColor(p.slot);
         const answered = hasAnswered(p);
         return (
-          <div
-            key={p.id}
-            className="flex items-center gap-2 rounded-lg pl-1 pr-2.5 py-1 border transition-all duration-300"
-            style={{
-              background: isMe ? 'var(--bg-elevated)' : 'var(--bg-card)',
-              borderColor: isMe ? 'var(--accent)' : 'var(--border)',
-              transform: flash ? 'scale(1.08)' : 'scale(1)',
-            }}
-          >
+          <div key={p.id} className="keycap-chip">
+            <div
+              className={`keycap-chip-inner flex items-center gap-2 pl-1 pr-2.5 py-1 transition-all duration-300${isMe ? ' is-me' : ''}`}
+              style={{ transform: flash ? 'scale(1.08)' : 'scale(1)' }}
+            >
             {/* Colour avatar (player identity) */}
             <span
               className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
@@ -96,6 +92,7 @@ export default function ScoreBoard({ players, meId, phase }: ScoreBoardProps) {
             >
               {p.score}
             </span>
+            </div>
           </div>
         );
       })}

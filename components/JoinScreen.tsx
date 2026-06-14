@@ -56,26 +56,27 @@ export default function JoinScreen({ asHost, full, onJoin }: JoinScreenProps) {
         </div>
 
         {full ? (
-          <p
-            className="rounded-xl px-4 py-3 text-sm"
-            style={{ background: 'rgba(214,87,69,0.10)', border: '1px solid var(--wrong)', color: 'var(--wrong)' }}
-          >
-            {t('join.full')}
-          </p>
+          <div className="keycap-well-frame">
+            <p
+              className="keycap-well rounded-xl px-4 py-3 text-sm text-center"
+              style={{ color: 'var(--wrong)' }}
+            >
+              {t('join.full')}
+            </p>
+          </div>
         ) : (
           <>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('join.namePlaceholder')}
-              maxLength={24}
-              autoFocus
-              className="w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base outline-none transition-colors text-center"
-              style={{ background: 'var(--bg-base)', border: '1px solid var(--border)' }}
-              onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
-              onBlur={(e)  => (e.target.style.borderColor = 'var(--border)')}
-            />
+            <div className="keycap-input-frame">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('join.namePlaceholder')}
+                maxLength={24}
+                autoFocus
+                className="keycap-input w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base text-center"
+              />
+            </div>
 
             {error && (
               <p className="text-sm" style={{ color: 'var(--wrong)' }}>{error}</p>
@@ -84,10 +85,7 @@ export default function JoinScreen({ asHost, full, onJoin }: JoinScreenProps) {
             <button
               type="submit"
               disabled={joining}
-              className="py-3.5 rounded-xl font-semibold text-base text-white transition-colors disabled:cursor-not-allowed"
-              style={{ background: joining ? 'var(--bg-elevated)' : 'var(--accent)' }}
-              onMouseEnter={(e) => { if (!joining) e.currentTarget.style.background = 'var(--accent-hover)'; }}
-              onMouseLeave={(e) => { if (!joining) e.currentTarget.style.background = 'var(--accent)'; }}
+              className="keycap keycap-primary py-3.5 rounded-xl font-semibold text-base text-white"
             >
               {joining ? t('join.joining') : t('join.button')}
             </button>

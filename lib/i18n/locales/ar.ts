@@ -3,6 +3,7 @@ export const ar = {
     stepCreate: 'أنشئ مسابقة مخصصة',
     stepShare: 'ادعُ أصدقاءك',
     stepPlay: 'العب',
+    logoS: 'اضغط على S',
   },
   lang: {
     label: 'اللغة',
@@ -29,7 +30,7 @@ export const ar = {
     difficultyEasy: 'سهل',
     difficultyMedium: 'متوسط',
     difficultyHard: 'صعب',
-    questions: 'الأسئلة',
+    questions: 'عدد الأسئلة',
     modeTitle: 'وضع اللعب',
     modeThink: 'سباق التفكير',
     modeThinkHint: 'ثوانٍ مقفلة للتفكير، ثم يُفتح الجميع معاً — أول إجابة تبدأ عدّاً تنازلياً لمدة 4 ثوانٍ للباقين.',
