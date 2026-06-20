@@ -148,6 +148,11 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   const actedDeadline  = useRef<string | null>(null);
   const earlyDoneRef   = useRef<string | null>(null);
   const shrunkDeadline = useRef<string | null>(null);
+  // The deadline of the round we've confirmed is "fresh" — i.e. we've seen
+  // the roster fully unanswered for it. Early-advance / first-answer logic
+  // is gated on this so leftover picks from the previous round (which clear
+  // a beat after the next question opens) can't instantly resolve it.
+  const roundReadyRef  = useRef<string | null>(null);
 
   const me = players.find((p) => p.client_id === clientId) ?? null;
 
@@ -352,11 +357,25 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
       setTimeLeft(secondsUntil(g.phase_deadline));
       setTimeLeftMs(msUntil(g.phase_deadline));
 
+      // --- FRESH-ROUND GATE: a newly opened round only becomes eligible for
+      //     early-advance / first-answer logic once we've actually seen the
+      //     roster fully unanswered for THIS deadline. Otherwise leftover
+      //     picks from the previous round (cleared a beat after the next
+      //     question opens — see advanceToNext) would instantly resolve it,
+      //     making every other question flash by. Robust to realtime events
+      //     for `games` / `players` arriving in either order. ---
+      const answerablePhase = g.phase === 'question' || g.phase === 'answering';
+      if (answerablePhase && g.phase_deadline &&
+          !roster.some((p) => hasAnswered(p, g.mc_mode))) {
+        roundReadyRef.current = g.phase_deadline;
+      }
+      const roundReady = answerablePhase && roundReadyRef.current === g.phase_deadline;
+
       // --- FIRST-ANSWER RACE: as soon as ONE player has answered, cut the
       //     remaining time down to FIRST_ANSWER_GRACE_SECONDS so the rest
       //     have to hurry. Compare-and-swap on the deadline keeps it safe:
       //     only one client wins and it can only fire once per round. ---
-      if ((g.phase === 'question' || g.phase === 'answering') &&
+      if (roundReady &&
           g.phase_deadline &&
           shrunkDeadline.current !== g.phase_deadline &&
           roster.some((p) => hasAnswered(p, g.mc_mode)) &&
@@ -370,6 +389,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
 
       // --- EARLY ADVANCE: everyone has answered before the timer ends. ---
       const everyoneAnswered =
+        roundReady &&
         roster.length > 0 && roster.every((p) => hasAnswered(p, g.mc_mode));
 
       if (g.phase === 'question' && everyoneAnswered &&
