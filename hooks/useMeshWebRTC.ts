@@ -718,12 +718,15 @@ export function useMeshWebRTC(
         if (cancelled) return;
         const state = channel.presenceState() as Record<string, unknown[]>;
         const online = new Set(Object.keys(state));
+        const others = [...online].filter((id) => id !== myId);
 
-        logSignaling('presence reconcile', {
-          myId,
-          onlinePeerIds: [...online],
-          activePeerConnections: [...peers.keys()],
-        });
+        // Strings (not arrays) so the values print INLINE in copy-pasted logs.
+        logSignaling(
+          `presence reconcile — me=${myId} | online=[${[...online].join(', ')}] | others=${others.length} | openConns=[${[...peers.keys()].join(', ')}]`,
+        );
+        if (others.length === 0) {
+          console.warn('[Signaling] ⚠ ALONE in channel — no other peer is present. The other player is not on webrtc:' + gameId + ' right now (different game, not joined yet, or realtime presence not reaching this client).');
+        }
 
         // Open a connection to any newly-present peer.
         online.forEach((peerId) => {
@@ -763,10 +766,18 @@ export function useMeshWebRTC(
         if (status === 'SUBSCRIBED') {
           await channel.track({ id: myId, at: Date.now() });
           logSignaling('presence tracked', { myId });
-          // Begin periodic media-path diagnostics once we're on the channel.
+          // Begin periodic diagnostics once we're on the channel.
+          // When peers exist → media-path stats; when alone → a heartbeat
+          // showing channel membership, so we can SEE whether the two clients
+          // ever discover each other.
           if (!statsTimer) {
             statsTimer = setInterval(() => {
-              if (peers.size > 0) logStats();
+              if (peers.size > 0) {
+                logStats();
+              } else {
+                const keys = Object.keys(channel.presenceState() as Record<string, unknown[]>);
+                logWebRTC(`heartbeat — me=${myId} | channel=webrtc:${gameId} | members=[${keys.join(', ')}] (waiting for another peer)`);
+              }
             }, 3000);
           }
         }
