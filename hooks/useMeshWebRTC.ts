@@ -144,6 +144,11 @@ interface PeerConn {
    *  buffered here and flushed once the description is applied — dropping
    *  them (the old behavior) breaks connectivity in one direction. */
   pendingCandidates: RTCIceCandidateInit[];
+  /** Have our local camera/mic tracks been added to this connection yet?
+   *  Presence/discovery is DECOUPLED from capture: we may open a connection
+   *  before our own camera is ready, then add tracks later (which triggers a
+   *  renegotiation). This flag prevents adding the same tracks twice. */
+  localTracksAdded: boolean;
 }
 
 export function useMeshWebRTC(
@@ -224,6 +229,22 @@ export function useMeshWebRTC(
   }, []);
 
   // -------------------------------------------------------
+  // attachLocalTracks — add our camera/mic tracks to ONE peer connection.
+  // Idempotent (guarded by entry.localTracksAdded). Adding tracks fires the
+  // connection's onnegotiationneeded, so calling this AFTER a connection is
+  // already open transparently renegotiates and starts sending our media.
+  // This is what makes discovery-before-capture work.
+  // -------------------------------------------------------
+  const attachLocalTracks = useCallback((entry: PeerConn) => {
+    const ls = localStreamRef.current;
+    if (!ls || entry.localTracksAdded) return;
+    ls.getTracks().forEach((t) => { entry.pc.addTrack(t, ls); });
+    entry.localTracksAdded = true;
+    applyBitrateLimit(entry.pc, videoTierForPeerCount(peersRef.current.size).maxBitrateKbps);
+    logWebRTC('attached local tracks to peer', { trackKinds: ls.getTracks().map((t) => t.kind) });
+  }, []);
+
+  // -------------------------------------------------------
   // Main effect: presence + per-peer perfect negotiation
   // -------------------------------------------------------
   // TEMP DEBUG — log when remoteStreams React state changes
@@ -246,9 +267,15 @@ export function useMeshWebRTC(
   }, [remoteStreams]);
 
   useEffect(() => {
-    if (!localStream || !gameId || !myId) {
-      logWebRTC('mesh effect waiting for prerequisites', {
-        hasLocalStream: !!localStream,
+    // DECOUPLED DISCOVERY: we join the signaling channel + presence as soon as
+    // we have an identity (gameId + myId) — we do NOT wait for the camera.
+    // This means peers discover each other immediately; our media tracks are
+    // attached later, when getUserMedia resolves (see the localStream effect
+    // below), which triggers a renegotiation per peer. This is more robust
+    // than gating discovery on camera permission/startup (the original cause
+    // of "the other player isn't in the channel yet").
+    if (!gameId || !myId) {
+      logWebRTC('mesh effect waiting for identity', {
         gameId: gameId || '(empty)',
         myId: myId || '(empty)',
         camerasEnabled,
@@ -260,7 +287,7 @@ export function useMeshWebRTC(
       gameId,
       myId,
       camerasEnabled,
-      localTracks: localStream.getTracks().map((t) => t.kind),
+      hasLocalStreamNow: !!localStreamRef.current,
     });
 
     let cancelled = false;
@@ -276,7 +303,7 @@ export function useMeshWebRTC(
       const tier = videoTierForPeerCount(peerCount);
       logWebRTC('adjusting video quality', { peerCount, tier });
 
-      const videoTrack = localStream?.getVideoTracks()[0];
+      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
       if (videoTrack) {
         try {
           await videoTrack.applyConstraints({
@@ -435,6 +462,7 @@ export function useMeshWebRTC(
           // Deterministic politeness: lower id yields on a collision.
           polite: myId < peerId,
           pendingCandidates: [],
+          localTracksAdded: false,
         };
         peers.set(peerId, entry);
 
@@ -443,18 +471,14 @@ export function useMeshWebRTC(
           myId,
           polite: entry.polite,
           iceServerCount: iceServers.length,
+          hasLocalStream: !!localStreamRef.current,
         });
 
-        // Send our camera + mic to this peer.
-        localStream!.getTracks().forEach((t) => {
-          const sender = pc.addTrack(t, localStream!);
-          logWebRTC('addTrack to peer', {
-            peerId,
-            trackKind: t.kind,
-            trackId: t.id,
-            senderTrack: sender.track?.id,
-          });
-        });
+        // Send our camera + mic to this peer — IF the camera is ready. If it
+        // isn't yet, we still open the connection now (so the peer can send us
+        // THEIR video immediately); our tracks are added later by the
+        // localStream effect, which renegotiates this connection.
+        attachLocalTracks(entry);
 
         // Apply current bitrate limit based on mesh size.
         const currentTier = videoTierForPeerCount(peers.size);
@@ -830,8 +854,22 @@ export function useMeshWebRTC(
         channelRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- camerasEnabled logged only; omit to avoid re-running mesh
-  }, [localStream, gameId, myId]);
+  // NOTE: deps are ONLY [gameId, myId] — the mesh/presence channel is tied to
+  // our identity, NOT to the camera. The camera arriving later is handled by
+  // the separate effect below (no channel teardown/rebuild on camera start).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- camerasEnabled + attachLocalTracks are stable; omit to avoid re-running the mesh
+  }, [gameId, myId]);
+
+  // -------------------------------------------------------
+  // Camera-ready effect: once getUserMedia resolves, push our tracks into any
+  // peer connections that were opened before the camera was ready. addTrack()
+  // triggers each connection's onnegotiationneeded, so this renegotiates and
+  // starts sending our media without tearing anything down.
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (!localStream) return;
+    peersRef.current.forEach((entry) => { attachLocalTracks(entry); });
+  }, [localStream, attachLocalTracks]);
 
   // -------------------------------------------------------
   // Stop camera/mic tracks when the hook unmounts
