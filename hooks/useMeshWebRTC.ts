@@ -171,10 +171,8 @@ export function useMeshWebRTC(
   // -------------------------------------------------------
   const startCamera = useCallback(async () => {
     if (localStreamRef.current) {
-      logWebRTC('startCamera skipped — local stream already exists', {
-        camerasEnabled,
-        trackCount: localStreamRef.current.getTracks().length,
-      });
+      // Idempotent: already capturing. (Intentionally not logged — this is
+      // called on nearly every render and would drown the useful logs.)
       return;
     }
     logWebRTC('startCamera called', { camerasEnabled, videoRequested: camerasEnabled });
@@ -269,6 +267,7 @@ export function useMeshWebRTC(
     let cancelled = false;
     const peers = peersRef.current;
     let statsTimer: ReturnType<typeof setInterval> | null = null;
+    let recoveryHandler: (() => void) | null = null;
 
     let lastTierPeerCount = -1;
 
@@ -766,12 +765,15 @@ export function useMeshWebRTC(
         if (status === 'SUBSCRIBED') {
           await channel.track({ id: myId, at: Date.now() });
           logSignaling('presence tracked', { myId });
-          // Begin periodic diagnostics once we're on the channel.
-          // When peers exist → media-path stats; when alone → a heartbeat
-          // showing channel membership, so we can SEE whether the two clients
-          // ever discover each other.
+
+          // Begin periodic diagnostics + SELF-HEALING discovery once we're on
+          // the channel. Every tick we re-run reconcile(): if the other peer
+          // is present in the channel but we somehow never opened a connection
+          // (a dropped presence 'join' event, a reload race, etc.), this picks
+          // them up within a few seconds instead of needing a manual rematch.
           if (!statsTimer) {
             statsTimer = setInterval(() => {
+              reconcile();
               if (peers.size > 0) {
                 logStats();
               } else {
@@ -779,6 +781,25 @@ export function useMeshWebRTC(
                 logWebRTC(`heartbeat — me=${myId} | channel=webrtc:${gameId} | members=[${keys.join(', ')}] (waiting for another peer)`);
               }
             }, 3000);
+          }
+
+          // RECOVERY: when the page returns to the foreground (mobile users
+          // reopening a backgrounded tab — exactly the case where one side was
+          // missing from presence) or the network comes back, make sure the
+          // camera is running, RE-ANNOUNCE our presence so other clients get a
+          // fresh 'join', and reconcile so we reconnect to anyone already here.
+          if (!recoveryHandler) {
+            recoveryHandler = () => {
+              if (cancelled) return;
+              if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+              logSignaling('recovery: page visible / online — re-announcing presence + reconciling', { myId });
+              startCamera();
+              channel.track({ id: myId, at: Date.now() }).catch(() => { /* noop */ });
+              reconcile();
+            };
+            document.addEventListener('visibilitychange', recoveryHandler);
+            window.addEventListener('online', recoveryHandler);
+            window.addEventListener('focus', recoveryHandler);
           }
         }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -793,6 +814,12 @@ export function useMeshWebRTC(
       logWebRTC('mesh effect cleanup', { myId, peerCount: peers.size });
       cancelled = true;
       if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+      if (recoveryHandler) {
+        document.removeEventListener('visibilitychange', recoveryHandler);
+        window.removeEventListener('online', recoveryHandler);
+        window.removeEventListener('focus', recoveryHandler);
+        recoveryHandler = null;
+      }
       peers.forEach((entry) => { try { entry.pc.close(); } catch { /* noop */ } });
       peers.clear();
       setRemoteStreams({});
