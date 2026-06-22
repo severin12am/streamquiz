@@ -30,8 +30,7 @@ import { supabase } from '@/lib/supabase';
 import type { WebRTCSignal } from '@/lib/types';
 
 // Flip to true to print verbose WebRTC/signaling logs while debugging.
-// TEMP: enabled while diagnosing "each player only sees their own video".
-const WEBRTC_DEBUG = true;
+const WEBRTC_DEBUG = false;
 function logWebRTC(...args: unknown[]) {
   if (WEBRTC_DEBUG) console.log('[WebRTC]', ...args);
 }
@@ -195,7 +194,7 @@ export function useMeshWebRTC(
       stream.getAudioTracks().forEach((track) => { track.enabled = false; });
       localStreamRef.current = stream;
       setLocalStream(stream);
-      console.log('[Camera] getUserMedia success', {
+      logWebRTC('[Camera] getUserMedia success', {
         camerasEnabled,
         streamId: stream.id,
         tracks: stream.getTracks().map((t) => ({
@@ -723,8 +722,8 @@ export function useMeshWebRTC(
         logSignaling(
           `presence reconcile — me=${myId} | online=[${[...online].join(', ')}] | others=${others.length} | openConns=[${[...peers.keys()].join(', ')}]`,
         );
-        if (others.length === 0) {
-          console.warn('[Signaling] ⚠ ALONE in channel — no other peer is present. The other player is not on webrtc:' + gameId + ' right now (different game, not joined yet, or realtime presence not reaching this client).');
+        if (WEBRTC_DEBUG && others.length === 0) {
+          console.warn('[Signaling] ⚠ ALONE in channel — no other peer is present on webrtc:' + gameId + ' right now.');
         }
 
         // Open a connection to any newly-present peer.
@@ -773,7 +772,9 @@ export function useMeshWebRTC(
           // them up within a few seconds instead of needing a manual rematch.
           if (!statsTimer) {
             statsTimer = setInterval(() => {
-              reconcile();
+              reconcile(); // self-healing discovery (always runs)
+              // Diagnostics only — skipped entirely (no getStats cost) unless debugging.
+              if (!WEBRTC_DEBUG) return;
               if (peers.size > 0) {
                 logStats();
               } else {

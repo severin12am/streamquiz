@@ -19,8 +19,7 @@ import { useLocale } from '@/context/LocaleProvider';
 import { useStreamStatus } from '@/hooks/useStreamStatus';
 
 // Flip to true to print verbose camera attach/play logs while debugging.
-// TEMP: enabled while diagnosing "each player only sees their own video".
-const CAMERA_DEBUG = true;
+const CAMERA_DEBUG = false;
 
 interface CameraPanelProps {
   stream:     MediaStream | null;

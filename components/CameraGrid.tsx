@@ -13,8 +13,7 @@ import type { Player, GamePhase } from '@/lib/types';
 import { playerColor } from '@/lib/player-colors';
 
 // Flip to true to print per-tile stream assignment logs while debugging.
-// TEMP: enabled while diagnosing "each player only sees their own video".
-const GRID_DEBUG = true;
+const GRID_DEBUG = false;
 
 interface CameraGridProps {
   players:       Player[];
