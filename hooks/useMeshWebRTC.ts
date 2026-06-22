@@ -317,7 +317,10 @@ export function useMeshWebRTC(
           let outboundVideo: Record<string, unknown> | null = null;
           let selectedPairId: string | undefined;
 
-          stats.forEach((r) => {
+          // NOTE: use for...of (not forEach) so assignments to the outer
+          // inbound/outbound vars are tracked by TS control-flow analysis —
+          // a callback closure would leave them narrowed to `null`.
+          for (const r of stats.values()) {
             const s = r as unknown as Record<string, unknown>;
             switch (r.type) {
               case 'candidate-pair':  pairs.set(r.id, r); break;
@@ -335,7 +338,7 @@ export function useMeshWebRTC(
                 if (s.kind === 'video') outboundVideo = s;
                 break;
             }
-          });
+          }
 
           // Resolve the selected/nominated candidate pair.
           let pair = selectedPairId ? pairs.get(selectedPairId) : undefined;
