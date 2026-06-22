@@ -30,12 +30,30 @@ import { supabase } from '@/lib/supabase';
 import type { WebRTCSignal } from '@/lib/types';
 
 // Flip to true to print verbose WebRTC/signaling logs while debugging.
-const WEBRTC_DEBUG = false;
+// TEMP: enabled while diagnosing "each player only sees their own video".
+const WEBRTC_DEBUG = true;
 function logWebRTC(...args: unknown[]) {
   if (WEBRTC_DEBUG) console.log('[WebRTC]', ...args);
 }
 function logSignaling(...args: unknown[]) {
   if (WEBRTC_DEBUG) console.log('[Signaling]', ...args);
+}
+
+// Extract the ICE candidate type (host / srflx / prflx / relay) from a raw
+// candidate string. "relay" means the media is going through a TURN server —
+// the key thing to confirm when connectivity fails on VPN / strict NAT.
+function candidateType(candidate?: string): string {
+  if (!candidate) return 'unknown';
+  const m = /(?:^|\s)typ\s+(\w+)/.exec(candidate);
+  return m ? m[1] : 'unknown';
+}
+
+// Mask credentials but show URLs so we can confirm a TURN server is present.
+function describeIceServers(servers: RTCIceServer[]): string[] {
+  return servers.flatMap((s) => {
+    const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+    return urls.map((u) => (s.credential ? `${u} (auth)` : `${u}`));
+  });
 }
 
 // -------------------------------------------------------
@@ -79,15 +97,28 @@ async function fetchIceServers(): Promise<RTCIceServer[]> {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
-        logWebRTC('ICE servers fetched from /api/ice-servers', { count: data.iceServers.length });
-        return data.iceServers as RTCIceServer[];
+        const servers = data.iceServers as RTCIceServer[];
+        const described = describeIceServers(servers);
+        const hasTurn = described.some((u) => u.startsWith('turn:') || u.startsWith('turns:'));
+        logWebRTC('ICE servers fetched from /api/ice-servers', {
+          count: servers.length,
+          servers: described,
+          hasTurn,
+        });
+        if (!hasTurn) {
+          console.warn('[WebRTC] No TURN server in ICE config — connections will FAIL on strict NAT / VPN. Configure METERED_* or TURN_* env vars.');
+        }
+        return servers;
       }
     }
     logWebRTC('ICE servers API returned no servers, using fallback');
   } catch (err) {
     console.warn('[WebRTC] Could not fetch /api/ice-servers, using fallback:', err);
   }
-  logWebRTC('Using fallback ICE servers', { count: FALLBACK_ICE_SERVERS.length });
+  logWebRTC('Using FALLBACK ICE servers (public freeturn.net — unreliable)', {
+    count: FALLBACK_ICE_SERVERS.length,
+    servers: describeIceServers(FALLBACK_ICE_SERVERS),
+  });
   return FALLBACK_ICE_SERVERS;
 }
 
@@ -237,6 +268,7 @@ export function useMeshWebRTC(
 
     let cancelled = false;
     const peers = peersRef.current;
+    let statsTimer: ReturnType<typeof setInterval> | null = null;
 
     let lastTierPeerCount = -1;
 
@@ -261,6 +293,86 @@ export function useMeshWebRTC(
 
       for (const [, entry] of peers) {
         applyBitrateLimit(entry.pc, tier.maxBitrateKbps);
+      }
+    };
+
+    // -------------------------------------------------------
+    // Periodic media-path diagnostics. Every few seconds, for each peer,
+    // report the SELECTED ICE candidate pair (so we can see host/srflx/relay
+    // and whether TURN is in use) and inbound/outbound video byte+frame
+    // counters. This is the single best signal for "ontrack fired but I see
+    // no remote video": if inboundVideo.bytes is NOT growing, the media path
+    // is broken (ICE/TURN); if it IS growing but the tile is black, it's a
+    // decode/render issue instead.
+    // -------------------------------------------------------
+    const logStats = async () => {
+      for (const [peerId, entry] of peers) {
+        const pc = entry.pc;
+        try {
+          const stats = await pc.getStats();
+          const pairs   = new Map<string, RTCStats>();
+          const locals  = new Map<string, RTCStats>();
+          const remotes = new Map<string, RTCStats>();
+          let inboundVideo:  Record<string, unknown> | null = null;
+          let outboundVideo: Record<string, unknown> | null = null;
+          let selectedPairId: string | undefined;
+
+          stats.forEach((r) => {
+            const s = r as unknown as Record<string, unknown>;
+            switch (r.type) {
+              case 'candidate-pair':  pairs.set(r.id, r); break;
+              case 'local-candidate': locals.set(r.id, r); break;
+              case 'remote-candidate': remotes.set(r.id, r); break;
+              case 'transport':
+                if (typeof s.selectedCandidatePairId === 'string') {
+                  selectedPairId = s.selectedCandidatePairId;
+                }
+                break;
+              case 'inbound-rtp':
+                if (s.kind === 'video') inboundVideo = s;
+                break;
+              case 'outbound-rtp':
+                if (s.kind === 'video') outboundVideo = s;
+                break;
+            }
+          });
+
+          // Resolve the selected/nominated candidate pair.
+          let pair = selectedPairId ? pairs.get(selectedPairId) : undefined;
+          if (!pair) {
+            for (const p of pairs.values()) {
+              const ps = p as unknown as Record<string, unknown>;
+              if (ps.state === 'succeeded' && (ps.nominated || ps.selected)) { pair = p; break; }
+            }
+          }
+          const pairObj = pair as unknown as Record<string, unknown> | undefined;
+          const local  = pairObj ? (locals.get(pairObj.localCandidateId as string) as unknown as Record<string, unknown> | undefined) : undefined;
+          const remote = pairObj ? (remotes.get(pairObj.remoteCandidateId as string) as unknown as Record<string, unknown> | undefined) : undefined;
+          const localType  = (local?.candidateType as string) ?? '?';
+          const remoteType = (remote?.candidateType as string) ?? '?';
+
+          logWebRTC('STATS', {
+            peerId,
+            connectionState: pc.connectionState,
+            iceConnectionState: pc.iceConnectionState,
+            path: pairObj ? `${localType} <-> ${remoteType} via ${local?.protocol ?? '?'}` : '(no selected candidate pair yet)',
+            usingTurnRelay: localType === 'relay' || remoteType === 'relay',
+            inboundVideo: inboundVideo
+              ? {
+                  bytesReceived: inboundVideo.bytesReceived,
+                  framesDecoded: inboundVideo.framesDecoded,
+                  framesPerSecond: inboundVideo.framesPerSecond,
+                  frameWidth: inboundVideo.frameWidth,
+                  frameHeight: inboundVideo.frameHeight,
+                }
+              : '(no inbound video — peer not sending or not received)',
+            outboundVideo: outboundVideo
+              ? { bytesSent: outboundVideo.bytesSent, framesEncoded: outboundVideo.framesEncoded }
+              : '(no outbound video)',
+          });
+        } catch (err) {
+          logWebRTC('STATS error', { peerId, err });
+        }
       }
     };
 
@@ -372,6 +484,18 @@ export function useMeshWebRTC(
 
         pc.onicecandidate = ({ candidate }) => {
           if (candidate) {
+            const type = candidateType(candidate.candidate);
+            logSignaling('local ICE candidate gathered', {
+              peerId,
+              type,
+              protocol: candidate.protocol,
+              address: candidate.address,
+              port: candidate.port,
+              relatedAddress: candidate.relatedAddress,
+            });
+            if (type === 'relay') {
+              logWebRTC('✓ RELAY (TURN) candidate gathered — TURN server reachable', { peerId });
+            }
             sendSignal({
               type: 'ice-candidate',
               from: myId,
@@ -561,8 +685,9 @@ export function useMeshWebRTC(
             // it (old behavior) is what caused one-way / missing video.
             if (!pc.remoteDescription) {
               entry.pendingCandidates.push(candidate);
-              logSignaling('buffering ICE candidate (no remoteDescription yet)', {
+              logSignaling('buffering remote ICE candidate (no remoteDescription yet)', {
                 from: signal.from,
+                type: candidateType(candidate.candidate),
                 queued: entry.pendingCandidates.length,
               });
             } else {
@@ -570,6 +695,7 @@ export function useMeshWebRTC(
                 await pc.addIceCandidate(new RTCIceCandidate(candidate));
                 logSignaling('addIceCandidate OK', {
                   from: signal.from,
+                  type: candidateType(candidate.candidate),
                   candidate: candidate.candidate?.slice(0, 60),
                 });
               } catch (err) {
@@ -634,6 +760,12 @@ export function useMeshWebRTC(
         if (status === 'SUBSCRIBED') {
           await channel.track({ id: myId, at: Date.now() });
           logSignaling('presence tracked', { myId });
+          // Begin periodic media-path diagnostics once we're on the channel.
+          if (!statsTimer) {
+            statsTimer = setInterval(() => {
+              if (peers.size > 0) logStats();
+            }, 3000);
+          }
         }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('[Signaling] channel subscription failed', { status, gameId, myId });
@@ -646,6 +778,7 @@ export function useMeshWebRTC(
     return () => {
       logWebRTC('mesh effect cleanup', { myId, peerCount: peers.size });
       cancelled = true;
+      if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
       peers.forEach((entry) => { try { entry.pc.close(); } catch { /* noop */ } });
       peers.clear();
       setRemoteStreams({});

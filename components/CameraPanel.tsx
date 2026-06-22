@@ -19,7 +19,8 @@ import { useLocale } from '@/context/LocaleProvider';
 import { useStreamStatus } from '@/hooks/useStreamStatus';
 
 // Flip to true to print verbose camera attach/play logs while debugging.
-const CAMERA_DEBUG = false;
+// TEMP: enabled while diagnosing "each player only sees their own video".
+const CAMERA_DEBUG = true;
 
 interface CameraPanelProps {
   stream:     MediaStream | null;
@@ -132,6 +133,58 @@ export default function CameraPanel({
           // Start) usually unblocks it on the next attempt.
           console.warn('[Camera] video.play() blocked', { label, mirrored, error: err?.message });
         });
+
+      // ---- TEMP DEBUG: confirm whether frames actually render ----
+      // A remote tile can have a stream attached yet stay black if no media
+      // ever arrives. These events tell us if/when real frames show up.
+      if (CAMERA_DEBUG && !mirrored) {
+        const onLoadedMetadata = () =>
+          console.log('[Camera] remote <video> loadedmetadata', {
+            label, w: video.videoWidth, h: video.videoHeight,
+          });
+        const onPlaying = () =>
+          console.log('[Camera] remote <video> PLAYING (frames flowing)', {
+            label, w: video.videoWidth, h: video.videoHeight,
+          });
+        const onResize = () =>
+          console.log('[Camera] remote <video> resize', {
+            label, w: video.videoWidth, h: video.videoHeight,
+          });
+        const onStalled = () => console.warn('[Camera] remote <video> stalled', { label });
+        const onWaiting = () => console.warn('[Camera] remote <video> waiting (no data)', { label });
+
+        video.addEventListener('loadedmetadata', onLoadedMetadata);
+        video.addEventListener('playing', onPlaying);
+        video.addEventListener('resize', onResize);
+        video.addEventListener('stalled', onStalled);
+        video.addEventListener('waiting', onWaiting);
+
+        const trackListeners = stream.getVideoTracks().map((track) => {
+          const onMute = () => console.warn('[Camera] remote video track MUTED (no frames arriving)', { label, trackId: track.id });
+          const onUnmute = () => console.log('[Camera] remote video track unmuted (frames arriving)', { label, trackId: track.id });
+          const onEnded = () => console.warn('[Camera] remote video track ENDED', { label, trackId: track.id });
+          console.log('[Camera] remote video track attached', {
+            label, trackId: track.id, readyState: track.readyState, muted: track.muted, enabled: track.enabled,
+          });
+          track.addEventListener('mute', onMute);
+          track.addEventListener('unmute', onUnmute);
+          track.addEventListener('ended', onEnded);
+          return { track, onMute, onUnmute, onEnded };
+        });
+
+        return () => {
+          video.removeEventListener('loadedmetadata', onLoadedMetadata);
+          video.removeEventListener('playing', onPlaying);
+          video.removeEventListener('resize', onResize);
+          video.removeEventListener('stalled', onStalled);
+          video.removeEventListener('waiting', onWaiting);
+          trackListeners.forEach(({ track, onMute, onUnmute, onEnded }) => {
+            track.removeEventListener('mute', onMute);
+            track.removeEventListener('unmute', onUnmute);
+            track.removeEventListener('ended', onEnded);
+          });
+        };
+      }
     }
   }, [stream, label, mirrored, error]);
 
