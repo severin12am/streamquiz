@@ -174,5 +174,7 @@ export const ja = {
     rematchWaiting: '他のプレイヤーを待っています…',
     waitRematch: 'ホストの再戦開始を待っています',
     exit: '終了',
+    discuss: '結果を話そう — 通話はあと{n}秒で終了',
+    discussHint: 'カメラとマイクをオフにしました。再戦で再度通話できます。',
   },
 } as const;

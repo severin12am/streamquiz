@@ -188,6 +188,8 @@ export const messages = {
       rematchWaiting: 'Waiting for others…',
       waitRematch: 'Waiting for the host to start a rematch',
       exit: 'Exit',
+      discuss: 'Discuss results — call ends in {n}s',
+      discussHint: 'Camera and mic have been turned off. Rematch to call again.',
     },
   },
 
@@ -367,6 +369,8 @@ export const messages = {
       rematchWaiting: 'Ждём остальных…',
       waitRematch: 'Ждём реванш от ведущего',
       exit: 'Выход',
+      discuss: 'Обсудите результаты — звонок завершится через {n} с',
+      discussHint: 'Камера и микрофон отключены. Начните реванш, чтобы снова позвонить.',
     },
   },
 

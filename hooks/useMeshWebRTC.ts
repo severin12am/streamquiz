@@ -129,6 +129,10 @@ export interface UseMeshWebRTCReturn {
   connected:     Record<string, boolean>;
   cameraError:   string | null;
   startCamera:   () => Promise<void>;
+  /** Tear down all peer connections + stop local tracks (cut every feed).
+   *  Used at the end of a game's discussion window. `startCamera()` will
+   *  re-acquire everything if the players rematch. */
+  stopCamera:    () => void;
   /** Is my mic currently being transmitted to the other players? */
   micEnabled:    boolean;
   /** Enable/disable sending my mic to peers (push-to-talk / answer phase). */
@@ -227,6 +231,27 @@ export function useMeshWebRTC(
     tracks.forEach((track) => { track.enabled = on; });
     setMicEnabledState(on);
   }, []);
+
+  // -------------------------------------------------------
+  // stopCamera — cut every feed: close all peer connections and stop our
+  // local tracks. Remote streams clear as each peer closes. The presence
+  // channel is left running so a rematch can re-establish the mesh; only
+  // the media is torn down. `startCamera()` will re-acquire on demand.
+  // -------------------------------------------------------
+  const stopCamera = useCallback(() => {
+    logWebRTC('stopCamera called — tearing down media', { myId });
+    peersRef.current.forEach((entry) => {
+      entry.localTracksAdded = false;
+      try { entry.pc.close(); } catch { /* noop */ }
+    });
+    peersRef.current.clear();
+    setRemoteStreams({});
+    setConnected({});
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current = null;
+    setLocalStream(null);
+  }, [myId]);
+
 
   // -------------------------------------------------------
   // attachLocalTracks — add our camera/mic tracks to ONE peer connection.
@@ -881,5 +906,5 @@ export function useMeshWebRTC(
     };
   }, []);
 
-  return { localStream, remoteStreams, connected, cameraError, startCamera, micEnabled, setMicEnabled };
+  return { localStream, remoteStreams, connected, cameraError, startCamera, stopCamera, micEnabled, setMicEnabled };
 }

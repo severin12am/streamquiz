@@ -228,6 +228,19 @@ export default function CameraPanel({
         </div>
       )}
 
+      {/* ---- Score badge — floats ABOVE the top edge of the tile ---- */}
+      {typeof score === 'number' && (
+        <div
+          className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-20 px-2.5 py-0.5 rounded-full text-xs font-bold tabular-nums text-white shadow-md whitespace-nowrap"
+          style={{
+            background: 'var(--gold)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+          }}
+        >
+          {score}
+        </div>
+      )}
+
       {/* ---- Connection / mic diagnostics (top-left) ---- */}
       <div className="absolute top-2 left-2 flex items-center gap-1.5">
         {connState && (
@@ -255,7 +268,7 @@ export default function CameraPanel({
         />
       </div>
 
-      {/* ---- Player label + score badge at bottom ---- */}
+      {/* ---- Player label at bottom (name + answered dot; live/offline) ---- */}
       <div
         className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 gap-2"
         style={{ background: 'rgba(0,0,0,0.6)' }}
@@ -282,14 +295,7 @@ export default function CameraPanel({
             />
           )}
         </span>
-        {typeof score === 'number' ? (
-          <span
-            className="flex-shrink-0 text-sm font-bold tabular-nums px-2 py-0.5 rounded-md"
-            style={{ background: 'var(--bg-card)', color: 'var(--gold)' }}
-          >
-            {score}
-          </span>
-        ) : (
+        {typeof score !== 'number' && (
           <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
             <span
               className="inline-block w-2 h-2 rounded-full"

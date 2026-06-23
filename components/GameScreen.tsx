@@ -78,7 +78,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // ----------------------------------------------------------
   const camerasEnabled = game?.cameras_enabled ?? false;
   const {
-    localStream, remoteStreams, connected, cameraError, startCamera,
+    localStream, remoteStreams, connected, cameraError, startCamera, stopCamera,
     micEnabled, setMicEnabled,
   } = useMeshWebRTC(gameId, me?.id ?? '', camerasEnabled);
 
@@ -109,6 +109,50 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       setMicEnabled(isAnswering || pttHeld);
     }
   }, [game, voiceMode, isAnswering, pttHeld, setMicEnabled, localStream]);
+
+  // ----------------------------------------------------------
+  // End-of-game DISCUSSION window. When the match ends we keep the cameras
+  // live for DISCUSSION_SECONDS so players can react, then cut every feed
+  // (mic + video) automatically. A rematch re-acquires the camera via the
+  // startCamera effect below. The countdown is shown in the winner sheet.
+  // ----------------------------------------------------------
+  const DISCUSSION_SECONDS = 60;
+  const [discussLeft, setDiscussLeft] = useState(DISCUSSION_SECONDS);
+  const [feedsCut, setFeedsCut] = useState(false);
+
+  // Open the mic during the discussion window so everyone can talk freely,
+  // even in voice mode (no PTT needed while discussing results).
+  useEffect(() => {
+    if (!game) return;
+    if (game.phase === 'ended' && !feedsCut) {
+      setMicEnabled(true);
+    }
+  }, [game, feedsCut, setMicEnabled]);
+
+  // Countdown + auto-cut when the discussion window elapses.
+  useEffect(() => {
+    if (!game || game.phase !== 'ended' || feedsCut) return;
+    setDiscussLeft(DISCUSSION_SECONDS);
+    const startedAt = Date.now();
+    const id = setInterval(() => {
+      const left = Math.max(0, DISCUSSION_SECONDS - Math.floor((Date.now() - startedAt) / 1000));
+      setDiscussLeft(left);
+      if (left <= 0) {
+        clearInterval(id);
+        stopCamera();
+        setFeedsCut(true);
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [game?.phase, feedsCut, stopCamera]);
+
+  // Re-acquire the camera if a rematch starts after we cut the feeds.
+  useEffect(() => {
+    if (game && game.phase !== 'ended' && feedsCut) {
+      setFeedsCut(false);
+      startCamera();
+    }
+  }, [game?.phase, feedsCut, startCamera]);
 
   // Hold SPACE to talk (voice mode only; ignored while typing in an input).
   useEffect(() => {
@@ -376,17 +420,18 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   }
 
   // ----------------------------------------------------------
-  // Playing / ended → camera mesh + question panel
+  // Playing / ended → full-screen camera mesh + overlay quiz layer
   // ----------------------------------------------------------
   const speaking   = game.phase === 'answering';
   const showResult = game.phase === 'result';
+  const ended      = game.phase === 'ended';
 
   return (
-    <div className="relative flex flex-col lg:flex-row h-dvh w-full min-h-0 overflow-hidden">
+    <div className="relative h-dvh w-full min-h-0 overflow-hidden bg-black">
       <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
 
-      {/* ---- Camera mesh (all players) ---- */}
-      <div className="h-[34vh] shrink-0 sm:h-[38vh] lg:h-full lg:flex-[2] min-w-0 min-h-0 p-1 sm:p-1.5">
+      {/* ---- BACKGROUND: full-screen camera mesh (all players) ---- */}
+      <div className="absolute inset-0 p-1 sm:p-1.5">
         <CameraGrid
           players={players}
           me={me}
@@ -403,28 +448,39 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         />
       </div>
 
-      {/* ---- Question panel ---- */}
-      <div className="flex-1 lg:flex-[3] min-w-0 min-h-0">
-        <QuestionPanel
-          game={game}
-          me={me}
-          players={players}
-          timeLeft={timeLeft}
-          timeLeftMs={timeLeftMs}
-          timerTotal={timerTotal}
-          transcript={answerDraft}
-          iAmDone={iAmDone}
-          speechSupported={isSupported}
-          onMCSelect={(i) => submitMCAnswer(i)}
-          onTypeAnswer={handleTypeAnswer}
-          onFinish={handleFinishAnswer}
-          voicePttActive={voiceMode && game.phase !== 'ended'}
-        />
-      </div>
+      {/* ---- OVERLAY: quiz layer (translucent panels, no page scroll) ----
+           Hidden once the match ends (the winner sheet takes over).
+           On desktop it's a right-hand column; on mobile it's the lower
+           portion of the screen over the video. */}
+      {!ended && (
+        <div
+          className="absolute inset-x-0 bottom-0 z-20 flex justify-center p-1.5 sm:p-2
+                     lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[42%] lg:max-w-[640px] lg:p-2.5"
+          style={{ pointerEvents: 'none' }}
+        >
+          <div className="w-full max-w-lg h-full max-h-[62vh] lg:max-h-full flex" style={{ pointerEvents: 'auto' }}>
+            <QuestionPanel
+              game={game}
+              me={me}
+              players={players}
+              timeLeft={timeLeft}
+              timeLeftMs={timeLeftMs}
+              timerTotal={timerTotal}
+              transcript={answerDraft}
+              iAmDone={iAmDone}
+              speechSupported={isSupported}
+              onMCSelect={(i) => submitMCAnswer(i)}
+              onTypeAnswer={handleTypeAnswer}
+              onFinish={handleFinishAnswer}
+              voicePttActive={voiceMode && game.phase !== 'ended'}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ---- Push-to-talk button (voice mode only; hold to chat) ----
            In MC mode the mic is always open, so no button is needed. */}
-      {voiceMode && game.phase !== 'ended' && (
+      {voiceMode && !ended && (
         <button
           type="button"
           onPointerDown={(e) => { e.preventDefault(); setPttHeld(true); }}
@@ -448,8 +504,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         </button>
       )}
 
-      {/* ---- Winner overlay ---- */}
-      {game.phase === 'ended' && (
+      {/* ---- Winner / discussion sheet (cameras stay live behind it) ---- */}
+      {ended && (
         <WinnerScreen
           players={players}
           meId={me.id}
@@ -458,6 +514,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           myVote={me.rematch}
           rematchLoading={rematchLoading}
           onExit={() => (window.location.href = '/')}
+          discussLeft={discussLeft}
+          feedsCut={feedsCut}
         />
       )}
     </div>

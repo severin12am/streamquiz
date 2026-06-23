@@ -42,7 +42,7 @@ export default function MCOptions({
   const revealed = correctAnswer != null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-3 w-full max-w-lg pb-1">
+    <div className="grid grid-cols-2 gap-1.5 sm:gap-2 w-full max-w-lg pb-1">
       {options.map((option, i) => {
         const pickedByMe  = myPick === i;
         const isCorrect   = revealed && option === correctAnswer;
@@ -69,14 +69,14 @@ export default function MCOptions({
             onClick={() => canSelect && onSelect(i)}
             aria-disabled={!canSelect || undefined}
             className={[
-              'keycap relative flex items-start sm:items-center gap-2.5 lg:gap-3 p-3 sm:p-2.5 lg:p-4 rounded-xl text-left font-medium',
+              'keycap relative flex items-start gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-xl text-left font-medium text-xs sm:text-sm',
               variantClass,
               canSelect ? 'cursor-pointer' : revealed ? 'keycap-revealed cursor-default' : 'cursor-default opacity-90 pointer-events-none',
             ].join(' ')}
           >
             {/* Letter badge */}
             <span
-              className="flex-shrink-0 w-7 h-7 lg:w-8 lg:h-8 rounded-lg flex items-center justify-center text-sm font-semibold"
+              className="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-md flex items-center justify-center text-[10px] sm:text-xs font-semibold"
               style={{
                 background: isCorrect
                   ? 'var(--correct)'
@@ -94,7 +94,7 @@ export default function MCOptions({
             </span>
 
             {/* Option text */}
-            <span className="text-sm leading-tight flex-1 min-w-0 break-words [color:inherit]">
+            <span className="leading-tight flex-1 min-w-0 break-words [color:inherit]">
               {option}
             </span>
 
@@ -103,7 +103,7 @@ export default function MCOptions({
               {/* Your pick tag while the round is still open (pre-reveal) */}
               {pickedByMe && !revealed && (
                 <span
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide"
+                  className="text-[9px] font-semibold px-1 py-0.5 rounded uppercase tracking-wide"
                   style={{ background: 'var(--bg-base)', color: 'var(--accent)' }}
                 >
                   {youLabel}
@@ -112,17 +112,17 @@ export default function MCOptions({
 
               {/* At the reveal: colour avatars of everyone who chose this */}
               {revealed && picks.length > 0 && (
-                <span className="flex items-center gap-1 flex-wrap justify-end max-w-[88px] sm:max-w-[120px]">
+                <span className="flex items-center gap-0.5 flex-wrap justify-end max-w-[60px] sm:max-w-[90px]">
                   {picks.map((pick) => (
                     <span
                       key={pick.id}
                       title={pick.name}
-                      className="flex items-center justify-center rounded-full text-[10px] font-bold text-white"
+                      className="flex items-center justify-center rounded-full text-[9px] font-bold text-white"
                       style={{
                         background: pick.colour,
-                        width: 20,
-                        height: 20,
-                        boxShadow: pick.isMe ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text-primary)' : 'none',
+                        width: 16,
+                        height: 16,
+                        boxShadow: pick.isMe ? '0 0 0 1.5px var(--bg-card), 0 0 0 2.5px var(--text-primary)' : 'none',
                       }}
                     >
                       {playerInitial(pick.name)}
@@ -133,8 +133,8 @@ export default function MCOptions({
             </span>
 
             {/* Correct/wrong icon (reveal only) */}
-            {isCorrect   && <span className="text-[var(--correct)] text-lg">✓</span>}
-            {isWrongPick && <span className="text-[var(--wrong)] text-lg">✗</span>}
+            {isCorrect   && <span className="text-[var(--correct)] text-base">✓</span>}
+            {isWrongPick && <span className="text-[var(--wrong)] text-base">✗</span>}
           </button>
         );
       })}

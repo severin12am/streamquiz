@@ -174,5 +174,7 @@ export const es = {
     rematchWaiting: 'Esperando a los demás…',
     waitRematch: 'Esperando a que el anfitrión inicie la revancha',
     exit: 'Salir',
+    discuss: 'Comenta los resultados — la llamada termina en {n}s',
+    discussHint: 'Cámara y micrófono apagados. Reinicia para volver a llamar.',
   },
 } as const;
