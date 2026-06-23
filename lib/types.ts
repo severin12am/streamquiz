@@ -18,14 +18,11 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 
 // -------------------------------------------------------
 // Game mode — how a round plays out
-//   'regular'  → answer immediately; MC answers can be changed until the
-//                timer ends; the timer does NOT shrink when someone answers;
-//                EVERY correct answer scores. DEFAULT.
-//   'hardcore' → answer immediately; answers are locked the instant you
-//                submit (no changing, voice is one-shot); ONLY the first
-//                correct answer scores. "First" is decided by a server-synced
-//                timestamp taken when the player commits, so connection speed
-//                barely affects who wins.
+//   'regular'  → UI: "Every answer counts". Answer immediately; MC answers
+//                can be changed until the timer ends; EVERY correct answer
+//                scores. DEFAULT.
+//   'hardcore' → UI: "Only first answer counts". Answers lock on submit;
+//                ONLY the first correct answer scores (by answered_at).
 //   'think'    → (legacy) locked think countdown, then everyone unlocked
 //                together, with a short first-answer grace window.
 //   'classic'  → (legacy) answer immediately; first answer shrinks the timer.

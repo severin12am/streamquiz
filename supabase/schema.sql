@@ -29,10 +29,8 @@ CREATE TABLE IF NOT EXISTS games (
   cameras_enabled        BOOLEAN DEFAULT FALSE,
 
   -- Game mode:
-  --   'regular'  → answer immediately; MC answers changeable until the timer
-  --                ends; timer never shrinks; EVERY correct answer scores (default)
-  --   'hardcore' → answers lock on submit (voice one-shot); ONLY the first
-  --                correct answer scores (ordered by a server-synced timestamp)
+  --   'regular'  → UI: "Every answer counts" (default)
+  --   'hardcore' → UI: "Only first answer counts"
   --   'think'/'classic' → legacy modes, kept for older rows
   game_mode              TEXT DEFAULT 'regular'
                            CHECK (game_mode IN ('regular', 'hardcore', 'think', 'classic')),

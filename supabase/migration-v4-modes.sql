@@ -1,18 +1,14 @@
 -- ============================================================
--- WhoSmarter — Migration v4: Regular vs Hardcore game modes
+-- WhoSmarter — Migration v4: "Every answer counts" / "Only first answer counts"
+-- (DB values: regular / hardcore)
 -- ============================================================
 -- Run this ONCE in your Supabase SQL Editor.
 -- Safe to run multiple times (uses IF NOT EXISTS / DROP+ADD).
 --
 -- Replaces the old 'think'/'classic' modes (still accepted for old
 -- rows) with the two modes the app now offers:
---   'regular'  → answer immediately; MC answers can be changed until the
---                timer ends; the timer never shrinks; EVERY correct answer
---                scores. (default)
---   'hardcore' → answers lock the instant you submit (voice is one-shot);
---                ONLY the first correct answer scores. "First" is decided by
---                a server-synced timestamp captured the moment the player
---                commits — so connection speed barely affects who wins.
+--   'regular'  → UI: "Every answer counts" (default)
+--   'hardcore' → UI: "Only first answer counts"
 -- ============================================================
 
 -- Default new games to 'regular' and allow the new values (keep the old
