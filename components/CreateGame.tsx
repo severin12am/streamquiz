@@ -15,7 +15,6 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/context/LocaleProvider';
 import type { Difficulty, GameMode, CreateGamePayload, Question } from '@/lib/types';
@@ -41,9 +40,6 @@ export default function CreateGame() {
   const [showAdjust,    setShowAdjust]    = useState(false);
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState<string | null>(null);
-  const [shareLink,     setShareLink]     = useState<string | null>(null);
-  const [gameId,        setGameId]        = useState<string | null>(null);
-  const [copied,        setCopied]        = useState(false);
 
   const adjustPanelRef = useRef<HTMLDivElement>(null);
   const adjustInnerRef = useRef<HTMLDivElement>(null);
@@ -162,88 +158,17 @@ export default function CreateGame() {
         throw new Error(dbError?.message ?? t('create.errorCreate'));
       }
 
-      // Step 3: Build the shareable link (no ?role= means player)
-      const id   = (data as { id: string }).id;
-      const link = `${window.location.origin}/game/${id}`;
-
-      setGameId(id);
-      setShareLink(link);
+      // Step 3: go straight to the lobby as host. The invite link + QR and the
+      // host's name entry now live on the lobby screen (one screen instead of
+      // a separate "share" step).
+      const id = (data as { id: string }).id;
+      router.push(`/game/${id}?role=host`);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : t('create.errorGeneric'));
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleGoToGame() {
-    if (gameId) {
-      playSound('click');
-      router.push(`/game/${gameId}?role=host`);
-    }
-  }
-
-  // -------------------------------------------------------
-  // After creation: show share screen
-  // -------------------------------------------------------
-  if (shareLink && gameId) {
-    return (
-      <div className="relative flex flex-col items-center gap-8 text-center">
-        <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
-        {/* Success heading */}
-        <div>
-          <h2 className="text-2xl font-bold text-[var(--text-primary)]">
-            {t('create.createdTitle')}
-          </h2>
-          <p className="text-[var(--text-secondary)] mt-1">
-            {t('create.createdHint')}
-          </p>
-        </div>
-
-        {/* QR code */}
-        <div
-          className="p-4 rounded-2xl"
-          style={{ background: 'white' }}
-        >
-          <QRCodeSVG value={shareLink} size={180} />
-        </div>
-
-        {/* Shareable link */}
-        <div className="w-full max-w-md">
-          <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider mb-2 font-semibold">
-            {t('create.shareLink')}
-          </p>
-          <div className="keycap-well-frame w-full max-w-md">
-            <div className="keycap-well flex items-center gap-2 p-3">
-            <span
-              className="flex-1 text-sm text-[var(--text-primary)] truncate font-mono"
-            >
-              {shareLink}
-            </span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(shareLink);
-                playSound('click');
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              className={`keycap keycap-secondary keycap-compact flex-shrink-0 font-semibold${copied ? ' text-[var(--correct)]' : ''}`}
-            >
-              {copied ? t('create.copied') : t('create.copy')}
-            </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Enter the game */}
-        <button
-          onClick={handleGoToGame}
-          className="keycap keycap-primary px-12 py-4 rounded-xl font-semibold text-lg text-white"
-        >
-          {t('create.enterQuiz')}
-        </button>
-      </div>
-    );
   }
 
   // -------------------------------------------------------

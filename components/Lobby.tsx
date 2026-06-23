@@ -2,9 +2,9 @@
 // ============================================================
 // Lobby — shown before the match starts (game.status === 'waiting').
 //
-// Everyone sees who has joined. The host also sees the invite link + QR
-// and the START button (enabled once at least one guest has joined).
-// Guests see a "waiting for the host" message.
+// Unified pre-game screen: shows who has joined (all 6 slots), the invite
+// link + QR (host), and EITHER a name input to take a seat (if this browser
+// hasn't joined yet) or the Start button / waiting message (once seated).
 // ============================================================
 
 import React, { useState } from 'react';
@@ -12,26 +12,56 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useLocale } from '@/context/LocaleProvider';
 import { MAX_PLAYERS, type Player } from '@/lib/types';
 import { playerColor, playerInitial } from '@/lib/player-colors';
+import { getSavedName, saveName } from '@/lib/client-id';
 import { playSound } from '@/lib/sounds';
 
 interface LobbyProps {
   players:   Player[];
-  me:        Player;
+  /** This browser's seat, or null if it hasn't joined yet. */
+  me:        Player | null;
+  /** Host intent from the URL (used before a seat is claimed). */
+  asHost:    boolean;
   shareLink: string;
+  /** The game is full (no free seat). */
+  full:      boolean;
   onStart:   () => void;
+  onJoin:    (name: string) => Promise<void> | void;
 }
 
-export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
+export default function Lobby({ players, me, asHost, shareLink, full, onStart, onJoin }: LobbyProps) {
   const { t } = useLocale();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied]       = useState(false);
+  const [name, setName]           = useState(() => getSavedName());
+  const [joining, setJoining]     = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
-  const isHost   = me.role === 'host';
+  const seated   = !!me;
+  const isHost   = me ? me.role === 'host' : asHost;
   const canStart = players.length >= 2;
+  const emptySlots = Math.max(0, MAX_PLAYERS - players.length);
+
+  async function handleJoinSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setNameError(t('join.errorEmptyName'));
+      return;
+    }
+    setNameError(null);
+    setJoining(true);
+    playSound('click');
+    try {
+      saveName(trimmed);
+      await onJoin(trimmed);
+    } finally {
+      setJoining(false);
+    }
+  }
 
   return (
     <div className="flex min-h-dvh items-center justify-center p-4 sm:p-6">
-      <div className="card elevated flex flex-col gap-4 sm:gap-5 w-full max-w-md p-5 sm:p-6 max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]">
-        <div className="text-center shrink-0">
+      <div className="card elevated flex flex-col gap-5 w-full max-w-md p-5 sm:p-7">
+        <div className="text-center">
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">
             {t('lobby.title')}
           </h2>
@@ -40,12 +70,12 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
           </p>
         </div>
 
-        {/* ---- Player list (scrolls internally so the Start button always fits) ---- */}
-        <div className="flex flex-col gap-2 min-h-0 flex-1 overflow-y-auto">
+        {/* ---- Player list (all 6 slots) ---- */}
+        <div className="flex flex-col gap-2">
           {players.map((p) => (
             <div key={p.id} className="keycap-well-frame">
               <div
-                className={`keycap-well flex items-center gap-3 px-4 py-2.5${p.id === me.id ? ' ring-1 ring-[var(--accent)] ring-inset' : ''}`}
+                className={`keycap-well flex items-center gap-3 px-4 py-2.5${p.id === me?.id ? ' ring-1 ring-[var(--accent)] ring-inset' : ''}`}
               >
               <span
                 className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
@@ -62,7 +92,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
                     {t('lobby.host')}
                   </span>
                 )}
-                {p.id === me.id && (
+                {p.id === me?.id && (
                   <span style={{ color: 'var(--text-muted)' }}>({t('lobby.you')})</span>
                 )}
               </span>
@@ -70,7 +100,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
             </div>
           ))}
           {/* Empty seats */}
-          {Array.from({ length: MAX_PLAYERS - players.length }).map((_, i) => (
+          {Array.from({ length: emptySlots }).map((_, i) => (
             <div key={`empty-${i}`} className="keycap-well-frame opacity-50">
               <div className="keycap-well flex items-center gap-3 px-4 py-2.5 border border-dashed border-[var(--border)]">
               <span
@@ -85,9 +115,9 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
           ))}
         </div>
 
-        {/* ---- Invite link (host) ---- */}
+        {/* ---- Invite link + QR (host) ---- */}
         {isHost && (
-          <div className="flex flex-col items-center gap-3 shrink-0">
+          <div className="flex flex-col items-center gap-3">
             <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider font-semibold text-center">
               {t('lobby.shareInvite')}
             </p>
@@ -95,29 +125,68 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
               <QRCodeSVG value={shareLink} size={132} />
             </div>
             <div className="keycap-well-frame w-full">
-              <div className="keycap-well flex items-center gap-2 p-2.5">
-              <span className="flex-1 min-w-0 text-xs text-[var(--text-primary)] truncate font-mono">
-                {shareLink}
-              </span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(shareLink);
-                playSound('click');
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              className={`keycap keycap-secondary keycap-compact flex-shrink-0 font-semibold${copied ? ' text-[var(--correct)]' : ''}`}
-            >
-                {copied ? t('create.copied') : t('create.copy')}
-              </button>
+              {/* Flex layout lives on a plain div so truncation is reliable
+                  regardless of the .keycap-well display rule. */}
+              <div className="keycap-well p-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 min-w-0 truncate text-xs text-[var(--text-primary)] font-mono">
+                    {shareLink}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareLink);
+                      playSound('click');
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }}
+                    className={`keycap keycap-secondary keycap-compact flex-shrink-0 font-semibold${copied ? ' text-[var(--correct)]' : ''}`}
+                  >
+                    {copied ? t('create.copied') : t('create.copy')}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* ---- Start (host) / waiting (guests) ---- */}
-        {isHost ? (
-          <div className="flex flex-col items-center gap-2 shrink-0">
+        {/* ---- Action area: join (unseated) · start (host) · waiting (guest) ---- */}
+        {!seated ? (
+          full ? (
+            <div className="keycap-well-frame">
+              <p
+                className="keycap-well rounded-xl px-4 py-3 text-sm text-center"
+                style={{ color: 'var(--wrong)' }}
+              >
+                {t('join.full')}
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleJoinSubmit} className="flex flex-col gap-3">
+              <div className="keycap-input-frame">
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('join.namePlaceholder')}
+                  maxLength={24}
+                  autoFocus
+                  className="keycap-input w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base text-center"
+                />
+              </div>
+              {nameError && (
+                <p className="text-sm text-center" style={{ color: 'var(--wrong)' }}>{nameError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={joining}
+                className="keycap keycap-primary py-3.5 rounded-xl font-semibold text-base text-white"
+              >
+                {joining ? t('join.joining') : t('join.button')}
+              </button>
+            </form>
+          )
+        ) : isHost ? (
+          <div className="flex flex-col items-center gap-2">
             <button
               onClick={() => { playSound('click'); onStart(); }}
               disabled={!canStart}

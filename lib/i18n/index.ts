@@ -7,11 +7,12 @@ import {
   languageInstructionFor,
   localeFromBrowserLanguage,
   speechLangFor,
+  detectSpeechLang,
 } from './locale-meta';
 import { messages, type Locale } from './messages';
 
 export type { Locale };
-export { messages, LOCALES, languageInstructionFor, speechLangFor };
+export { messages, LOCALES, languageInstructionFor, speechLangFor, detectSpeechLang };
 
 export const LOCALE_STORAGE_KEY = 'whosmarter-locale';
 

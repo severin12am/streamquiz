@@ -12,7 +12,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { CreateGamePayload, Difficulty, Question } from '@/lib/types';
 import { sanitizeMcQuestion } from '@/lib/mc-utils';
-import { languageInstructionFor, LOCALES, type Locale } from '@/lib/i18n';
 import { buildQuestionPrompts } from '@/lib/quiz-prompts';
 
 export const dynamic = 'force-dynamic';
@@ -58,7 +57,6 @@ export async function POST(req: NextRequest) {
       difficulty,
       num_questions,
       mc_mode,
-      locale = 'en',
       previous_questions,
     } = body;
 
@@ -79,11 +77,15 @@ export async function POST(req: NextRequest) {
     }
     const count = Math.min(Math.max(Number(num_questions) || 5, 3), 10);
 
-    const safeLocale: Locale =
-      typeof locale === 'string' && (LOCALES as readonly string[]).includes(locale)
-        ? (locale as Locale)
-        : 'en';
-    const languageInstruction = languageInstructionFor(safeLocale);
+    // Generate the quiz in the SAME language the TOPIC is written in (detected
+    // from the topic text) — NOT the UI language. A Russian topic produces
+    // Russian questions, an English topic English ones, etc.
+    const languageInstruction =
+      `Detect the language of the quiz topic and write ALL question text and ` +
+      `answer options in that SAME language. Do not translate the topic or ` +
+      `switch languages. For example: a Russian topic must produce Russian ` +
+      `questions and options; an English topic must produce English questions ` +
+      `and options.`;
 
     const { systemPrompt, userPrompt } = buildQuestionPrompts({
       topic,

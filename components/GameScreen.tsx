@@ -14,7 +14,7 @@
 // only one who can start the game / drive the rematch regeneration.
 // ============================================================
 
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import CameraGrid    from './CameraGrid';
 import QuestionPanel  from './QuestionPanel';
 import WinnerScreen   from './WinnerScreen';
@@ -29,6 +29,7 @@ import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
 import SoundToggle from './SoundToggle';
 import { getClientId } from '@/lib/client-id';
 import { useLocale }    from '@/context/LocaleProvider';
+import { detectSpeechLang } from '@/lib/i18n';
 import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
 import { mergePreviousQuestions, rememberQuestions, filterUnseenQuestions } from '@/lib/question-history';
 
@@ -63,6 +64,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const iAmDone = !!me && me.done;
 
   useGameSounds({ game, players, me, timeLeft });
+
+  // Voice answering should listen in the QUIZ's language (derived from the
+  // topic/questions), not the UI language. Falls back to the UI speech tag.
+  const quizSpeechLang = useMemo(() => {
+    if (!game) return speechLang;
+    const sample = `${game.topic ?? ''} ${game.questions?.[0]?.question ?? ''} ${game.questions?.[1]?.question ?? ''}`;
+    return detectSpeechLang(sample, speechLang);
+  }, [game?.id, game?.topic, game?.questions, speechLang]);
 
   // ----------------------------------------------------------
   // 2. WebRTC camera mesh (one connection per other player)
@@ -169,7 +178,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   );
 
   const { isListening, isSupported, startListening, stopListening } =
-    useSpeechRecognition(onTranscriptUpdate, speechLang);
+    useSpeechRecognition(onTranscriptUpdate, quizSpeechLang);
 
   useEffect(() => {
     setAnswerDraft('');
@@ -335,26 +344,35 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     );
   }
 
-  // ----------------------------------------------------------
-  // Not seated yet → join screen
-  // ----------------------------------------------------------
-  if (!me) {
-    return <JoinScreen asHost={asHost} full={joinFull} onJoin={handleJoin} />;
-  }
-
   const shareLink =
     typeof window !== 'undefined' ? `${window.location.origin}/game/${gameId}` : '';
 
   // ----------------------------------------------------------
-  // Lobby (match not started yet)
+  // Lobby (match not started yet) — handles BOTH joining (no seat yet) and
+  // the seated waiting state in one screen: name input + invite + start.
   // ----------------------------------------------------------
   if (game.status === 'waiting') {
     return (
       <>
         <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
-        <Lobby players={players} me={me} shareLink={shareLink} onStart={startGame} />
+        <Lobby
+          players={players}
+          me={me}
+          asHost={asHost}
+          shareLink={shareLink}
+          full={joinFull}
+          onStart={startGame}
+          onJoin={handleJoin}
+        />
       </>
     );
+  }
+
+  // ----------------------------------------------------------
+  // Game already started but this browser hasn't taken a seat → late join.
+  // ----------------------------------------------------------
+  if (!me) {
+    return <JoinScreen asHost={asHost} full={joinFull} onJoin={handleJoin} />;
   }
 
   // ----------------------------------------------------------
