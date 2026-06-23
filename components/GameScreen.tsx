@@ -448,17 +448,20 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         />
       </div>
 
-      {/* ---- OVERLAY: quiz layer (translucent panels, no page scroll) ----
-           Hidden once the match ends (the winner sheet takes over).
-           On desktop it's a right-hand column; on mobile it's the lower
-           portion of the screen over the video. */}
+      {/* ---- OVERLAY: quiz layer — full-screen, centered, WhatsApp-style ----
+           Panels float over the video: topic/scores/timer/question up top,
+           answers pinned to the bottom, the middle left open so the call is
+           always visible. QuestionPanel manages its own pointer-events so the
+           transparent gaps don't swallow clicks. Hidden once the match ends. */}
       {!ended && (
         <div
-          className="absolute inset-x-0 bottom-0 z-20 flex justify-center p-1.5 sm:p-2
-                     lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[42%] lg:max-w-[640px] lg:p-2.5"
+          className="absolute inset-0 z-20 flex justify-center
+                     px-2 sm:px-3 lg:px-6
+                     pt-[max(0.5rem,env(safe-area-inset-top))]
+                     pb-[max(0.5rem,env(safe-area-inset-bottom))]"
           style={{ pointerEvents: 'none' }}
         >
-          <div className="w-full max-w-lg h-full max-h-[62vh] lg:max-h-full flex" style={{ pointerEvents: 'auto' }}>
+          <div className="w-full max-w-2xl flex">
             <QuestionPanel
               game={game}
               me={me}
@@ -472,7 +475,6 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
               onMCSelect={(i) => submitMCAnswer(i)}
               onTypeAnswer={handleTypeAnswer}
               onFinish={handleFinishAnswer}
-              voicePttActive={voiceMode && game.phase !== 'ended'}
             />
           </div>
         </div>

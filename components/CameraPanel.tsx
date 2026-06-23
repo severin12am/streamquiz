@@ -42,6 +42,8 @@ interface CameraPanelProps {
   camerasEnabled?: boolean;
   /** Remote peer connection state: true=connected, false=connecting, undefined=n/a (local). */
   connected?: boolean;
+  /** Render as a small picture-in-picture tile (self feed): trims the chrome. */
+  compact?:   boolean;
 }
 
 export default function CameraPanel({
@@ -58,6 +60,7 @@ export default function CameraPanel({
   isLocal = false,
   camerasEnabled = false,
   connected,
+  compact = false,
 }: CameraPanelProps) {
   const { t } = useLocale();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -218,97 +221,89 @@ export default function CameraPanel({
         />
       )}
 
-      {/* ---- Round result badge (top-left) ---- */}
+      {/* ---- IDENTITY PILL (top-left): color · name · score · answered ----
+           Everything a player needs to know about this feed lives here, so
+           the quiz overlay can keep the rest of the tile clear. */}
+      <div
+        className={`absolute z-10 top-1.5 start-1.5 flex items-center rounded-full text-white
+          ${compact ? 'gap-1 px-1.5 py-0.5' : 'gap-1.5 px-2 py-1'}`}
+        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      >
+        {color && (
+          <span
+            className={`inline-block rounded-full flex-shrink-0 ${compact ? 'w-2 h-2' : 'w-2.5 h-2.5'}`}
+            style={{ background: color }}
+          />
+        )}
+        {!compact && (
+          <span className="text-[11px] font-semibold tracking-wide uppercase truncate max-w-[8rem]">
+            {label}
+          </span>
+        )}
+        {typeof score === 'number' && (
+          <span
+            className={`font-bold tabular-nums ${compact ? 'text-[11px]' : 'text-xs'}`}
+            style={{ color: 'var(--gold)' }}
+          >
+            {score}
+          </span>
+        )}
+        {/* Answered-this-round indicator */}
+        {answered !== null && (
+          <span
+            className={`inline-block rounded-full flex-shrink-0 ${compact ? 'w-2 h-2' : 'w-2.5 h-2.5'}`}
+            style={{
+              background: answered ? 'var(--correct)' : 'transparent',
+              border: answered ? 'none' : '1.5px solid rgba(255,255,255,0.6)',
+            }}
+            title={answered ? 'Answered' : 'Thinking…'}
+          />
+        )}
+      </div>
+
+      {/* ---- Connection / mic diagnostics (top-right) — hidden on PiP ---- */}
+      {!compact && (
+        <div className="absolute top-1.5 end-1.5 flex items-center gap-1.5">
+          {connState && (
+            <span
+              className="flex items-center justify-center w-6 h-6 rounded-full"
+              style={{ background: 'rgba(0,0,0,0.55)' }}
+              title={connState === 'connected' ? t('diag.connected') : t('diag.connecting')}
+            >
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${connState === 'connected' ? '' : 'animate-pulse'}`}
+                style={{ background: connState === 'connected' ? 'var(--correct)' : 'var(--timer-warning)' }}
+              />
+            </span>
+          )}
+          <MicBadge
+            state={micState}
+            level={status.audioLevel}
+            title={
+              micState === 'off'
+                ? t('diag.micOff')
+                : micState === 'active'
+                ? t('diag.micActive')
+                : t('diag.micIdle')
+            }
+          />
+        </div>
+      )}
+
+      {/* ---- Round result badge (bottom-right) ---- */}
       {correct !== null && (
         <div
-          className="absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center text-base font-bold text-white"
+          className={`absolute bottom-1.5 end-1.5 rounded-full flex items-center justify-center font-bold text-white
+            ${compact ? 'w-5 h-5 text-xs' : 'w-7 h-7 text-base'}`}
           style={{ background: correct ? 'var(--correct)' : 'var(--wrong)' }}
         >
           {correct ? '\u2713' : '\u2717'}
         </div>
       )}
 
-      {/* ---- Score badge — floats ABOVE the top edge of the tile ---- */}
-      {typeof score === 'number' && (
-        <div
-          className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-20 px-2.5 py-0.5 rounded-full text-xs font-bold tabular-nums text-white shadow-md whitespace-nowrap"
-          style={{
-            background: 'var(--gold)',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-          }}
-        >
-          {score}
-        </div>
-      )}
-
-      {/* ---- Connection / mic diagnostics (top-left) ---- */}
-      <div className="absolute top-2 left-2 flex items-center gap-1.5">
-        {connState && (
-          <span
-            className="flex items-center justify-center w-6 h-6 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.55)' }}
-            title={connState === 'connected' ? t('diag.connected') : t('diag.connecting')}
-          >
-            <span
-              className={`inline-block w-2 h-2 rounded-full ${connState === 'connected' ? '' : 'animate-pulse'}`}
-              style={{ background: connState === 'connected' ? 'var(--correct)' : 'var(--timer-warning)' }}
-            />
-          </span>
-        )}
-        <MicBadge
-          state={micState}
-          level={status.audioLevel}
-          title={
-            micState === 'off'
-              ? t('diag.micOff')
-              : micState === 'active'
-              ? t('diag.micActive')
-              : t('diag.micIdle')
-          }
-        />
-      </div>
-
-      {/* ---- Player label at bottom (name + answered dot; live/offline) ---- */}
-      <div
-        className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 gap-2"
-        style={{ background: 'rgba(0,0,0,0.6)' }}
-      >
-        <span className="flex items-center gap-1.5 min-w-0">
-          {color && (
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ background: color }}
-            />
-          )}
-          <span className="text-xs font-semibold tracking-wider uppercase text-white truncate">
-            {label}
-          </span>
-          {/* Answered-this-round dot */}
-          {answered !== null && (
-            <span
-              className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-              style={{
-                background: answered ? 'var(--correct)' : 'transparent',
-                border: answered ? 'none' : '1.5px solid rgba(255,255,255,0.6)',
-              }}
-              title={answered ? 'Answered' : 'Thinking…'}
-            />
-          )}
-        </span>
-        {typeof score !== 'number' && (
-          <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-            <span
-              className="inline-block w-2 h-2 rounded-full"
-              style={{ background: stream ? 'var(--correct)' : 'var(--text-muted)' }}
-            />
-            {stream ? t('game.live') : t('game.offline')}
-          </span>
-        )}
-      </div>
-
-      {/* ---- Answering indicator (top-right corner) ---- */}
-      {isSpeaking && (
-        <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-[var(--accent)] text-white text-xs font-semibold px-2 py-1 rounded-full">
+      {/* ---- Answering indicator (bottom-left corner) ---- */}
+      {isSpeaking && !compact && (
+        <div className="absolute bottom-1.5 start-1.5 flex items-center gap-1.5 bg-[var(--accent)] text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
           {t('game.answering')}
         </div>

@@ -1,10 +1,11 @@
 'use client';
 // ============================================================
-// CameraGrid — responsive grid of every player's camera (up to 6).
+// CameraGrid — WhatsApp-style call stage.
 //
-// Each tile shows one player's live video (the local player's own camera
-// is mirrored), their name + running score, and a ✓/✗ badge during the
-// result reveal. Replaces the old fixed 2-camera layout.
+// The OTHER players' feeds fill the whole stage (one feed = full screen,
+// several = a fitted grid). The local player's own camera floats in a
+// small draggable-looking PiP tile in a corner — just like a 1:1 video
+// call. Scores + "answered" status live ON each tile (top-left pill).
 // ============================================================
 
 import React, { useEffect, useRef } from 'react';
@@ -35,10 +36,10 @@ interface CameraGridProps {
   className?:    string;
 }
 
-// Tailwind column count tuned to the number of players so tiles stay big.
-function gridColsClass(n: number): string {
+// Column count for the REMOTE feeds filling the stage (me lives in a PiP).
+function remoteGridClass(n: number): string {
   if (n <= 1) return 'grid-cols-1';
-  if (n === 2) return 'grid-cols-2';
+  if (n === 2) return 'grid-cols-1 sm:grid-cols-2';
   if (n <= 4) return 'grid-cols-2';
   return 'grid-cols-2 lg:grid-cols-3';
 }
@@ -59,6 +60,8 @@ export default function CameraGrid({
 }: CameraGridProps) {
   const showAnswered = phase === 'question' || phase === 'answering';
   const prevLogRef = useRef('');
+
+  const others = players.filter((p) => p.id !== me.id);
 
   // TEMP DEBUG — log stream assignment per tile when inputs change
   useEffect(() => {
@@ -86,33 +89,65 @@ export default function CameraGrid({
     });
   }, [players, me.id, localStream, remoteStreams, cameraError]);
 
+  const answeredOf = (p: Player) =>
+    showAnswered ? (mcMode ? p.mc_index !== null : p.done) : null;
+
+  // Solo (no remote peers yet): show my own feed full-screen, no PiP.
+  const stageList = others.length > 0 ? others : [me];
+
   return (
-    <div className={`grid ${gridColsClass(players.length)} auto-rows-fr gap-1.5 ${className}`}>
-      {players.map((p) => {
-        const isMe   = p.id === me.id;
-        const stream = isMe ? localStream : (remoteStreams[p.id] ?? null);
-        const answered = showAnswered
-          ? (mcMode ? p.mc_index !== null : p.done)
-          : null;
-        return (
+    <div className={`relative ${className}`}>
+      {/* ---- STAGE: remote feeds fill the screen ---- */}
+      <div className={`grid ${remoteGridClass(stageList.length)} auto-rows-fr gap-1.5 h-full w-full`}>
+        {stageList.map((p) => {
+          const isMe   = p.id === me.id;
+          const stream = isMe ? localStream : (remoteStreams[p.id] ?? null);
+          return (
+            <CameraPanel
+              key={p.id}
+              stream={stream}
+              label={p.name}
+              isSpeaking={speaking}
+              mirrored={isMe}
+              error={isMe ? cameraError : null}
+              score={p.score}
+              correct={showResult ? p.correct : null}
+              color={playerColor(p.slot)}
+              answered={answeredOf(p)}
+              isLocal={isMe}
+              camerasEnabled={camerasEnabled}
+              connected={isMe ? undefined : !!connected[p.id]}
+              className="h-full w-full rounded-lg"
+            />
+          );
+        })}
+      </div>
+
+      {/* ---- PiP: my own camera (only when there are remote peers) ---- */}
+      {others.length > 0 && (
+        <div
+          className="absolute z-20 overflow-hidden rounded-xl
+                     top-[max(0.5rem,env(safe-area-inset-top))] start-2
+                     w-20 h-28 sm:w-24 sm:h-32 lg:w-44 lg:h-32"
+          style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.45)' }}
+        >
           <CameraPanel
-            key={p.id}
-            stream={stream}
-            label={p.name}
+            stream={localStream}
+            label={me.name}
             isSpeaking={speaking}
-            mirrored={isMe}
-            error={isMe ? cameraError : null}
-            score={p.score}
-            correct={showResult ? p.correct : null}
-            color={playerColor(p.slot)}
-            answered={answered}
-            isLocal={isMe}
+            mirrored
+            error={cameraError}
+            score={me.score}
+            correct={showResult ? me.correct : null}
+            color={playerColor(me.slot)}
+            answered={answeredOf(me)}
+            isLocal
             camerasEnabled={camerasEnabled}
-            connected={isMe ? undefined : !!connected[p.id]}
-            className="h-full w-full rounded-lg"
+            compact
+            className="h-full w-full rounded-xl"
           />
-        );
-      })}
+        </div>
+      )}
     </div>
   );
 }

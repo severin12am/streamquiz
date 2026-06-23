@@ -42,7 +42,6 @@ interface QuestionPanelProps {
   onMCSelect:      (index: number) => void;
   onTypeAnswer:    (text: string) => void;
   onFinish:        () => void;
-  voicePttActive?: boolean;
 }
 
 export default function QuestionPanel({
@@ -58,7 +57,6 @@ export default function QuestionPanel({
   onMCSelect,
   onTypeAnswer,
   onFinish,
-  voicePttActive = false,
 }: QuestionPanelProps) {
   const { t } = useLocale();
   const currentQuestion = game.questions[game.current_question_index];
@@ -82,43 +80,42 @@ export default function QuestionPanel({
     }
   }
 
+  const panel = 'rgba(255,255,255,0.86)';
+
   return (
-    <div className="relative flex flex-col h-full min-h-0 gap-1.5 sm:gap-2">
-      {/* ---- TOP BAR — topic + progress (compact translucent strip) ---- */}
-      <div
-        className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl"
-        style={{ background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
-      >
-        <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-semibold tracking-wider text-[var(--text-muted)] uppercase leading-none">
-            {t('game.topic')}
-          </p>
-          <p className="text-xs font-medium text-[var(--text-secondary)] truncate">
-            {game.topic}
-          </p>
-        </div>
-        <div className="text-right shrink-0">
-          <p className="text-[9px] font-semibold tracking-wider text-[var(--text-muted)] uppercase leading-none">
-            {t('game.question')}
-          </p>
-          <p className="text-xs font-semibold text-[var(--text-primary)] tabular-nums">
+    <div className="relative flex flex-col h-full w-full min-h-0 items-center pointer-events-none">
+      {/* ================= TOP CLUSTER ================= */}
+      {/* topic + counter, scores (desktop), timer, status, question — all
+          centered and self-sized so the video stays visible around them. */}
+      <div className="w-full max-w-md mx-auto flex flex-col items-center gap-1.5 sm:gap-2 pointer-events-auto">
+        {/* topic + question counter (one centered pill) */}
+        <div
+          className="flex items-center gap-3 px-3 py-1.5 rounded-full"
+          style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+        >
+          <span className="flex items-baseline gap-1.5 min-w-0">
+            <span className="text-[9px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
+              {t('game.topic')}
+            </span>
+            <span className="text-xs font-medium text-[var(--text-secondary)] truncate max-w-[40vw] sm:max-w-[16rem]">
+              {game.topic}
+            </span>
+          </span>
+          <span className="w-px h-3.5 bg-[var(--border-strong)]" />
+          <span className="text-xs font-semibold text-[var(--text-primary)] tabular-nums whitespace-nowrap">
             {game.current_question_index + 1} / {game.questions.length}
-          </p>
+          </span>
         </div>
-      </div>
 
-      {/* ---- SCORES — always visible (translucent) ---- */}
-      <div
-        className="px-2 py-1 rounded-xl"
-        style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
-      >
-        <ScoreBoard players={players} meId={me.id} phase={phase} />
-      </div>
+        {/* scores / answered panel — desktop only (on mobile it lives on
+            each camera feed instead) */}
+        <div
+          className="hidden lg:block px-2 py-1 rounded-full max-w-full"
+          style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+        >
+          <ScoreBoard players={players} meId={me.id} phase={phase} />
+        </div>
 
-      {/* ---- MAIN — timer + question + answers; flex fills, NO page scroll ---- */}
-      <div
-        className="flex-1 min-h-0 flex flex-col items-center justify-start gap-1.5 sm:gap-2 px-1"
-      >
         {(phase === 'thinking' || phase === 'question' || phase === 'answering') && (
           <CountdownTimer current={timeLeft} total={timerTotal} remainingMs={timeLeftMs} />
         )}
@@ -127,7 +124,7 @@ export default function QuestionPanel({
         {phase === 'thinking' && (
           <div
             className="text-center px-3 py-1.5 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+            style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
           >
             <p className="text-base font-semibold" style={{ color: 'var(--accent)' }}>
               {t('game.getReady')}
@@ -142,7 +139,7 @@ export default function QuestionPanel({
         {phase === 'question' && game.mc_mode && (
           <div
             className="px-3 py-1 rounded-full text-center"
-            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+            style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
           >
             {iHavePicked ? (
               <p className="text-xs text-[var(--text-secondary)]">
@@ -164,7 +161,7 @@ export default function QuestionPanel({
         {phase === 'answering' && !iAmDone && (
           <div
             className="text-center px-3 py-1.5 rounded-xl"
-            style={{ background: 'rgba(47,158,111,0.85)', backdropFilter: 'blur(6px)' }}
+            style={{ background: 'rgba(47,158,111,0.9)', backdropFilter: 'blur(6px)' }}
           >
             <p className="text-base font-semibold text-white">
               {t('game.speakAnswerNow')}
@@ -179,7 +176,7 @@ export default function QuestionPanel({
         {phase === 'answering' && iAmDone && (
           <div
             className="text-center flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+            style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
           >
             <span className="text-2xl" style={{ color: 'var(--correct)' }}>{'\u2713'}</span>
             <p className="text-sm font-semibold text-[var(--text-primary)]">
@@ -195,7 +192,7 @@ export default function QuestionPanel({
         {phase === 'checking' && (
           <div
             className="text-center flex flex-col items-center gap-1 px-3 py-2 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+            style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
           >
             <div className="w-6 h-6 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
             <p className="text-sm font-medium text-[var(--text-secondary)]">
@@ -208,14 +205,21 @@ export default function QuestionPanel({
         {currentQuestion && phase !== 'ended' && phase !== 'result' && (
           <div
             className="w-full text-center px-3 py-2 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.86)', backdropFilter: 'blur(8px)', border: '1px solid var(--border)' }}
+            style={{ background: panel, backdropFilter: 'blur(8px)', border: '1px solid var(--border)' }}
           >
             <p className="text-sm sm:text-base lg:text-xl font-semibold leading-snug text-[var(--text-primary)]">
               {currentQuestion.question}
             </p>
           </div>
         )}
+      </div>
 
+      {/* ============ OPEN MIDDLE (video shows through) ============ */}
+      <div className="flex-1 min-h-0" />
+
+      {/* ================= BOTTOM CLUSTER ================= */}
+      {/* answers / voice area / result reveal — centered, pinned to bottom */}
+      <div className="w-full flex justify-center pointer-events-auto pb-[max(0.25rem,env(safe-area-inset-bottom))]">
         {/* ---- MC Options (2x2 always — fits without scrolling) ---- */}
         {game.mc_mode && currentQuestion?.options &&
           (phase === 'thinking' || phase === 'question' || phase === 'result') && (
@@ -235,7 +239,7 @@ export default function QuestionPanel({
           <div className="w-full max-w-lg flex flex-col gap-1.5">
             <div
               className="w-full p-2.5 rounded-xl min-h-[3.5rem]"
-              style={{ background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+              style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
             >
               <p className="text-[9px] font-semibold tracking-wider text-[var(--text-muted)] mb-0.5 uppercase">
                 {t('game.yourAnswer')}
@@ -255,7 +259,7 @@ export default function QuestionPanel({
               onChange={(e) => onTypeAnswer(e.target.value)}
               placeholder={t('game.typePlaceholder')}
               className="w-full rounded-xl px-3 py-2 text-sm text-[var(--text-primary)]"
-              style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+              style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
               onKeyDown={(e) => { if (e.key === 'Enter') onFinish(); }}
             />
 
@@ -265,7 +269,7 @@ export default function QuestionPanel({
             >
               {t('game.doneOptional')}
             </button>
-            <p className="text-center text-[10px] text-[var(--text-muted)]">
+            <p className="text-center text-[10px] text-white/90 font-medium">
               {t('game.autoSubmitHint')}
             </p>
           </div>
@@ -273,7 +277,7 @@ export default function QuestionPanel({
 
         {/* ---- Voice RESULT reveal (every player) ---- */}
         {phase === 'result' && !game.mc_mode && (
-          <div className="w-full max-w-lg flex flex-col gap-1.5 overflow-y-auto min-h-0 pr-0.5">
+          <div className="w-full max-w-lg flex flex-col gap-1.5 max-h-[42vh] overflow-y-auto pr-0.5">
             {[...players]
               .sort((a, b) => a.slot - b.slot)
               .map((p) => (
@@ -291,7 +295,7 @@ export default function QuestionPanel({
             {currentQuestion?.correct_answer && (
               <div
                 className="px-3 py-2 text-center rounded-xl"
-                style={{ background: 'rgba(47,158,111,0.9)', backdropFilter: 'blur(6px)' }}
+                style={{ background: 'rgba(47,158,111,0.92)', backdropFilter: 'blur(6px)' }}
               >
                 <p className="text-[9px] font-semibold tracking-wider text-white/80 mb-0.5 uppercase">
                   {t('game.correctAnswer')}
