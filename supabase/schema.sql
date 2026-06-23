@@ -29,9 +29,13 @@ CREATE TABLE IF NOT EXISTS games (
   cameras_enabled        BOOLEAN DEFAULT FALSE,
 
   -- Game mode:
-  --   'think'   → locked think countdown before answering (default, fair)
-  --   'classic' → buzz immediately when the question appears (original)
-  game_mode              TEXT DEFAULT 'think' CHECK (game_mode IN ('think', 'classic')),
+  --   'regular'  → answer immediately; MC answers changeable until the timer
+  --                ends; timer never shrinks; EVERY correct answer scores (default)
+  --   'hardcore' → answers lock on submit (voice one-shot); ONLY the first
+  --                correct answer scores (ordered by a server-synced timestamp)
+  --   'think'/'classic' → legacy modes, kept for older rows
+  game_mode              TEXT DEFAULT 'regular'
+                           CHECK (game_mode IN ('regular', 'hardcore', 'think', 'classic')),
 
   -- Generated questions array — stored as JSON.
   -- Each item: { question, options (MC only), correct_answer (MC only) }
@@ -180,6 +184,11 @@ CREATE TABLE IF NOT EXISTS players (
   transcript  TEXT NOT NULL DEFAULT '',        -- voice answer this round
   correct     BOOLEAN DEFAULT NULL,            -- judged correct? NULL before
   done        BOOLEAN NOT NULL DEFAULT FALSE,  -- voice "Done" lock-in
+
+  -- When this player committed their answer this round (server time, stamped
+  -- locally via serverNow()). 'hardcore' mode uses it to decide who was first
+  -- without rewarding a faster connection. NULL = not answered yet.
+  answered_at TIMESTAMPTZ DEFAULT NULL,
 
   rematch     BOOLEAN NOT NULL DEFAULT FALSE,  -- rematch vote
 

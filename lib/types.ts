@@ -17,12 +17,20 @@ export const MAX_PLAYERS = 6;
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 // -------------------------------------------------------
-// Game mode — how a round starts
-//   'think'   → locked think countdown, then everyone unlocked together
-//               (fair: a faster connection can't click early). DEFAULT.
-//   'classic' → answer immediately when the question appears (original)
+// Game mode — how a round plays out
+//   'regular'  → answer immediately; MC answers can be changed until the
+//                timer ends; the timer does NOT shrink when someone answers;
+//                EVERY correct answer scores. DEFAULT.
+//   'hardcore' → answer immediately; answers are locked the instant you
+//                submit (no changing, voice is one-shot); ONLY the first
+//                correct answer scores. "First" is decided by a server-synced
+//                timestamp taken when the player commits, so connection speed
+//                barely affects who wins.
+//   'think'    → (legacy) locked think countdown, then everyone unlocked
+//                together, with a short first-answer grace window.
+//   'classic'  → (legacy) answer immediately; first answer shrinks the timer.
 // -------------------------------------------------------
-export type GameMode = 'think' | 'classic';
+export type GameMode = 'regular' | 'hardcore' | 'think' | 'classic';
 
 // -------------------------------------------------------
 // A single question (as stored in games.questions JSONB)
@@ -93,6 +101,12 @@ export interface Player {
   /** Voice "Done" lock-in — when EVERY player is done the round advances. */
   done: boolean;
 
+  /** When this player committed their answer this round, as an ISO timestamp
+   *  in SERVER time (taken locally via serverNow() the instant they answer).
+   *  Used by 'hardcore' mode to decide who answered FIRST without letting a
+   *  faster connection win the race. null = hasn't answered this round. */
+  answered_at: string | null;
+
   /** Rematch vote — reset when a new match starts. */
   rematch: boolean;
 }
@@ -110,7 +124,8 @@ export interface Game {
   mc_mode: boolean;
   /** Host setting: request player cameras? Default false (mics only). */
   cameras_enabled: boolean;
-  /** Round-start mode: 'think' (locked countdown first) or 'classic'. */
+  /** Game mode: 'regular' (default) or 'hardcore' (first correct scores).
+   *  'think'/'classic' are legacy values kept for older game rows. */
   game_mode: GameMode;
   questions: Question[];
   status: GameStatus;
@@ -133,7 +148,7 @@ export interface CreateGamePayload {
   difficulty: Difficulty;
   num_questions: number;
   mc_mode: boolean;
-  /** Round-start mode (defaults to 'think'). */
+  /** Game mode (defaults to 'regular'). */
   game_mode?: GameMode;
   /** UI language — questions are generated in this language. */
   locale?: Locale;

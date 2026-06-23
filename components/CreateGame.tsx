@@ -33,7 +33,7 @@ export default function CreateGame() {
   const [difficulty,   setDifficulty]   = useState<Difficulty>('medium');
   const [numQuestions, setNumQuestions] = useState(5);
   const [mcMode,       setMcMode]       = useState(true);
-  const [gameMode,     setGameMode]     = useState<GameMode>('classic');
+  const [gameMode,     setGameMode]     = useState<GameMode>('regular');
   const [camerasEnabled, setCamerasEnabled] = useState(true);
 
   // ---- UI state ----
@@ -286,7 +286,7 @@ export default function CreateGame() {
               {t('create.modeTitle')}
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
-              {(['think', 'classic'] as GameMode[]).map((m) => (
+              {(['regular', 'hardcore'] as GameMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -295,12 +295,12 @@ export default function CreateGame() {
                     gameMode === m ? 'keycap-primary' : 'keycap-secondary'
                   }`}
                 >
-                  {m === 'think' ? t('create.modeThink') : t('create.modeClassic')}
+                  {m === 'regular' ? t('create.modeRegular') : t('create.modeHardcore')}
                 </button>
               ))}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1.5">
-              {gameMode === 'think' ? t('create.modeThinkHint') : t('create.modeClassicHint')}
+              {gameMode === 'regular' ? t('create.modeRegularHint') : t('create.modeHardcoreHint')}
             </p>
           </div>
 

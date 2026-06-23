@@ -256,7 +256,7 @@ export default function CameraPanel({
               background: answered ? 'var(--correct)' : 'transparent',
               border: answered ? 'none' : '1.5px solid rgba(255,255,255,0.6)',
             }}
-            title={answered ? 'Answered' : 'Thinking…'}
+            title={answered ? t('game.tileAnswered') : t('game.tileThinking')}
           />
         )}
       </div>

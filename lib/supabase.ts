@@ -287,7 +287,7 @@ export async function updatePlayer(playerId: string, patch: Partial<Player>) {
 export async function resetPlayersForRound(gameId: string) {
   const { error } = await supabase
     .from('players')
-    .update({ mc_index: null, transcript: '', correct: null, done: false })
+    .update({ mc_index: null, transcript: '', correct: null, done: false, answered_at: null })
     .eq('game_id', gameId);
   if (error) console.error('[WhoSmarter] resetPlayersForRound error:', error.message);
 }
@@ -304,6 +304,7 @@ export async function resetPlayersForMatch(gameId: string) {
       transcript: '',
       correct: null,
       done: false,
+      answered_at: null,
       rematch: false,
     })
     .eq('game_id', gameId);

@@ -14,6 +14,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Player, GamePhase } from '@/lib/types';
 import { playerColor, playerInitial } from '@/lib/player-colors';
+import { useLocale } from '@/context/LocaleProvider';
 
 interface ScoreBoardProps {
   players: Player[];
@@ -23,6 +24,7 @@ interface ScoreBoardProps {
 }
 
 export default function ScoreBoard({ players, meId, phase }: ScoreBoardProps) {
+  const { t } = useLocale();
   // Track previous scores so we can flash the ones that changed.
   const prevScores = useRef<Record<string, number>>({});
   const [flashing, setFlashing] = useState<Record<string, boolean>>({});
@@ -83,7 +85,7 @@ export default function ScoreBoard({ players, meId, phase }: ScoreBoardProps) {
                   background: answered ? colour : 'transparent',
                   border: answered ? 'none' : '1.5px solid var(--border-strong)',
                 }}
-                title={answered ? 'Answered' : 'Thinking…'}
+                title={answered ? t('game.tileAnswered') : t('game.tileThinking')}
               />
             )}
             <span

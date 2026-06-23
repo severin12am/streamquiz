@@ -73,6 +73,12 @@ export default function QuestionPanel({
   const iHavePicked   = myMcPick !== null;
   const someonePicked = players.some((p) => p.mc_index !== null);
 
+  // Mode behaviour: 'regular' lets you change your MC pick until the timer
+  // ends; legacy 'classic'/'think' shrink the timer when someone answers.
+  const isRegular   = game.game_mode === 'regular';
+  const legacyShrink = game.game_mode === 'classic' || game.game_mode === 'think';
+  const canPick      = phase === 'question' && (isRegular || !iHavePicked);
+
   // WHO chose each option (shown at the reveal so everyone can see what
   // each player picked — colour-coded by player).
   const picksByOption: OptionPick[][] = [[], [], [], []];
@@ -88,8 +94,8 @@ export default function QuestionPanel({
   }
 
   // Translucent surfaces (more see-through than before, per request).
-  const panel  = 'rgba(255,255,255,0.6)';
-  const panelQ = 'rgba(255,255,255,0.66)';   // question text — slightly stronger for legibility
+  const panel  = 'rgba(255,255,255,0.42)';
+  const panelQ = 'rgba(255,255,255,0.5)';   // question text — slightly stronger for legibility
 
   // ----- Shared "timer + status + question" block. Rendered beside the PiP
   //       on mobile (top) and above the answers on desktop (bottom). -----
@@ -122,9 +128,9 @@ export default function QuestionPanel({
         >
           {iHavePicked ? (
             <p className="text-xs text-[var(--text-secondary)]">
-              {t('mc.answerLocked')} · {timeLeft}s
+              {isRegular ? t('mc.canChange') : t('mc.answerLocked')} · {timeLeft}s
             </p>
-          ) : someonePicked ? (
+          ) : legacyShrink && someonePicked ? (
             <p className="text-sm font-semibold" style={{ color: 'var(--buzz-red)' }}>
               {t('mc.someoneAnswered', { n: timeLeft })}
             </p>
@@ -238,7 +244,7 @@ export default function QuestionPanel({
             correctAnswer={phase === 'result' ? currentQuestion.correct_answer : undefined}
             myPick={myMcPick}
             picksByOption={phase === 'result' ? picksByOption : undefined}
-            canSelect={phase === 'question' && !iHavePicked}
+            canSelect={canPick}
             youLabel={t('mc.you')}
             onSelect={onMCSelect}
           />
@@ -271,7 +277,7 @@ export default function QuestionPanel({
               onChange={(e) => onTypeAnswer(e.target.value)}
               placeholder={t('game.typePlaceholder')}
               className="w-full rounded-xl px-3 py-2 text-sm text-[var(--text-primary)]"
-              style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+              style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
               onKeyDown={(e) => { if (e.key === 'Enter') onFinish(); }}
             />
 
@@ -311,7 +317,7 @@ export default function QuestionPanel({
             {currentQuestion?.correct_answer && (
               <div
                 className="px-3 py-2 text-center rounded-xl"
-                style={{ background: 'rgba(47,158,111,0.82)', backdropFilter: 'blur(6px)' }}
+                style={{ background: 'rgba(47,158,111,0.72)', backdropFilter: 'blur(6px)' }}
               >
                 <p className="text-[9px] font-semibold tracking-wider text-white/85 mb-0.5 uppercase">
                   {t('game.correctAnswer')}
@@ -350,7 +356,7 @@ function TranscriptResult({
     <div
       className="w-full px-3 py-2 flex items-center gap-2.5 rounded-xl"
       style={{
-        background: 'rgba(255,255,255,0.86)',
+        background: 'rgba(255,255,255,0.62)',
         backdropFilter: 'blur(8px)',
         border: '1px solid var(--border)',
         borderLeft: `4px solid ${colour}`,

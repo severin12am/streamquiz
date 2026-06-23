@@ -14,21 +14,30 @@
 //     game keeps going even if the host disconnects.
 //
 // GAME MODES (set at creation):
-//   • 'think' (default, fair): each round starts LOCKED for
-//     THINK_TIME_SECONDS — nobody can answer. When the server deadline
-//     passes, EVERYONE unlocks at the same instant (the "GO").
-//   • 'classic': round opens immediately.
+//   • 'regular' (default): round opens immediately. The timer is fixed
+//     (ANSWER_TIME_SECONDS) and NEVER shrinks when someone answers. In MC
+//     you may CHANGE your pick until the timer ends. EVERY correct answer
+//     scores +1. Round ends early only when EVERYONE has answered.
+//   • 'hardcore': round opens immediately. Your answer LOCKS the instant you
+//     submit (no changing; voice is one-shot, a wrong answer earns nothing).
+//     ONLY the FIRST correct answer scores. "First" is decided by a
+//     server-synced timestamp (answered_at) stamped the moment a player
+//     commits — so a faster connection barely affects who wins.
+//   • 'think'/'classic' (legacy): kept working for old game rows. 'think'
+//     starts LOCKED for THINK_TIME_SECONDS; both legacy modes shrink the
+//     timer to FIRST_ANSWER_GRACE_SECONDS once the first player answers.
 //
 // ROUND FLOW (voice — no buzzer):  [thinking →] answering → checking → result → next
 //   Every player talks into their OWN row; each answer is judged
-//   independently, so everyone who's right scores.
+//   independently. In 'regular' everyone who's right scores; in 'hardcore'
+//   only the earliest correct answer (by answered_at) scores.
 //
 // ROUND FLOW (multiple choice):    [thinking →] question → result → next
-//   Everyone has the same QUESTION_TIME window. The round resolves when
-//   the timer ends OR when every player has picked (early advance). Each
-//   correct pick scores +1.
+//   Everyone has the same answer window. The round resolves when the timer
+//   ends OR when every player has answered (early advance).
 //
-// SCORING: each correct answer = 1 point.
+// SCORING: each correct answer = 1 point ('regular'); first correct = 1 point
+//   ('hardcore').
 // ============================================================
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -44,15 +53,27 @@ import type { Game, Player, Question } from '@/lib/types';
 // -------------------------------------------------------
 // TIMING SETTINGS — change these to adjust game pacing (seconds)
 // -------------------------------------------------------
-const THINK_TIME_SECONDS    = 5;    // (think mode) locked countdown before answering
-const QUESTION_TIME_SECONDS = 15;   // MC: time to pick before the round resolves
-const VOICE_ANSWER_SECONDS  = 12;   // voice: time everyone has to speak
+const THINK_TIME_SECONDS    = 5;    // (legacy think mode) locked countdown before answering
+const QUESTION_TIME_SECONDS = 20;   // MC: time to answer before the round resolves
+const VOICE_ANSWER_SECONDS  = 20;   // voice: time everyone has to speak
 const RESULT_TIME_SECONDS   = 5;    // how long the result screen shows
 const CHECK_TIMEOUT_SECONDS = 15;   // safety: max time to wait for AI judging
-// The moment the FIRST player locks in an answer, everyone else gets only
-// this many seconds left to respond (it's a race — answer first). Applies to
-// both multiple-choice ('question') and voice ('answering') rounds.
+// (LEGACY 'classic'/'think' only) The moment the FIRST player locks in an
+// answer, everyone else gets only this many seconds left to respond. The new
+// 'regular'/'hardcore' modes never shrink the timer.
 const FIRST_ANSWER_GRACE_SECONDS = 4;
+
+// Modes where the timer shrinks to FIRST_ANSWER_GRACE_SECONDS once the first
+// player answers. The new modes ('regular'/'hardcore') keep the full timer.
+function shrinksOnFirstAnswer(game: Game | null): boolean {
+  return game?.game_mode === 'classic' || game?.game_mode === 'think';
+}
+
+// Server-time milliseconds a player committed their answer (for ordering in
+// 'hardcore'); players who never answered sort last.
+function answeredMs(p: Player): number {
+  return p.answered_at ? new Date(p.answered_at).getTime() : Number.POSITIVE_INFINITY;
+}
 
 // -------------------------------------------------------
 // NETWORK RESILIENCE SETTINGS
@@ -88,9 +109,10 @@ function phaseTotalSeconds(game: Game | null): number {
   }
 }
 
-// Where a fresh round begins. THINK mode starts LOCKED; CLASSIC jumps in.
+// Where a fresh round begins. Legacy THINK mode starts LOCKED; every other
+// mode ('regular'/'hardcore'/'classic') jumps straight into answering.
 function roundStartPatch(game: Game | null): Partial<Game> {
-  const mode = game?.game_mode ?? 'think';
+  const mode = game?.game_mode ?? 'regular';
   if (mode === 'think') {
     return { phase: 'thinking', phase_deadline: deadlineIn(THINK_TIME_SECONDS) };
   }
@@ -254,10 +276,20 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
         roster.map(async (p) => ({
           id: p.id,
           score: p.score,
+          answeredAt: answeredMs(p),
           correct: await judge(p.transcript),
         }))
       );
       const anyCorrect = results.some((r) => r.correct);
+
+      // HARDCORE: only the EARLIEST correct answer (by server-stamped
+      // answered_at) scores. REGULAR/legacy: every correct answer scores.
+      const winnerId =
+        g.game_mode === 'hardcore'
+          ? results.filter((r) => r.correct).sort((a, b) => a.answeredAt - b.answeredAt)[0]?.id ?? null
+          : null;
+      const scores = (r: { id: string; correct: boolean }) =>
+        g.game_mode === 'hardcore' ? r.id === winnerId : r.correct;
 
       const won = await updateGameIfPhase(gameId, 'checking', {
         phase: 'result',
@@ -271,7 +303,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
           results.map((r) =>
             updatePlayer(r.id, {
               correct: r.correct,
-              score: r.score + (r.correct ? 1 : 0),
+              score: r.score + (scores(r) ? 1 : 0),
             })
           )
         );
@@ -298,6 +330,15 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
 
     const anyCorrect = roster.some(correctOf);
 
+    // HARDCORE: only the EARLIEST correct answer (by server-stamped
+    // answered_at) scores. REGULAR/legacy: every correct answer scores.
+    const winnerId =
+      g.game_mode === 'hardcore'
+        ? roster.filter(correctOf).sort((a, b) => answeredMs(a) - answeredMs(b))[0]?.id ?? null
+        : null;
+    const scores = (p: Player) =>
+      g.game_mode === 'hardcore' ? p.id === winnerId : correctOf(p);
+
     const won = await updateGameIfPhase(gameId, 'question', {
       phase: 'result',
       answer_correct: anyCorrect,
@@ -307,13 +348,12 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
 
     if (won) {
       await Promise.all(
-        roster.map((p) => {
-          const correct = correctOf(p);
-          return updatePlayer(p.id, {
-            correct,
-            score: p.score + (correct ? 1 : 0),
-          });
-        })
+        roster.map((p) =>
+          updatePlayer(p.id, {
+            correct: correctOf(p),
+            score: p.score + (scores(p) ? 1 : 0),
+          })
+        )
       );
     }
   }, [gameId]);
@@ -371,11 +411,14 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
       }
       const roundReady = answerablePhase && roundReadyRef.current === g.phase_deadline;
 
-      // --- FIRST-ANSWER RACE: as soon as ONE player has answered, cut the
-      //     remaining time down to FIRST_ANSWER_GRACE_SECONDS so the rest
-      //     have to hurry. Compare-and-swap on the deadline keeps it safe:
-      //     only one client wins and it can only fire once per round. ---
-      if (roundReady &&
+      // --- FIRST-ANSWER RACE (legacy 'classic'/'think' only): as soon as ONE
+      //     player has answered, cut the remaining time down to
+      //     FIRST_ANSWER_GRACE_SECONDS so the rest have to hurry. The new
+      //     'regular'/'hardcore' modes keep the full timer. Compare-and-swap on
+      //     the deadline keeps it safe: only one client wins and it can only
+      //     fire once per round. ---
+      if (shrinksOnFirstAnswer(g) &&
+          roundReady &&
           g.phase_deadline &&
           shrunkDeadline.current !== g.phase_deadline &&
           roster.some((p) => hasAnswered(p, g.mc_mode)) &&
@@ -489,13 +532,21 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
 
   // Pick a multiple-choice option (records MY pick only). Everyone has
   // the same window; the round resolves on the timer or once all pick.
+  //   • 'regular' → you may CHANGE your pick freely until the timer ends.
+  //   • everything else → your pick LOCKS the instant you submit.
+  // The FIRST commit stamps answered_at (server time) so 'hardcore' can rank
+  // who answered first without rewarding a faster connection.
   const submitMCAnswer = useCallback(async (optionIndex: number) => {
     const g = gameRef.current;
     const meNow = playersRef.current.find((p) => p.client_id === clientId);
     if (!g || !meNow || !g.mc_mode) return;
     if (g.phase !== 'question') return;
-    if (meNow.mc_index !== null) return; // can't change your pick
-    await updatePlayer(meNow.id, { mc_index: optionIndex });
+    const alreadyPicked = meNow.mc_index !== null;
+    const canChange = g.game_mode === 'regular';
+    if (alreadyPicked && !canChange) return; // locked pick (hardcore/legacy)
+    const patch: Partial<Player> = { mc_index: optionIndex };
+    if (!alreadyPicked) patch.answered_at = new Date(serverNow()).toISOString();
+    await updatePlayer(meNow.id, patch);
   }, [clientId]);
 
   // Live transcript update (voice). Writes to MY row only.
@@ -506,11 +557,15 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   }, [clientId]);
 
   // Finish answering early (voice). Marks me done (+ optional final text).
+  // Stamps answered_at (server time) on the FIRST commit so 'hardcore' can
+  // rank who answered first fairly (voice is one-shot in that mode).
   const finishAnswer = useCallback(async (finalText?: string) => {
     const meNow = playersRef.current.find((p) => p.client_id === clientId);
     if (!meNow) return;
+    if (meNow.done) return; // already locked in this round
     const patch: Partial<Player> = { done: true };
     if (typeof finalText === 'string') patch.transcript = finalText;
+    if (!meNow.answered_at) patch.answered_at = new Date(serverNow()).toISOString();
     await updatePlayer(meNow.id, patch);
   }, [clientId]);
 

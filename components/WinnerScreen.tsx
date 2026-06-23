@@ -48,7 +48,7 @@ export default function WinnerScreen({
   return (
     <div
       className="absolute inset-x-0 bottom-0 z-30 flex flex-col gap-3 sm:gap-4 p-3 sm:p-5 max-h-[88vh] overflow-y-auto rounded-t-2xl"
-      style={{ background: 'rgba(238,243,236,0.94)', backdropFilter: 'blur(10px)', borderTop: '1px solid var(--border)' }}
+      style={{ background: 'rgba(238,243,236,0.82)', backdropFilter: 'blur(12px)', borderTop: '1px solid var(--border)' }}
     >
       {/* ---- Winner banner ---- */}
       <div className="flex flex-col items-center text-center">
@@ -122,7 +122,7 @@ export default function WinnerScreen({
               key={p.id}
               className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg"
               style={{
-                background: 'rgba(255,255,255,0.8)',
+                background: 'rgba(255,255,255,0.6)',
                 border: '1px solid var(--border)',
                 boxShadow: isWinner ? '0 0 0 2px var(--gold)' : undefined,
               }}
