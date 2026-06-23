@@ -30,8 +30,8 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
 
   return (
     <div className="flex min-h-dvh items-center justify-center p-4 sm:p-6">
-      <div className="card elevated flex flex-col gap-6 w-full max-w-md p-5 sm:p-7">
-        <div className="text-center">
+      <div className="card elevated flex flex-col gap-4 sm:gap-5 w-full max-w-md p-5 sm:p-6 max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]">
+        <div className="text-center shrink-0">
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">
             {t('lobby.title')}
           </h2>
@@ -40,8 +40,8 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
           </p>
         </div>
 
-        {/* ---- Player list ---- */}
-        <div className="flex flex-col gap-2">
+        {/* ---- Player list (scrolls internally so the Start button always fits) ---- */}
+        <div className="flex flex-col gap-2 min-h-0 flex-1 overflow-y-auto">
           {players.map((p) => (
             <div key={p.id} className="keycap-well-frame">
               <div
@@ -87,7 +87,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
 
         {/* ---- Invite link (host) ---- */}
         {isHost && (
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-3 shrink-0">
             <p className="text-[var(--text-muted)] text-xs uppercase tracking-wider font-semibold text-center">
               {t('lobby.shareInvite')}
             </p>
@@ -96,7 +96,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
             </div>
             <div className="keycap-well-frame w-full">
               <div className="keycap-well flex items-center gap-2 p-2.5">
-              <span className="flex-1 text-xs text-[var(--text-primary)] truncate font-mono">
+              <span className="flex-1 min-w-0 text-xs text-[var(--text-primary)] truncate font-mono">
                 {shareLink}
               </span>
             <button
@@ -117,7 +117,7 @@ export default function Lobby({ players, me, shareLink, onStart }: LobbyProps) {
 
         {/* ---- Start (host) / waiting (guests) ---- */}
         {isHost ? (
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-2 shrink-0">
             <button
               onClick={() => { playSound('click'); onStart(); }}
               disabled={!canStart}

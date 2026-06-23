@@ -85,107 +85,59 @@ export default function CameraPanel({
   const cameraMissing =
     camerasEnabled && !!stream && !status.videoLive && (!isLocal || !error);
 
-  // Attach the stream to the <video> element whenever it changes.
-  // We also explicitly call play() because browsers can silently
-  // block autoplay of UNMUTED video (the remote feed has audio),
-  // which would otherwise show a frozen/black frame.
+  // Stable identity of the attached media. We key the attach/play effects on
+  // this (NOT on the stream object or unrelated props) so we only touch the
+  // <video> element when the actual media changes.
+  const streamId = stream?.id ?? null;
+
+  // Attach the MediaStream to the <video> element.
+  //
+  // CRITICAL: the <video> element is ALWAYS mounted (see render below) — it is
+  // never conditionally removed from the DOM. A remote stream can briefly drop
+  // and return (ICE restart / presence flap, common on iOS + TURN); if the
+  // element were unmounted at that moment, a pending play() throws
+  // "play() request was interrupted because the media was removed from the
+  // document" and the returning feed never renders. Keeping one stable element
+  // and just swapping srcObject avoids that entirely.
   useEffect(() => {
     const video = videoRef.current;
+    if (!video) return;
+
+    if (!stream) {
+      if (video.srcObject) video.srcObject = null;
+      return;
+    }
+    if (video.srcObject === stream) return; // already attached — no churn
+    video.srcObject = stream;
+
     if (CAMERA_DEBUG) {
-      if (!video) {
-        console.log('[Camera] effect — no video element yet', { label, mirrored, hasStream: !!stream });
-      } else if (!stream) {
-        console.log('[Camera] no stream — showing placeholder', { label, mirrored, error });
-      } else {
-        console.log('[Camera] attaching stream to <video>', {
-          label,
-          mirrored,
-          streamId: stream.id,
-          muted: mirrored,
-          tracks: stream.getTracks().map((t) => ({
-            kind: t.kind,
-            enabled: t.enabled,
-            readyState: t.readyState,
-            muted: t.muted,
-          })),
-        });
-      }
+      console.log('[Camera] attached stream to <video>', {
+        label, mirrored, streamId: stream.id,
+        tracks: stream.getTracks().map((tr) => ({ kind: tr.kind, readyState: tr.readyState, muted: tr.muted })),
+      });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- key on stream identity only
+  }, [streamId]);
 
-    if (video && stream) {
-      video.srcObject = stream;
-      video.play()
-        .then(() => {
-          if (CAMERA_DEBUG) {
-            console.log('[Camera] video.play() succeeded', {
-              label,
-              mirrored,
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-              readyState: video.readyState,
-              paused: video.paused,
-            });
-          }
-        })
-        .catch((err) => {
-          // Autoplay was blocked — log it; user interaction (clicking
-          // Start) usually unblocks it on the next attempt.
-          console.warn('[Camera] video.play() blocked', { label, mirrored, error: err?.message });
-        });
+  // Play guard: start playback once metadata is ready and SWALLOW the benign
+  // AbortError (a superseded play) and autoplay-gate NotAllowedError. Without
+  // this, transient interruptions spam the console and can leave a black tile.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
 
-      // ---- TEMP DEBUG: confirm whether frames actually render ----
-      // A remote tile can have a stream attached yet stay black if no media
-      // ever arrives. These events tell us if/when real frames show up.
-      if (CAMERA_DEBUG && !mirrored) {
-        const onLoadedMetadata = () =>
-          console.log('[Camera] remote <video> loadedmetadata', {
-            label, w: video.videoWidth, h: video.videoHeight,
-          });
-        const onPlaying = () =>
-          console.log('[Camera] remote <video> PLAYING (frames flowing)', {
-            label, w: video.videoWidth, h: video.videoHeight,
-          });
-        const onResize = () =>
-          console.log('[Camera] remote <video> resize', {
-            label, w: video.videoWidth, h: video.videoHeight,
-          });
-        const onStalled = () => console.warn('[Camera] remote <video> stalled', { label });
-        const onWaiting = () => console.warn('[Camera] remote <video> waiting (no data)', { label });
+    const tryPlay = () => {
+      video.play().catch((err: DOMException) => {
+        if (err?.name === 'AbortError' || err?.name === 'NotAllowedError') return;
+        console.warn('[Camera] play() failed', { label, error: err?.message });
+      });
+    };
 
-        video.addEventListener('loadedmetadata', onLoadedMetadata);
-        video.addEventListener('playing', onPlaying);
-        video.addEventListener('resize', onResize);
-        video.addEventListener('stalled', onStalled);
-        video.addEventListener('waiting', onWaiting);
-
-        const trackListeners = stream.getVideoTracks().map((track) => {
-          const onMute = () => console.warn('[Camera] remote video track MUTED (no frames arriving)', { label, trackId: track.id });
-          const onUnmute = () => console.log('[Camera] remote video track unmuted (frames arriving)', { label, trackId: track.id });
-          const onEnded = () => console.warn('[Camera] remote video track ENDED', { label, trackId: track.id });
-          console.log('[Camera] remote video track attached', {
-            label, trackId: track.id, readyState: track.readyState, muted: track.muted, enabled: track.enabled,
-          });
-          track.addEventListener('mute', onMute);
-          track.addEventListener('unmute', onUnmute);
-          track.addEventListener('ended', onEnded);
-          return { track, onMute, onUnmute, onEnded };
-        });
-
-        return () => {
-          video.removeEventListener('loadedmetadata', onLoadedMetadata);
-          video.removeEventListener('playing', onPlaying);
-          video.removeEventListener('resize', onResize);
-          video.removeEventListener('stalled', onStalled);
-          video.removeEventListener('waiting', onWaiting);
-          trackListeners.forEach(({ track, onMute, onUnmute, onEnded }) => {
-            track.removeEventListener('mute', onMute);
-            track.removeEventListener('unmute', onUnmute);
-            track.removeEventListener('ended', onEnded);
-          });
-        };
-      }
-    }
-  }, [stream, label, mirrored, error]);
+    video.addEventListener('loadedmetadata', tryPlay);
+    if (video.readyState >= 1) tryPlay(); // metadata already present (re-attach)
+    return () => video.removeEventListener('loadedmetadata', tryPlay);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- key on stream identity only
+  }, [streamId]);
 
   return (
     <div
@@ -197,21 +149,23 @@ export default function CameraPanel({
         transition: 'border-color 0.2s ease',
       }}
     >
-      {/* ---- Camera video ---- */}
-      {stream ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={mirrored} // mute local video to avoid audio echo
-          className="w-full h-full object-cover"
-          style={{
-            transform: mirrored ? 'scaleX(-1)' : 'none',
-          }}
-        />
-      ) : (
-        /* Placeholder when camera isn't ready yet */
-        <div className="flex flex-col items-center justify-center h-full gap-3">
+      {/* ---- Camera video — ALWAYS mounted (never conditionally removed) so a
+           briefly-dropped remote stream can't interrupt play() / blank the tile. */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={mirrored} // mute local video to avoid audio echo
+        className="w-full h-full object-cover"
+        style={{
+          transform: mirrored ? 'scaleX(-1)' : 'none',
+          visibility: stream ? 'visible' : 'hidden',
+        }}
+      />
+
+      {/* Placeholder overlay when there's no stream yet */}
+      {!stream && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           <div className="w-16 h-16 rounded-full bg-[var(--bg-card)] flex items-center justify-center">
             {/* Simple camera icon made with CSS */}
             <svg
