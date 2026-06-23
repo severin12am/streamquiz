@@ -273,7 +273,7 @@ export default function CreateGame() {
             </label>
             <KeycapSegSlider
               min={3}
-              max={10}
+              max={20}
               value={numQuestions}
               onChange={setNumQuestions}
               aria-label={t('create.questions')}

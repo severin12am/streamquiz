@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const count = Math.min(Math.max(Number(num_questions) || 5, 3), 10);
+    const count = Math.min(Math.max(Number(num_questions) || 5, 3), 20);
 
     // Generate the quiz in the SAME language the TOPIC is written in (detected
     // from the topic text) — NOT the UI language. A Russian topic produces
