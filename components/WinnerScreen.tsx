@@ -9,14 +9,12 @@
 
 import React from 'react';
 import { useLocale } from '@/context/LocaleProvider';
-import type { AnswerClip } from '@/hooks/useMediaRecorder';
 import type { Player } from '@/lib/types';
 import { playerColor, playerInitial } from '@/lib/player-colors';
 
 interface WinnerScreenProps {
   players: Player[];
   meId:    string;
-  clips:   AnswerClip[];
   onVoteRematch?: () => void;
   myVote?:        boolean;
   rematchLoading?: boolean;
@@ -30,7 +28,6 @@ interface WinnerScreenProps {
 export default function WinnerScreen({
   players,
   meId,
-  clips,
   onVoteRematch,
   myVote = false,
   rematchLoading = false,
@@ -155,30 +152,6 @@ export default function WinnerScreen({
           );
         })}
       </div>
-
-      {/* ---- Download video clips ---- */}
-      {clips.length > 0 && (
-        <div className="w-full max-w-md mx-auto">
-          <p className="text-[var(--text-muted)] text-[10px] font-semibold tracking-wider uppercase mb-2 text-center">
-            {t('winner.downloadClips')}
-          </p>
-          <div className="flex flex-col gap-1.5">
-            {clips.map((clip, i) => (
-              <a
-                key={i}
-                href={clip.url}
-                download={`whosmarter-q${clip.questionIndex + 1}-${clip.role}.webm`}
-                className="keycap keycap-secondary w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium no-underline"
-              >
-                <span className="text-xs">
-                  {t('winner.clipLabel', { n: clip.questionIndex + 1, role: clip.role })}
-                </span>
-                <span className="text-[10px] text-[var(--accent)]">{t('winner.download')}</span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ---- Rematch voting ---- */}
       <div className="flex flex-col items-center gap-2">

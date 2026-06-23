@@ -128,7 +128,7 @@ export default function CameraGrid({
         <div
           className="absolute z-20 overflow-hidden rounded-xl
                      top-[max(0.5rem,env(safe-area-inset-top))] start-2
-                     w-20 h-28 sm:w-24 sm:h-32 lg:w-44 lg:h-32"
+                     w-40 h-52 sm:w-48 sm:h-60 lg:w-80 lg:h-52"
           style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.45)' }}
         >
           <CameraPanel

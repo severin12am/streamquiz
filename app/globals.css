@@ -538,6 +538,10 @@ a.keycap {
   --keycap-face-top: #ececec;
   --keycap-face-mid: #e4e4e4;
   --keycap-face-bot: #d8d8d8;
+  /* Without this the keycap base default (white text) makes un-picked
+     options unreadable on the light grey face at the reveal. */
+  --keycap-text: var(--text-secondary);
+  --keycap-text-shadow: none;
 }
 
 .keycap-revealed-correct {
@@ -546,6 +550,7 @@ a.keycap {
   --keycap-face-bot: #8ecfaa;
   --keycap-ring: rgba(47, 158, 111, 0.35);
   --keycap-text: var(--text-primary);
+  --keycap-text-shadow: none;
 }
 
 .keycap-revealed-wrong {
@@ -554,6 +559,7 @@ a.keycap {
   --keycap-face-bot: #dda098;
   --keycap-ring: rgba(214, 87, 69, 0.35);
   --keycap-text: var(--text-primary);
+  --keycap-text-shadow: none;
 }
 
 /* Dropdown menu rows */

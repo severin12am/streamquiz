@@ -25,7 +25,6 @@ import { useGameState } from '@/hooks/useGameState';
 import { useGameSounds } from '@/hooks/useGameSounds';
 import { useMeshWebRTC } from '@/hooks/useMeshWebRTC';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
-import { useMediaRecorder }     from '@/hooks/useMediaRecorder';
 import SoundToggle from './SoundToggle';
 import { getClientId } from '@/lib/client-id';
 import { useLocale }    from '@/context/LocaleProvider';
@@ -79,7 +78,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const camerasEnabled = game?.cameras_enabled ?? false;
   const {
     localStream, remoteStreams, connected, cameraError, startCamera, stopCamera,
-    micEnabled, setMicEnabled,
+    setMicEnabled,
   } = useMeshWebRTC(gameId, me?.id ?? '', camerasEnabled);
 
   // Start the camera as soon as we've taken a seat (so the mesh can form
@@ -89,26 +88,29 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   }, [me, startCamera]);
 
   // ----------------------------------------------------------
-  // Mic policy depends on the answer style:
+  // Mic policy + answering model:
   //   • Multiple-choice mode → mic is ALWAYS ON. There's no spoken answer,
-  //     so there's nothing to confuse it with — everyone can just chat.
-  //   • Voice mode → mic is MUTED by default (so your chatter isn't mistaken
-  //     for an answer). It opens automatically while you answer out loud, and
-  //     while you HOLD the push-to-talk button to talk between questions.
+  //     so everyone can just chat freely the whole time.
+  //   • Voice mode → mic is OPEN by default so players hear each other like a
+  //     normal call. To ANSWER you HOLD a button: while held your mic is
+  //     MUTED to the others (so they can't hear your answer) and speech
+  //     recognition records what you say. Releasing locks the answer in.
+  //     Starting recognition on the hold (a user gesture) is also what makes
+  //     it work reliably on mobile — the old auto-start never fired there.
   // ----------------------------------------------------------
   const voiceMode  = !!game && !game.mc_mode;
   const isAnswering = game?.phase === 'answering';
-  const [pttHeld, setPttHeld] = useState(false);
+  const [answerHeld, setAnswerHeld] = useState(false);
   useEffect(() => {
     // `localStream` in deps so the desired mic state is re-applied once the
     // mic track actually exists (it's captured a moment after we seat).
     if (!game) return;
     if (!voiceMode) {
-      setMicEnabled(true);            // MC mode: open mic for everyone
+      setMicEnabled(true);              // MC mode: open mic for everyone
     } else {
-      setMicEnabled(isAnswering || pttHeld);
+      setMicEnabled(!answerHeld);       // voice: open unless answering aloud
     }
-  }, [game, voiceMode, isAnswering, pttHeld, setMicEnabled, localStream]);
+  }, [game, voiceMode, answerHeld, setMicEnabled, localStream]);
 
   // ----------------------------------------------------------
   // End-of-game DISCUSSION window. When the match ends we keep the cameras
@@ -119,15 +121,6 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const DISCUSSION_SECONDS = 60;
   const [discussLeft, setDiscussLeft] = useState(DISCUSSION_SECONDS);
   const [feedsCut, setFeedsCut] = useState(false);
-
-  // Open the mic during the discussion window so everyone can talk freely,
-  // even in voice mode (no PTT needed while discussing results).
-  useEffect(() => {
-    if (!game) return;
-    if (game.phase === 'ended' && !feedsCut) {
-      setMicEnabled(true);
-    }
-  }, [game, feedsCut, setMicEnabled]);
 
   // Countdown + auto-cut when the discussion window elapses.
   useEffect(() => {
@@ -153,27 +146,6 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       startCamera();
     }
   }, [game?.phase, feedsCut, startCamera]);
-
-  // Hold SPACE to talk (voice mode only; ignored while typing in an input).
-  useEffect(() => {
-    if (!voiceMode) return;
-    const isTyping = () => {
-      const el = document.activeElement;
-      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
-    };
-    const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !isTyping()) { e.preventDefault(); setPttHeld(true); }
-    };
-    const up = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !isTyping()) { e.preventDefault(); setPttHeld(false); }
-    };
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    return () => {
-      window.removeEventListener('keydown', down);
-      window.removeEventListener('keyup', up);
-    };
-  }, [voiceMode]);
 
   // ----------------------------------------------------------
   // 3. Speech recognition (voice answering)
@@ -246,16 +218,19 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     }
   }, [game?.phase, game?.mc_mode, iAmDone, finishAnswer]);
 
+  // Listen ONLY while the answer button is held (voice mode, answering phase,
+  // not typing). Starting on the hold is a user gesture, which is required for
+  // SpeechRecognition to start on mobile.
   useEffect(() => {
     if (!game) return;
-    const iShouldSpeak = game.phase === 'answering' && !iAmDone && !typedMode;
-    if (iShouldSpeak && !isListening) {
+    const shouldListen = voiceMode && isAnswering && answerHeld && !iAmDone && !typedMode;
+    if (shouldListen && !isListening) {
       startListening();
-    } else if (!iShouldSpeak && isListening) {
+    } else if (!shouldListen && isListening) {
       stopListening();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase, iAmDone, typedMode]);
+  }, [voiceMode, isAnswering, answerHeld, iAmDone, typedMode]);
 
   const handleTypeAnswer = useCallback((text: string) => {
     if (!typedMode) setTypedMode(true);
@@ -264,6 +239,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     pushTranscript(text);
   }, [typedMode, isListening, stopListening, pushTranscript]);
 
+  // Typed answers submit on Enter (voice answers lock in on button release).
   const handleFinishAnswer = useCallback(() => {
     if (isListening) stopListening();
     const s = writeState.current;
@@ -271,20 +247,56 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     finishAnswer(answerDraftRef.current || answerDraft);
   }, [isListening, stopListening, finishAnswer, answerDraft]);
 
-  // ----------------------------------------------------------
-  // 4. Media recorder (answer clips)
-  // ----------------------------------------------------------
-  const { clips, startRecording, stopRecording } = useMediaRecorder();
+  // Hold-to-answer: press starts recording (mic muted to peers); releasing
+  // stops recording and locks the spoken answer in. Empty release = no-op so
+  // a mis-tap doesn't burn your answer.
+  const startAnswerHold = useCallback(() => {
+    if (!voiceMode || !isAnswering || iAmDone) return;
+    setTypedMode(false);
+    setAnswerDraft('');
+    answerDraftRef.current = '';
+    setAnswerHeld(true);
+  }, [voiceMode, isAnswering, iAmDone]);
 
+  const endAnswerHold = useCallback(() => {
+    if (!answerHeld) return;
+    setAnswerHeld(false);
+    if (isListening) stopListening();
+    const s = writeState.current;
+    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    // Give the final speech result a tick to flush, then lock in if non-empty.
+    setTimeout(() => {
+      const said = answerDraftRef.current.trim();
+      if (said) finishAnswer(answerDraftRef.current);
+    }, 150);
+  }, [answerHeld, isListening, stopListening, finishAnswer]);
+
+  // Safety: if the round ends while the button is still held, release it so
+  // the mic re-opens for the next phase (and recognition stops via its effect).
   useEffect(() => {
-    if (!game || !localStream || !me) return;
-    if (game.phase === 'answering') {
-      startRecording(localStream, game.current_question_index, me.name);
-    } else {
-      stopRecording();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.phase]);
+    if (!isAnswering && answerHeld) setAnswerHeld(false);
+  }, [isAnswering, answerHeld]);
+
+  // Hold SPACE as a desktop shortcut for the answer button.
+  useEffect(() => {
+    if (!voiceMode) return;
+    const isTyping = () => {
+      const el = document.activeElement;
+      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat && !isTyping()) { e.preventDefault(); startAnswerHold(); }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !isTyping()) { e.preventDefault(); endAnswerHold(); }
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, [voiceMode, startAnswerHold, endAnswerHold]);
 
   // ----------------------------------------------------------
   // Rematch — regenerate fresh questions (same settings), reset to lobby.
@@ -472,38 +484,15 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
               transcript={answerDraft}
               iAmDone={iAmDone}
               speechSupported={isSupported}
+              answerHeld={answerHeld}
               onMCSelect={(i) => submitMCAnswer(i)}
               onTypeAnswer={handleTypeAnswer}
               onFinish={handleFinishAnswer}
+              onAnswerHoldStart={startAnswerHold}
+              onAnswerHoldEnd={endAnswerHold}
             />
           </div>
         </div>
-      )}
-
-      {/* ---- Push-to-talk button (voice mode only; hold to chat) ----
-           In MC mode the mic is always open, so no button is needed. */}
-      {voiceMode && !ended && (
-        <button
-          type="button"
-          onPointerDown={(e) => { e.preventDefault(); setPttHeld(true); }}
-          onPointerUp={() => setPttHeld(false)}
-          onPointerLeave={() => setPttHeld(false)}
-          onPointerCancel={() => setPttHeld(false)}
-          disabled={isAnswering}
-          aria-label={t('ptt.hold')}
-          className={`keycap fixed z-30 flex items-center gap-2 rounded-full font-semibold select-none touch-none
-            end-[max(0.75rem,env(safe-area-inset-right))] bottom-[max(0.75rem,env(safe-area-inset-bottom))]
-            px-3 py-2.5 text-xs sm:px-4 sm:text-sm ${
-            micEnabled ? 'keycap-success text-white' : 'keycap-secondary'
-          }`}
-        >
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-          </svg>
-          <span className="hidden min-[400px]:inline">
-            {isAnswering ? t('ptt.answerLive') : pttHeld ? t('ptt.talking') : t('ptt.hold')}
-          </span>
-        </button>
       )}
 
       {/* ---- Winner / discussion sheet (cameras stay live behind it) ---- */}
@@ -511,7 +500,6 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         <WinnerScreen
           players={players}
           meId={me.id}
-          clips={clips}
           onVoteRematch={() => voteRematch()}
           myVote={me.rematch}
           rematchLoading={rematchLoading}
