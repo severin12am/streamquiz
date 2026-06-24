@@ -50,6 +50,10 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const [joinFull, setJoinFull] = useState(false);
   const rematchTriggeredRef = React.useRef(false);
 
+  // Tap-any-feed camera layout scheme (cycles through CameraGrid layouts).
+  const [layoutMode, setLayoutMode] = useState(0);
+  const cycleLayout = useCallback(() => setLayoutMode((m) => m + 1), []);
+
   // ----------------------------------------------------------
   // 1. Game state (synced via Supabase Realtime)
   // ----------------------------------------------------------
@@ -454,6 +458,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           camerasEnabled={camerasEnabled}
           speaking={speaking}
           showResult={showResult}
+          layoutMode={layoutMode}
+          onCycleLayout={cycleLayout}
           className="h-full"
         />
       </div>

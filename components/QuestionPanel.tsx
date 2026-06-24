@@ -16,6 +16,7 @@
 import React from 'react';
 import MCOptions  from './MCOptions';
 import PlayerStatusBar from './PlayerStatusBar';
+import TopicPill from './TopicPill';
 import CountdownTimer from './CountdownTimer';
 import { useLocale } from '@/context/LocaleProvider';
 import type { Game, Player } from '@/lib/types';
@@ -170,17 +171,7 @@ export default function QuestionPanel({
 
       {/* ---- DESKTOP top: centered topic + player status ---- */}
       <div className="hidden lg:flex w-full max-w-md mx-auto flex-col items-center gap-2 pointer-events-auto">
-        <div
-          className="flex items-center gap-2 px-3 py-1 rounded-full max-w-full"
-          style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
-        >
-          <span className="text-[9px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-            {t('game.topic')}
-          </span>
-          <span className="text-xs font-medium text-[var(--text-secondary)] truncate max-w-[18rem]">
-            {game.topic}
-          </span>
-        </div>
+        <TopicPill topic={game.topic} background={panel} showLabel textClassName="max-w-[18rem]" />
         <PlayerStatusBar players={players} meId={me.id} phase={phase} mcMode={game.mc_mode} align="center" />
       </div>
 
@@ -188,18 +179,11 @@ export default function QuestionPanel({
            A float spacer reserves the PiP footprint; the topic+question block sits
            beside it and the player-status chips flow around it (right, then below). */}
       <div className="w-full lg:hidden pointer-events-auto pr-2">
-        <div className="float-start w-40 h-52 sm:w-48 sm:h-60 me-2" aria-hidden />
+        <div className="float-start w-40 h-52 sm:w-48 sm:h-60 me-2 pointer-events-none" aria-hidden />
 
         {/* topic + timer + question — beside the PiP (own block, never overlaps it) */}
         <div className="flow-root flex flex-col items-start gap-1.5">
-          <div
-            className="flex items-center px-2.5 py-1 rounded-full max-w-full"
-            style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
-          >
-            <span className="text-[11px] font-medium text-[var(--text-secondary)] truncate max-w-[7rem] sm:max-w-[12rem]">
-              {game.topic}
-            </span>
-          </div>
+          <TopicPill topic={game.topic} background={panel} textClassName="max-w-[7rem] sm:max-w-[12rem]" />
           {qBlock}
         </div>
 

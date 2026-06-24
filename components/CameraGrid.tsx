@@ -1,11 +1,17 @@
 'use client';
 // ============================================================
-// CameraGrid — WhatsApp-style call stage.
+// CameraGrid — WhatsApp-style call stage with click-to-cycle layouts.
 //
-// The OTHER players' feeds fill the whole stage (one feed = full screen,
-// several = a fitted grid). The local player's own camera floats in a
-// small draggable-looking PiP tile in a corner — just like a 1:1 video
-// call. Scores + "answered" status live ON each tile (top-left pill).
+// TAP ANY FEED to rotate through a fixed set of camera layouts (no
+// settings UI). The quiz overlay stays exactly the same — only the
+// camera arrangement changes:
+//
+//   0 · others fill the stage, my own feed in a small PiP (top-left)   [default]
+//   1 · MY feed fills the stage, the others in small PiP tiles (top-left)
+//   2 · everyone in one equal grid (no PiP)
+//
+// The PiP always lives in the top-left corner so the overlay (which
+// reserves that spot for the question/status) never needs to change.
 // ============================================================
 
 import React, { useEffect, useRef } from 'react';
@@ -15,6 +21,9 @@ import { playerColor } from '@/lib/player-colors';
 
 // Flip to true to print per-tile stream assignment logs while debugging.
 const GRID_DEBUG = false;
+
+// Number of camera layout schemes a tap cycles through.
+export const CAMERA_LAYOUTS = 3;
 
 interface CameraGridProps {
   players:       Player[];
@@ -30,11 +39,15 @@ interface CameraGridProps {
   speaking:      boolean;
   /** Show each player's ✓/✗ outcome (result phase). */
   showResult:    boolean;
+  /** Current layout scheme index (cycled by tapping a feed). */
+  layoutMode?:   number;
+  /** Tap-a-feed handler — advances to the next layout scheme. */
+  onCycleLayout?: () => void;
   className?:    string;
 }
 
-// Column count for the REMOTE feeds filling the stage (me lives in a PiP).
-function remoteGridClass(n: number): string {
+// Column count for an equal grid of N feeds filling the stage.
+function gridClass(n: number): string {
   if (n <= 1) return 'grid-cols-1';
   if (n === 2) return 'grid-cols-1 sm:grid-cols-2';
   if (n <= 4) return 'grid-cols-2';
@@ -51,6 +64,8 @@ export default function CameraGrid({
   camerasEnabled,
   speaking,
   showResult,
+  layoutMode = 0,
+  onCycleLayout,
   className = '',
 }: CameraGridProps) {
   const prevLogRef = useRef('');
@@ -83,56 +98,96 @@ export default function CameraGrid({
     });
   }, [players, me.id, localStream, remoteStreams, cameraError]);
 
-  // Solo (no remote peers yet): show my own feed full-screen, no PiP.
-  const stageList = others.length > 0 ? others : [me];
+  // Render one player's camera tile.
+  const tile = (p: Player, compact: boolean) => {
+    const isMe   = p.id === me.id;
+    const stream = isMe ? localStream : (remoteStreams[p.id] ?? null);
+    return (
+      <CameraPanel
+        stream={stream}
+        label={p.name}
+        isSpeaking={speaking}
+        mirrored={isMe}
+        error={isMe ? cameraError : null}
+        correct={showResult ? p.correct : null}
+        color={playerColor(p.slot)}
+        isLocal={isMe}
+        camerasEnabled={camerasEnabled}
+        connected={isMe ? undefined : !!connected[p.id]}
+        compact={compact}
+        className={`h-full w-full ${compact ? 'rounded-xl' : 'rounded-lg'}`}
+      />
+    );
+  };
+
+  // Resolve the active scheme. With no remote peers there's nothing to
+  // rearrange, so we always fall back to a single full-screen feed.
+  const mode = others.length === 0
+    ? -1
+    : ((layoutMode % CAMERA_LAYOUTS) + CAMERA_LAYOUTS) % CAMERA_LAYOUTS;
+
+  // stageList = big feeds in the grid; pipList = small corner feeds.
+  let stageList: Player[];
+  let pipList:   Player[];
+  if (mode === -1) {
+    stageList = [me];
+    pipList = [];
+  } else if (mode === 1) {
+    stageList = [me];
+    pipList = others;
+  } else if (mode === 2) {
+    stageList = [...players].sort((a, b) => a.slot - b.slot);
+    pipList = [];
+  } else {
+    stageList = others;
+    pipList = [me];
+  }
 
   return (
     <div className={`relative ${className}`}>
-      {/* ---- STAGE: remote feeds fill the screen ---- */}
-      <div className={`grid ${remoteGridClass(stageList.length)} auto-rows-fr gap-1.5 h-full w-full`}>
-        {stageList.map((p) => {
-          const isMe   = p.id === me.id;
-          const stream = isMe ? localStream : (remoteStreams[p.id] ?? null);
-          return (
-            <CameraPanel
-              key={p.id}
-              stream={stream}
-              label={p.name}
-              isSpeaking={speaking}
-              mirrored={isMe}
-              error={isMe ? cameraError : null}
-              correct={showResult ? p.correct : null}
-              color={playerColor(p.slot)}
-              isLocal={isMe}
-              camerasEnabled={camerasEnabled}
-              connected={isMe ? undefined : !!connected[p.id]}
-              className="h-full w-full rounded-lg"
-            />
-          );
-        })}
+      {/* ---- STAGE: big feeds fill the screen ---- */}
+      <div className={`grid ${gridClass(stageList.length)} auto-rows-fr gap-1.5 h-full w-full`}>
+        {stageList.map((p) => (
+          <div
+            key={p.id}
+            onClick={onCycleLayout}
+            className={`relative h-full w-full min-h-0 ${onCycleLayout ? 'cursor-pointer' : ''}`}
+          >
+            {tile(p, false)}
+          </div>
+        ))}
       </div>
 
-      {/* ---- PiP: my own camera (only when there are remote peers) ---- */}
-      {others.length > 0 && (
+      {/* ---- PiP: single small feed (top-left) ---- */}
+      {pipList.length === 1 && (
         <div
-          className="absolute z-20 overflow-hidden rounded-xl
+          onClick={onCycleLayout}
+          className={`absolute z-20 overflow-hidden rounded-xl
                      top-[max(0.5rem,env(safe-area-inset-top))] start-2
-                     w-40 h-52 sm:w-48 sm:h-60 lg:w-80 lg:h-52"
+                     w-40 h-52 sm:w-48 sm:h-60 lg:w-80 lg:h-52 ${onCycleLayout ? 'cursor-pointer' : ''}`}
           style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.45)' }}
         >
-          <CameraPanel
-            stream={localStream}
-            label={me.name}
-            isSpeaking={speaking}
-            mirrored
-            error={cameraError}
-            correct={showResult ? me.correct : null}
-            color={playerColor(me.slot)}
-            isLocal
-            camerasEnabled={camerasEnabled}
-            compact
-            className="h-full w-full rounded-xl"
-          />
+          {tile(pipList[0], true)}
+        </div>
+      )}
+
+      {/* ---- PiP: several small feeds stacked (top-left) ---- */}
+      {pipList.length > 1 && (
+        <div
+          className="absolute z-20 top-[max(0.5rem,env(safe-area-inset-top))] start-2
+                     flex flex-col gap-1.5 max-h-[80%] overflow-hidden"
+        >
+          {pipList.map((p) => (
+            <div
+              key={p.id}
+              onClick={onCycleLayout}
+              className={`overflow-hidden rounded-xl flex-shrink-0
+                         w-28 h-36 sm:w-32 sm:h-40 lg:w-56 lg:h-36 ${onCycleLayout ? 'cursor-pointer' : ''}`}
+              style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.45)' }}
+            >
+              {tile(p, true)}
+            </div>
+          ))}
         </div>
       )}
     </div>
