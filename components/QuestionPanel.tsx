@@ -15,7 +15,7 @@
 
 import React from 'react';
 import MCOptions  from './MCOptions';
-import ScoreBoard from './ScoreBoard';
+import PlayerStatusBar from './PlayerStatusBar';
 import CountdownTimer from './CountdownTimer';
 import { useLocale } from '@/context/LocaleProvider';
 import type { Game, Player } from '@/lib/types';
@@ -71,12 +71,10 @@ export default function QuestionPanel({
 
   const myMcPick     = me.mc_index;
   const iHavePicked   = myMcPick !== null;
-  const someonePicked = players.some((p) => p.mc_index !== null);
 
   // Mode behaviour: 'regular' lets you change your MC pick until the timer
-  // ends; legacy 'classic'/'think' shrink the timer when someone answers.
+  // ends; legacy 'classic'/'think' lock the pick once made.
   const isRegular   = game.game_mode === 'regular';
-  const legacyShrink = game.game_mode === 'classic' || game.game_mode === 'think';
   const canPick      = phase === 'question' && (isRegular || !iHavePicked);
 
   // WHO chose each option (shown at the reveal so everyone can see what
@@ -94,8 +92,8 @@ export default function QuestionPanel({
   }
 
   // Translucent surfaces (more see-through than before, per request).
-  const panel  = 'rgba(255,255,255,0.42)';
-  const panelQ = 'rgba(255,255,255,0.5)';   // question text — slightly stronger for legibility
+  const panel  = 'rgba(255,255,255,0.28)';
+  const panelQ = 'rgba(255,255,255,0.36)';   // question text — slightly stronger for legibility
 
   // ----- Shared "timer + status + question" block. Rendered beside the PiP
   //       on mobile (top) and above the answers on desktop (bottom). -----
@@ -117,28 +115,6 @@ export default function QuestionPanel({
           <p className="text-[var(--text-secondary)] text-[11px] lg:text-xs">
             {t('game.thinkHint')}
           </p>
-        </div>
-      )}
-
-      {/* MC pick-phase status line */}
-      {phase === 'question' && game.mc_mode && (
-        <div
-          className="px-3 py-1 rounded-full text-center"
-          style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
-        >
-          {iHavePicked ? (
-            <p className="text-xs text-[var(--text-secondary)]">
-              {isRegular ? t('mc.canChange') : t('mc.answerLocked')} · {timeLeft}s
-            </p>
-          ) : legacyShrink && someonePicked ? (
-            <p className="text-sm font-semibold" style={{ color: 'var(--buzz-red)' }}>
-              {t('mc.someoneAnswered', { n: timeLeft })}
-            </p>
-          ) : (
-            <p className="text-sm font-semibold" style={{ color: 'var(--correct)' }}>
-              {t('game.answerNow')}
-            </p>
-          )}
         </div>
       )}
 
@@ -171,7 +147,7 @@ export default function QuestionPanel({
         </div>
       )}
 
-      {/* Question text */}
+      {/* Question text — with the question counter appended inline (e.g. "… 2/5") */}
       {currentQuestion && phase !== 'ended' && phase !== 'result' && (
         <div
           className="w-full text-center px-3 py-2 rounded-xl"
@@ -179,6 +155,9 @@ export default function QuestionPanel({
         >
           <p className="text-xs sm:text-sm lg:text-xl font-semibold leading-snug text-[var(--text-primary)]">
             {currentQuestion.question}
+            <span className="ml-1.5 font-bold tabular-nums whitespace-nowrap" style={{ color: 'var(--accent)' }}>
+              {game.current_question_index + 1}/{game.questions.length}
+            </span>
           </p>
         </div>
       )}
@@ -188,41 +167,45 @@ export default function QuestionPanel({
   return (
     <div className="relative flex flex-col h-full w-full min-h-0 items-center pointer-events-none">
       {/* ================= TOP ================= */}
-      {/* Mobile: sits to the RIGHT of the self-PiP (left padding clears it).
-          Desktop: centered topic + scores only (timer/question move down). */}
-      <div className="w-full flex flex-col gap-1.5 sm:gap-2 pointer-events-auto
-                      items-start text-left pl-[10.5rem] sm:pl-[12.5rem] pr-1
-                      lg:items-center lg:text-center lg:pl-0 lg:pr-0 lg:max-w-md lg:mx-auto">
-        {/* topic + question counter */}
+
+      {/* ---- DESKTOP top: centered topic + player status ---- */}
+      <div className="hidden lg:flex w-full max-w-md mx-auto flex-col items-center gap-2 pointer-events-auto">
         <div
-          className="flex items-center gap-2.5 px-3 py-1 rounded-full max-w-full"
+          className="flex items-center gap-2 px-3 py-1 rounded-full max-w-full"
           style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
         >
-          <span className="flex items-baseline gap-1.5 min-w-0">
-            <span className="hidden sm:inline text-[9px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
-              {t('game.topic')}
-            </span>
-            <span className="text-[11px] lg:text-xs font-medium text-[var(--text-secondary)] truncate max-w-[7rem] sm:max-w-[16rem]">
+          <span className="text-[9px] font-semibold tracking-wider text-[var(--text-muted)] uppercase">
+            {t('game.topic')}
+          </span>
+          <span className="text-xs font-medium text-[var(--text-secondary)] truncate max-w-[18rem]">
+            {game.topic}
+          </span>
+        </div>
+        <PlayerStatusBar players={players} meId={me.id} phase={phase} mcMode={game.mc_mode} align="center" />
+      </div>
+
+      {/* ---- MOBILE top: flows to the RIGHT of the self-PiP, then wraps BELOW it.
+           A float spacer reserves the PiP footprint; the topic+question block sits
+           beside it and the player-status chips flow around it (right, then below). */}
+      <div className="w-full lg:hidden pointer-events-auto pr-2">
+        <div className="float-start w-40 h-52 sm:w-48 sm:h-60 me-2" aria-hidden />
+
+        {/* topic + timer + question — beside the PiP (own block, never overlaps it) */}
+        <div className="flow-root flex flex-col items-start gap-1.5">
+          <div
+            className="flex items-center px-2.5 py-1 rounded-full max-w-full"
+            style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+          >
+            <span className="text-[11px] font-medium text-[var(--text-secondary)] truncate max-w-[7rem] sm:max-w-[12rem]">
               {game.topic}
             </span>
-          </span>
-          <span className="w-px h-3 bg-[var(--border-strong)]" />
-          <span className="text-[11px] lg:text-xs font-semibold text-[var(--text-primary)] tabular-nums whitespace-nowrap">
-            {game.current_question_index + 1} / {game.questions.length}
-          </span>
-        </div>
-
-        {/* scores / answered panel — desktop only (mobile shows it on the feeds) */}
-        <div
-          className="hidden lg:block px-2 py-1 rounded-full max-w-full"
-          style={{ background: panel, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
-        >
-          <ScoreBoard players={players} meId={me.id} phase={phase} />
-        </div>
-
-        {/* timer + status + question — MOBILE position (beside PiP) */}
-        <div className="w-full flex flex-col items-start gap-1.5 lg:hidden">
+          </div>
           {qBlock}
+        </div>
+
+        {/* player status — inline chips wrap beside the PiP, then continue below it */}
+        <div className="pt-1.5">
+          <PlayerStatusBar players={players} meId={me.id} phase={phase} mcMode={game.mc_mode} inline />
         </div>
       </div>
 
@@ -277,7 +260,7 @@ export default function QuestionPanel({
               onChange={(e) => onTypeAnswer(e.target.value)}
               placeholder={t('game.typePlaceholder')}
               className="w-full rounded-xl px-3 py-2 text-sm text-[var(--text-primary)]"
-              style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
+              style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
               onKeyDown={(e) => { if (e.key === 'Enter') onFinish(); }}
             />
 
@@ -288,7 +271,7 @@ export default function QuestionPanel({
               onPointerUp={onAnswerHoldEnd}
               onPointerLeave={onAnswerHoldEnd}
               onPointerCancel={onAnswerHoldEnd}
-              className={`keycap w-full px-6 py-3 rounded-xl font-semibold text-white select-none touch-none ${
+              className={`keycap keycap-glass w-full px-6 py-3 rounded-xl font-semibold text-white select-none touch-none ${
                 answerHeld ? 'keycap-success' : 'keycap-primary'
               }`}
             >

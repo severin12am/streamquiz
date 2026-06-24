@@ -10,7 +10,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import CameraPanel from './CameraPanel';
-import type { Player, GamePhase } from '@/lib/types';
+import type { Player } from '@/lib/types';
 import { playerColor } from '@/lib/player-colors';
 
 // Flip to true to print per-tile stream assignment logs while debugging.
@@ -30,9 +30,6 @@ interface CameraGridProps {
   speaking:      boolean;
   /** Show each player's ✓/✗ outcome (result phase). */
   showResult:    boolean;
-  /** Current phase + answer style — used to show who has answered. */
-  phase?:        GamePhase;
-  mcMode?:       boolean;
   className?:    string;
 }
 
@@ -54,11 +51,8 @@ export default function CameraGrid({
   camerasEnabled,
   speaking,
   showResult,
-  phase,
-  mcMode = false,
   className = '',
 }: CameraGridProps) {
-  const showAnswered = phase === 'question' || phase === 'answering';
   const prevLogRef = useRef('');
 
   const others = players.filter((p) => p.id !== me.id);
@@ -89,9 +83,6 @@ export default function CameraGrid({
     });
   }, [players, me.id, localStream, remoteStreams, cameraError]);
 
-  const answeredOf = (p: Player) =>
-    showAnswered ? (mcMode ? p.mc_index !== null : p.done) : null;
-
   // Solo (no remote peers yet): show my own feed full-screen, no PiP.
   const stageList = others.length > 0 ? others : [me];
 
@@ -110,10 +101,8 @@ export default function CameraGrid({
               isSpeaking={speaking}
               mirrored={isMe}
               error={isMe ? cameraError : null}
-              score={p.score}
               correct={showResult ? p.correct : null}
               color={playerColor(p.slot)}
-              answered={answeredOf(p)}
               isLocal={isMe}
               camerasEnabled={camerasEnabled}
               connected={isMe ? undefined : !!connected[p.id]}
@@ -137,10 +126,8 @@ export default function CameraGrid({
             isSpeaking={speaking}
             mirrored
             error={cameraError}
-            score={me.score}
             correct={showResult ? me.correct : null}
             color={playerColor(me.slot)}
-            answered={answeredOf(me)}
             isLocal
             camerasEnabled={camerasEnabled}
             compact

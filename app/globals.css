@@ -562,6 +562,52 @@ a.keycap {
   --keycap-text-shadow: none;
 }
 
+/* ------------------------------------------------------------
+   Glassy keycaps — used for answers in the camera-call overlay so
+   the video shows through. Translucent faces + a backdrop blur keep
+   text legible while letting the call stay visible behind the answers.
+   ------------------------------------------------------------ */
+.keycap-glass {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.keycap-glass.keycap-secondary {
+  --keycap-face-top: rgba(255, 255, 255, 0.34);
+  --keycap-face-mid: rgba(255, 255, 255, 0.26);
+  --keycap-face-bot: rgba(255, 255, 255, 0.20);
+  --keycap-wall-1: rgba(0, 0, 0, 0.10);
+  --keycap-wall-2: rgba(0, 0, 0, 0.12);
+  --keycap-wall-3: rgba(0, 0, 0, 0.14);
+  --keycap-stem: rgba(0, 0, 0, 0.16);
+  --keycap-text: var(--text-primary);
+  --keycap-text-shadow: none;
+}
+
+.keycap-glass.keycap-primary {
+  --keycap-face-top: rgba(58, 133, 128, 0.62);
+  --keycap-face-mid: rgba(47, 125, 119, 0.56);
+  --keycap-face-bot: rgba(40, 105, 99, 0.62);
+}
+
+.keycap-glass.keycap-revealed-neutral {
+  --keycap-face-top: rgba(236, 236, 236, 0.32);
+  --keycap-face-mid: rgba(228, 228, 228, 0.28);
+  --keycap-face-bot: rgba(216, 216, 216, 0.24);
+}
+
+.keycap-glass.keycap-revealed-correct {
+  --keycap-face-top: rgba(168, 220, 192, 0.72);
+  --keycap-face-mid: rgba(146, 208, 175, 0.68);
+  --keycap-face-bot: rgba(124, 196, 160, 0.72);
+}
+
+.keycap-glass.keycap-revealed-wrong {
+  --keycap-face-top: rgba(232, 181, 174, 0.72);
+  --keycap-face-mid: rgba(224, 160, 152, 0.68);
+  --keycap-face-bot: rgba(216, 140, 132, 0.72);
+}
+
 /* Dropdown menu rows */
 .keycap-menu-item {
   display: flex;

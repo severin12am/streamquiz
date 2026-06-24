@@ -69,7 +69,7 @@ export default function MCOptions({
             onClick={() => canSelect && onSelect(i)}
             aria-disabled={!canSelect || undefined}
             className={[
-              'keycap relative flex items-start gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-xl text-left font-medium text-xs sm:text-sm',
+              'keycap keycap-glass relative flex items-start gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-xl text-left font-medium text-xs sm:text-sm',
               variantClass,
               canSelect ? 'cursor-pointer' : revealed ? 'keycap-revealed cursor-default' : 'cursor-default opacity-90 pointer-events-none',
             ].join(' ')}

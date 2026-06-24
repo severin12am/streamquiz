@@ -454,8 +454,6 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           camerasEnabled={camerasEnabled}
           speaking={speaking}
           showResult={showResult}
-          phase={game.phase}
-          mcMode={game.mc_mode}
           className="h-full"
         />
       </div>
