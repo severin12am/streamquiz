@@ -20,8 +20,8 @@ export const messages = {
       logoS: 'Tap the S',
     },
     auth: {
-      signInTitle: 'Sign in to create a quiz',
-      signInHint: 'Only the host needs an account. Your guests just tap your invite link — no sign-in required.',
+      signInTitle: 'Sign in to generate your quiz',
+      signInHint: 'Only the host needs an account. Your guests join via your invite link — no sign-in required.',
       signInGoogle: 'Continue with Google',
       signInError: 'Sign-in failed. Please try again.',
       signedInAs: 'Signed in as {email}',
