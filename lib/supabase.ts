@@ -90,13 +90,17 @@ export async function syncServerClock(): Promise<void> {
   }
 }
 
+/** Supabase Realtime channel status from `.subscribe((status) => …)`. */
+export type RealtimeChannelStatus = string;
+
 // -------------------------------------------------------
 // Helper: subscribe to changes on a specific game row
 // Returns the channel so the caller can remove it on cleanup
 // -------------------------------------------------------
 export function subscribeToGame(
   gameId: string,
-  onUpdate: (game: Game) => void
+  onUpdate: (game: Game) => void,
+  onStatus?: (status: RealtimeChannelStatus) => void,
 ) {
   return supabase
     .channel(`game:${gameId}`)
@@ -110,7 +114,7 @@ export function subscribeToGame(
       },
       (payload) => onUpdate(payload.new as Game)
     )
-    .subscribe();
+    .subscribe((status) => { onStatus?.(status); });
 }
 
 // -------------------------------------------------------
@@ -241,7 +245,11 @@ export async function fetchGame(gameId: string): Promise<Game | null> {
 // game. The callback gets no payload — callers just refetch the full
 // list (simple + always-consistent for a handful of rows).
 // -------------------------------------------------------
-export function subscribeToPlayers(gameId: string, onChange: () => void) {
+export function subscribeToPlayers(
+  gameId: string,
+  onChange: () => void,
+  onStatus?: (status: RealtimeChannelStatus) => void,
+) {
   return supabase
     .channel(`players:${gameId}`)
     .on(
@@ -254,7 +262,7 @@ export function subscribeToPlayers(gameId: string, onChange: () => void) {
       },
       () => onChange()
     )
-    .subscribe();
+    .subscribe((status) => { onStatus?.(status); });
 }
 
 // -------------------------------------------------------

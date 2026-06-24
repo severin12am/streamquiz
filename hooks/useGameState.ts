@@ -78,10 +78,21 @@ function answeredMs(p: Player): number {
 // -------------------------------------------------------
 // NETWORK RESILIENCE SETTINGS
 // -------------------------------------------------------
-const POLL_INTERVAL_MS    = 2500;   // fallback poll when realtime is blocked
-const TICK_INTERVAL_MS     = 100;   // how often we check deadlines / update the timer
-const MAX_INIT_ATTEMPTS   = 5;      // retries for the very first load
-const INIT_RETRY_DELAY_MS = 1200;   // wait between initial-load retries
+const POLL_INTERVAL_MS           = 2500; // fallback poll when realtime is unhealthy
+const REALTIME_CONNECT_GRACE_MS  = 5000; // wait for channels to subscribe before polling
+const TICK_INTERVAL_MS           = 100;  // how often we check deadlines / update the timer
+const MAX_INIT_ATTEMPTS          = 5;    // retries for the very first load
+const INIT_RETRY_DELAY_MS        = 1200; // wait between initial-load retries
+
+type ChannelHealth = 'connecting' | 'healthy' | 'unhealthy';
+
+function channelHealthFromStatus(status: string): ChannelHealth {
+  if (status === 'SUBSCRIBED') return 'healthy';
+  if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+    return 'unhealthy';
+  }
+  return 'connecting';
+}
 
 // Helper: an ISO timestamp `seconds` from now (server time).
 function deadlineIn(seconds: number): string {
@@ -182,10 +193,17 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   useEffect(() => { playersRef.current = players; }, [players]);
 
   // =======================================================
-  // 1. Initial load + realtime subscriptions + polling fallback
+  // 1. Initial load + realtime subscriptions + conditional polling
+  //    Poll only when Realtime channels are down or fail to subscribe.
   // =======================================================
   useEffect(() => {
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let connectGraceDone = false;
+    let wasPolling = false;
+
+    let gameHealth: ChannelHealth = 'connecting';
+    let playersHealth: ChannelHealth = 'connecting';
 
     syncServerClock();
     const clockTimer = setInterval(() => { syncServerClock(); }, 30000);
@@ -194,6 +212,55 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
       const list = await fetchPlayers(gameId);
       if (!cancelled) setPlayers(list);
     };
+
+    const syncFromServer = async () => {
+      const data = await fetchGame(gameId);
+      if (!cancelled && data) {
+        setGame(data);
+        setError(null);
+      }
+      await refreshPlayers();
+    };
+
+    const stopPolling = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    const startPolling = () => {
+      if (pollTimer) return;
+      void syncFromServer();
+      pollTimer = setInterval(() => { void syncFromServer(); }, POLL_INTERVAL_MS);
+    };
+
+    const reconcilePolling = () => {
+      if (cancelled) return;
+
+      const bothHealthy = gameHealth === 'healthy' && playersHealth === 'healthy';
+      const anyUnhealthy = gameHealth === 'unhealthy' || playersHealth === 'unhealthy';
+      const connectTimedOut =
+        connectGraceDone &&
+        (gameHealth === 'connecting' || playersHealth === 'connecting');
+
+      if (bothHealthy) {
+        if (wasPolling) void syncFromServer();
+        wasPolling = false;
+        stopPolling();
+        return;
+      }
+
+      if (anyUnhealthy || connectTimedOut) {
+        wasPolling = true;
+        startPolling();
+      }
+    };
+
+    const connectGraceTimer = setTimeout(() => {
+      connectGraceDone = true;
+      reconcilePolling();
+    }, REALTIME_CONNECT_GRACE_MS);
 
     async function tryInitialLoad(attempt = 0) {
       const data = await fetchGame(gameId);
@@ -215,23 +282,29 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
     }
     tryInitialLoad();
 
-    const gameChannel = subscribeToGame(gameId, (updated) => {
-      if (!cancelled) setGame(updated);
-    });
-    const playersChannel = subscribeToPlayers(gameId, () => { refreshPlayers(); });
-
-    const pollTimer = setInterval(async () => {
-      const data = await fetchGame(gameId);
-      if (!cancelled && data) {
-        setGame(data);
-        setError(null);
-      }
-      refreshPlayers();
-    }, POLL_INTERVAL_MS);
+    const gameChannel = subscribeToGame(
+      gameId,
+      (updated) => {
+        if (!cancelled) setGame(updated);
+      },
+      (status) => {
+        gameHealth = channelHealthFromStatus(status);
+        reconcilePolling();
+      },
+    );
+    const playersChannel = subscribeToPlayers(
+      gameId,
+      () => { refreshPlayers(); },
+      (status) => {
+        playersHealth = channelHealthFromStatus(status);
+        reconcilePolling();
+      },
+    );
 
     return () => {
       cancelled = true;
-      clearInterval(pollTimer);
+      clearTimeout(connectGraceTimer);
+      stopPolling();
       clearInterval(clockTimer);
       supabase.removeChannel(gameChannel);
       supabase.removeChannel(playersChannel);
