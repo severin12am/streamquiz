@@ -5,18 +5,18 @@
 // 4 inputs + 1 button. That's it.
 //
 // On submit:
-//   1. Calls /api/generate-questions (OpenAI) to make questions
-//   2. Creates a row in Supabase games table
-//   3. Redirects host to /game/[id]?role=host
-//   4. Shows the shareable link + QR code
+//   1. Calls /api/create-game — the server generates questions (xAI →
+//      fallback) AND creates the Supabase game row (service role), so
+//      game creation is rate-limited and can't be spammed directly.
+//   2. Redirects host to /game/[id]?role=host (lobby has share link + QR).
 //
 // TO CHANGE DEFAULT VALUES: edit the `useState` defaults below.
 // ============================================================
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/context/LocaleProvider';
+import { useAuth } from '@/context/AuthProvider';
 import type { Difficulty, GameMode, CreateGamePayload, Question } from '@/lib/types';
 import KeycapSegSlider from '@/components/KeycapSegSlider';
 import { getPreviousQuestions, rememberQuestions } from '@/lib/question-history';
@@ -26,6 +26,8 @@ import SoundToggle from '@/components/SoundToggle';
 export default function CreateGame() {
   const router = useRouter();
   const { t, locale } = useLocale();
+  const { user, session, loading: authLoading, signInWithGoogle, signOut } = useAuth();
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // ---- Form state ----
   // TO CHANGE DEFAULTS: edit the values here
@@ -109,66 +111,107 @@ export default function CreateGame() {
     playSound('click');
 
     try {
-      // Step 1: Generate questions via OpenAI API route
+      // Generate questions AND create the game in one server call. The
+      // server owns DB writes for games (RLS forbids anon INSERTs), so
+      // creation is rate-limited and spam-resistant.
       const trimmedTopic = topic.trim();
-      const payload: CreateGamePayload = {
+      const payload: CreateGamePayload & { cameras_enabled: boolean } = {
         topic: trimmedTopic,
         difficulty,
         num_questions: numQuestions,
         mc_mode: mcMode,
         game_mode: gameMode,
+        cameras_enabled: camerasEnabled,
         locale,
         previous_questions: getPreviousQuestions(trimmedTopic),
       };
 
-      const res = await fetch('/api/generate-questions', {
+      const res = await fetch('/api/create-game', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Host-only auth: the server verifies this token before spending
+          // AI credits / creating the game.
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
         cache: 'no-store',
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        // 429 = rate limited; surface a clear message, fall back to generic.
         throw new Error(body.error ?? t('create.errorGenerate'));
       }
 
-      const { questions } = (await res.json()) as { questions: Question[] };
+      const { gameId, questions } = (await res.json()) as {
+        gameId: string;
+        questions: Question[];
+      };
+      if (!gameId) throw new Error(t('create.errorCreate'));
       rememberQuestions(trimmedTopic, questions);
 
-      // Step 2: Create the game row in Supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error: dbError } = await (supabase as any)
-        .from('games')
-        .insert({
-          topic: trimmedTopic,
-          difficulty,
-          num_questions: numQuestions,
-          mc_mode: mcMode,
-          game_mode: gameMode,
-          cameras_enabled: camerasEnabled,
-          questions,
-          status: 'waiting',
-          phase: 'waiting',
-        })
-        .select('id')
-        .single();
-
-      if (dbError || !data) {
-        throw new Error(dbError?.message ?? t('create.errorCreate'));
-      }
-
-      // Step 3: go straight to the lobby as host. The invite link + QR and the
-      // host's name entry now live on the lobby screen (one screen instead of
-      // a separate "share" step).
-      const id = (data as { id: string }).id;
-      router.push(`/game/${id}?role=host`);
+      // Go straight to the lobby as host. The invite link + QR and the
+      // host's name entry live on the lobby screen.
+      router.push(`/game/${gameId}?role=host`);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : t('create.errorGeneric'));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSignIn() {
+    setAuthError(null);
+    playSound('click');
+    try {
+      await signInWithGoogle();
+    } catch {
+      setAuthError(t('auth.signInError'));
+    }
+  }
+
+  // -------------------------------------------------------
+  // Host-only auth gate: the create form is for the host, so it requires a
+  // Google sign-in. Guests never see this — they open the invite link and
+  // join the lobby anonymously.
+  // -------------------------------------------------------
+  if (!authLoading && !user) {
+    return (
+      <div className="relative w-full max-w-md">
+        <SoundToggle className="fixed z-40 top-[max(0.75rem,env(safe-area-inset-top))] end-[max(0.75rem,env(safe-area-inset-right))]" />
+        <div className="card elevated flex flex-col gap-5 w-full p-5 sm:p-7 text-center">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+              {t('auth.signInTitle')}
+            </h2>
+            <p className="text-sm text-[var(--text-muted)] mt-2">
+              {t('auth.signInHint')}
+            </p>
+          </div>
+
+          {authError && (
+            <div
+              className="rounded-xl px-4 py-3 text-sm"
+              style={{ background: 'rgba(214,87,69,0.10)', border: '1px solid var(--wrong)', color: 'var(--wrong)' }}
+            >
+              {authError}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSignIn}
+            className="keycap keycap-primary py-3.5 rounded-xl font-semibold text-base text-white"
+          >
+            {t('auth.signInGoogle')}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // -------------------------------------------------------
@@ -349,6 +392,22 @@ export default function CreateGame() {
           </div>
         </div>
       </div>
+
+      {/* ---- Signed-in footer (host) ---- */}
+      {user && (
+        <div className="flex items-center justify-between gap-3 pt-1 text-xs text-[var(--text-muted)]">
+          <span className="truncate">
+            {t('auth.signedInAs', { email: user.email ?? '' })}
+          </span>
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="shrink-0 underline hover:text-[var(--text-secondary)]"
+          >
+            {t('auth.signOut')}
+          </button>
+        </div>
+      )}
     </form>
     </div>
   );

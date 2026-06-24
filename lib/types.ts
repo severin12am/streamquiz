@@ -135,6 +135,9 @@ export interface Game {
   answer_correct: boolean | null;
   /** Points awarded on the most recent correct answer (for the score pop). */
   last_points: number;
+  /** Supabase auth user id of the host who created the game (host-only
+   *  Google auth). Null for legacy rows. Not used in client game logic. */
+  host_user_id?: string | null;
 }
 
 // -------------------------------------------------------

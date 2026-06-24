@@ -36,6 +36,16 @@ export const supabase = createClient<any>(
     realtime: {
       heartbeatIntervalMs: 5000,
     },
+    auth: {
+      // Host signs in with Google (host-only auth). Persist the session in
+      // localStorage, keep it fresh, and auto-complete the OAuth redirect
+      // (?code=...) when Google sends the host back to the app. Guests never
+      // sign in — they keep using the anonymous key.
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+    },
   }
 );
 

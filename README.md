@@ -6,6 +6,13 @@ A real-time live quiz show for **up to 6 players**, each on their own camera. Bu
 > once in your Supabase SQL Editor — it adds the new `players` table that
 > holds per-player state for all six seats. Fresh setups just run
 > `supabase/schema.sql` (which already includes it).
+>
+> **Already deployed?** Run `supabase/migration-v11-rls-hardening.sql` once to
+> tighten Row Level Security, and add the new `SUPABASE_SERVICE_ROLE_KEY` and
+> `XAI_API_KEY` environment variables (see below). Games are now created
+> server-side, so the service role key is **required**. Also run
+> `supabase/migration-v12-cleanup-cron.sql` once to schedule automatic pruning
+> of old game rows (keeps the DB lean as usage grows).
 
 ## Deploy to Netlify (online testing with friends)
 
@@ -33,7 +40,9 @@ In Netlify → **Site configuration** → **Environment variables**, add:
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://moyhwkzeetwkpqmhrcso.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon/publishable key |
-| `OPENAI_API_KEY` | your OpenRouter key |
+| `SUPABASE_SERVICE_ROLE_KEY` | your Supabase **service_role** secret (server-only — creates games) |
+| `XAI_API_KEY` | your xAI (Grok) key — **primary** question generator |
+| `OPENAI_API_KEY` | your OpenRouter/OpenAI key — **fallback** generator |
 
 Click **Deploy site**.
 
@@ -49,7 +58,9 @@ cp .env.local.example .env.local
 Open `.env.local` and fill in:
 - `NEXT_PUBLIC_SUPABASE_URL` — from Supabase → Project Settings → API
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — same place
-- `OPENAI_API_KEY` — from platform.openai.com → API Keys
+- `SUPABASE_SERVICE_ROLE_KEY` — same place (the **service_role** secret; server-only, used to create games)
+- `XAI_API_KEY` — from [x.ai/api](https://x.ai/api) (primary question generator)
+- `OPENAI_API_KEY` — from platform.openai.com or openrouter.ai (fallback generator)
 
 ### 2. Set up the Supabase database
 1. Open your Supabase project dashboard
