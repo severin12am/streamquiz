@@ -193,6 +193,37 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   useEffect(() => { gameRef.current = game; }, [game]);
   useEffect(() => { playersRef.current = players; }, [players]);
 
+  // -------------------------------------------------------
+  // STALE-PICK GUARD: when a new round opens we bump
+  // `current_question_index` in the games row and clear every player's
+  // per-round state (mc_index, transcript, …) in a SEPARATE write — so they
+  // arrive as two independent realtime events. The new-question event almost
+  // always lands first, which would briefly render the fresh question with
+  // the PREVIOUS round's pick still highlighted (the "answer flashes for half
+  // a second" bug). To avoid it we OPTIMISTICALLY clear the per-round fields
+  // locally the instant the question index changes; the authoritative reset
+  // from the DB then confirms it a beat later.
+  // -------------------------------------------------------
+  const lastRoundIndexRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!game) return;
+    const idx = game.current_question_index;
+    if (lastRoundIndexRef.current === null) {
+      lastRoundIndexRef.current = idx;
+      return;
+    }
+    if (idx !== lastRoundIndexRef.current) {
+      lastRoundIndexRef.current = idx;
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.mc_index === null && p.transcript === '' && p.correct === null && !p.done && p.answered_at === null
+            ? p
+            : { ...p, mc_index: null, transcript: '', correct: null, done: false, answered_at: null }
+        )
+      );
+    }
+  }, [game?.current_question_index]);
+
   // =======================================================
   // 1. Initial load + realtime subscriptions + tiered polling
   //    Always poll (safety net for VPN / blocked Realtime), but slow

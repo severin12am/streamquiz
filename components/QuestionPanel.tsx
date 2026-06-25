@@ -171,7 +171,7 @@ export default function QuestionPanel({
 
       {/* ---- DESKTOP top: centered topic + player status ---- */}
       <div className="hidden lg:flex w-full max-w-md mx-auto flex-col items-center gap-2 pointer-events-auto">
-        <TopicPill topic={game.topic} background={panel} showLabel textClassName="max-w-[18rem]" />
+        <TopicPill topic={game.topic} background={panelQ} showLabel textClassName="max-w-[18rem]" />
         <PlayerStatusBar players={players} meId={me.id} phase={phase} mcMode={game.mc_mode} align="center" />
       </div>
 
@@ -183,7 +183,7 @@ export default function QuestionPanel({
 
         {/* topic + timer + question — beside the PiP (own block, never overlaps it) */}
         <div className="flow-root flex flex-col items-start gap-1.5">
-          <TopicPill topic={game.topic} background={panel} textClassName="max-w-[7rem] sm:max-w-[12rem]" />
+          <TopicPill topic={game.topic} background={panelQ} textClassName="max-w-[7rem] sm:max-w-[12rem]" />
           {qBlock}
         </div>
 

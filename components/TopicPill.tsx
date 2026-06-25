@@ -52,11 +52,11 @@ export default function TopicPill({
         title={topic}
       >
         {showLabel && (
-          <span className="text-[9px] font-semibold tracking-wider text-[var(--text-muted)] uppercase flex-shrink-0">
+          <span className="text-[9px] font-semibold tracking-wider text-[var(--text-secondary)] uppercase flex-shrink-0">
             {t('game.topic')}
           </span>
         )}
-        <span className={`text-[11px] lg:text-xs font-medium text-[var(--text-secondary)] truncate ${textClassName}`}>
+        <span className={`text-[11px] lg:text-xs font-medium text-[var(--text-primary)] truncate ${textClassName}`}>
           {topic}
         </span>
       </button>

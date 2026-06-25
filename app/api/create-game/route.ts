@@ -43,27 +43,33 @@ export async function POST(req: NextRequest) {
 
   const admin = getSupabaseAdmin();
 
-  // ---- 2. Require a signed-in host (Google) ----
-  // Host-only auth: verify the Supabase access token before spending AI
-  // credits or creating a game. Guests never hit this route.
+  // ---- 2. Host identity (web = Google JWT; iOS = no auth) ----
+  // Web: Bearer token from Supabase Auth (Google sign-in).
+  // iOS: send X-WhoSmarter-Client: ios — no Google account; rate-limited only.
   const authHeader = req.headers.get('authorization') ?? '';
   const token = authHeader.toLowerCase().startsWith('bearer ')
     ? authHeader.slice(7).trim()
     : '';
-  if (!token) {
+  const clientPlatform = req.headers.get('x-whosmarter-client')?.trim().toLowerCase();
+  const isIosClient = clientPlatform === 'ios';
+
+  let hostUserId: string | null = null;
+
+  if (token) {
+    const { data: userData, error: authErr } = await admin.auth.getUser(token);
+    if (authErr || !userData?.user) {
+      return NextResponse.json(
+        { error: 'Your session has expired. Please sign in again.' },
+        { status: 401, headers: rateLimitHeaders(rl) },
+      );
+    }
+    hostUserId = userData.user.id;
+  } else if (!isIosClient) {
     return NextResponse.json(
       { error: 'You must be signed in to create a game.' },
       { status: 401, headers: rateLimitHeaders(rl) },
     );
   }
-  const { data: userData, error: authErr } = await admin.auth.getUser(token);
-  if (authErr || !userData?.user) {
-    return NextResponse.json(
-      { error: 'Your session has expired. Please sign in again.' },
-      { status: 401, headers: rateLimitHeaders(rl) },
-    );
-  }
-  const hostUserId = userData.user.id;
 
   try {
     const body = await req.json();

@@ -17,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "WhoSmarter — Live Quiz Show",
   description: "Real-time multiplayer quiz show — who’s smarter?",
+  // Quiz content can be in ANY language (it matches the chosen topic), while
+  // the page declares lang="en". Mobile Chrome would otherwise auto-translate
+  // the "foreign" text and mangle questions, options and player names
+  // (e.g. "Нью-Йорк" → "стан-Йорк"). Tell every browser NOT to translate.
+  other: { google: "notranslate" },
 };
 
 export default function RootLayout({
@@ -25,7 +30,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      translate="no"
+      className={`notranslate ${geistSans.variable} ${geistMono.variable} h-full`}
       suppressHydrationWarning
     >
       {/*

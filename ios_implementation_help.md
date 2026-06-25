@@ -31,13 +31,17 @@ Build a native iOS client that:
 
 | Concern | Where it lives | RN app must |
 |---------|----------------|-------------|
-| Database + Realtime | Supabase (`games`, `players`) | Use `@supabase/supabase-js` directly |
-| AI question generation | `POST /api/generate-questions` on deployed web host | `fetch` with absolute URL |
+| Database + Realtime | Supabase (`games`, `players`) | Use `@supabase/supabase-js` directly — **read/update only** for games |
+| AI question generation (create) | `POST /api/create-game` on deployed web host | `fetch` with absolute URL + `X-WhoSmarter-Client: ios` |
+| AI question generation (rematch) | `POST /api/generate-questions` | Same base URL; rate-limited, no auth |
 | AI answer judging | `POST /api/check-answer` | Same |
 | ICE/TURN credentials | `GET /api/ice-servers` | Same |
-| OpenRouter API key | Server env only (`OPENAI_API_KEY`) | **Never** bundle in the app |
+| xAI / OpenRouter API keys | Server env only | **Never** bundle in the app |
+| Game creation DB write | Server only (`/api/create-game` + service role) | **Never** `supabase.from('games').insert()` from the app |
 
-The RN app is a **thin native client**. All AI and TURN secret handling stays on the existing Next.js deployment (Netlify).
+The RN app is a **thin native client**. All AI, TURN secrets, and **game row creation** stay on the existing Next.js deployment (Netlify).
+
+**Important (RLS v11):** Anonymous clients can no longer `INSERT` into `games`. If the iOS app still calls `supabase.from('games').insert(...)`, it will fail with `new row violates row-level security policy`. Use `/api/create-game` instead.
 
 ### 2.2 State ownership (same as web)
 
@@ -109,8 +113,19 @@ All API calls use:
 ```typescript
 const api = (path: string) => `${process.env.EXPO_PUBLIC_API_BASE_URL}${path}`;
 
-// Examples:
+// Create game (iOS — no Google auth):
+fetch(api('/api/create-game'), {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-WhoSmarter-Client': 'ios',
+  },
+  body: JSON.stringify(payload),
+});
+
+// Rematch question generation:
 fetch(api('/api/generate-questions'), { method: 'POST', ... });
+
 fetch(api('/api/check-answer'), { method: 'POST', ... });
 fetch(api('/api/ice-servers'), { cache: 'no-store' });
 ```
@@ -203,9 +218,9 @@ Also copy `MAX_PLAYERS = 6` from `lib/types.ts`.
 |-------|---------|
 | difficulty | `medium` |
 | num_questions | `5` |
-| mc_mode | `false` (voice mode) |
-| game_mode | `think` |
-| cameras_enabled | `false` |
+| mc_mode | `true` |
+| game_mode | `regular` |
+| cameras_enabled | `true` |
 
 ---
 
@@ -320,29 +335,79 @@ For voice recognition add `NSSpeechRecognitionUsageDescription`.
 
 ## 8. API Contracts (Copy Exactly)
 
-### `POST /api/generate-questions`
+### `POST /api/create-game` — **initial host create (required since RLS v11)**
 
-**Request:**
+Replaces the old two-step flow (`generate-questions` + direct Supabase insert). One call generates questions (xAI → OpenRouter fallback on server) and creates the game row.
+
+**Headers (iOS — no Google auth):**
+
+```http
+Content-Type: application/json
+X-WhoSmarter-Client: ios
+```
+
+Do **not** send `Authorization` on iOS unless you later add optional Google sign-in.
+
+**Request body:**
 
 ```typescript
 {
-  topic: string;           // max 200 chars
+  topic: string;              // max 200 chars
   difficulty: 'easy' | 'medium' | 'hard';
-  num_questions: number;   // clamped 3–10 server-side
+  num_questions: number;      // clamped 3–20 server-side
   mc_mode: boolean;
-  game_mode?: 'think' | 'classic';
-  locale?: 'en' | 'ru';
+  game_mode?: 'regular' | 'hardcore' | 'think' | 'classic';  // default regular
+  cameras_enabled?: boolean;
+  locale?: 'en' | 'ru' | ...;
   previous_questions?: string[];
 }
 ```
 
+**Response (200):**
+
+```typescript
+{ gameId: string; questions: Question[]; provider?: string }
+```
+
+**Errors:**
+
+| Status | Meaning | iOS handling |
+|--------|---------|--------------|
+| `400` | Invalid topic/difficulty | Show validation message |
+| `401` | Missing auth (web only — should not happen on iOS if header set) | — |
+| `429` | Rate limited | Show "wait a moment"; read `Retry-After` header if present |
+| `500` | AI or DB failure | Show `error` string from JSON body |
+
+**Create flow (host) — iOS:**
+
+1. Build payload from form (same fields as web `CreateGame.tsx`).
+2. `POST /api/create-game` with `X-WhoSmarter-Client: ios`.
+3. On success: `rememberQuestions(topic, questions)` locally, navigate to game with `role=host` using returned `gameId`.
+4. **Do not** call `supabase.from('games').insert(...)`.
+
+**Rate limit:** ~6 creates per IP per minute (server default). Same as web.
+
+---
+
+### `POST /api/generate-questions` — **rematch only**
+
+Used when the host regenerates questions for a rematch. Initial create uses `/api/create-game` instead.
+
+**Request:** same body shape as create (without `cameras_enabled`).
+
 **Response:** `{ questions: Question[] }`
 
-**Create flow (host):**
+**Rate limit:** ~12 requests per IP per minute.
 
-1. Call API with payload.
-2. `supabase.from('games').insert({ topic, difficulty, num_questions, mc_mode, game_mode, cameras_enabled, questions, status: 'waiting', phase: 'waiting' })`.
-3. Navigate to game with `role=host`.
+**Rematch flow (unchanged logic, same endpoint):**
+
+1. Host + ≥1 guest voted rematch.
+2. Host calls `/api/generate-questions` with `mergePreviousQuestions`.
+3. Host calls `rematch(finalQuestions)` in `useGameState` — updates existing game row (allowed by RLS).
+
+No auth required. Rate limiting applies.
+
+---
 
 ### `POST /api/check-answer`
 
@@ -463,6 +528,7 @@ This cuts device debugging from hours to minutes.
 
 ### 12.1 Must-have for parity v1
 
+- [ ] Create game via **`POST /api/create-game`** with `X-WhoSmarter-Client: ios` (not direct Supabase insert)
 - [ ] Create game (all form options)
 - [ ] Join by link / game ID
 - [ ] Lobby with player list, share link, QR
@@ -549,11 +615,74 @@ Rematch generation: host calls `/api/generate-questions` with `mergePreviousQues
 
 ---
 
-## 15. Security Reminders
+## 15. Security & Robustness (must match web — no Google auth on iOS)
+
+These landed on web in 2026. The iOS app must follow them; most are **server-side** (no app code beyond API usage).
+
+### 15.1 What iOS must implement
+
+| Feature | Web | iOS action |
+|---------|-----|------------|
+| **Game creation via API** | `POST /api/create-game` + Google token | Same endpoint + `X-WhoSmarter-Client: ios` (no token) |
+| **No direct game INSERT** | RLS blocks anon INSERT on `games` | Remove any `games.insert()` from create flow |
+| **Rate limit handling** | 429 on create + generate | Catch 429; show friendly message; optional retry after `Retry-After` |
+| **Rematch generation** | `POST /api/generate-questions` | Same — host-only in app logic (vote gate unchanged) |
+| **xAI → fallback AI** | Server-side in `lib/ai.ts` | Nothing — automatic when calling API |
+| **RLS on gameplay** | Anon can SELECT/UPDATE games + players | Same Supabase anon key; join/update unchanged |
+| **Player INSERT validation** | slot 0–5, score 0, name length | `joinGame()` insert must match (already does) |
+| **Immutable columns** | DB triggers block tampering | Don't try to PATCH topic/difficulty after create |
+
+### 15.2 What iOS does NOT need
+
+| Feature | Why skip on iOS |
+|---------|-----------------|
+| **Google sign-in** | Product choice: iOS hosts create without account |
+| **Service role key** | Server-only; never in app |
+| **pg_cron cleanup** | Runs in Supabase; benefits all clients automatically |
+| **OpenRouter/xAI keys** | Server-only |
+
+### 15.3 Suggested `src/api/createGame.ts`
+
+```typescript
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL!.replace(/\/$/, '');
+
+export async function createGame(payload: CreateGamePayload & { cameras_enabled: boolean }) {
+  const res = await fetch(`${API_BASE}/api/create-game`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-WhoSmarter-Client': 'ios',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const body = await res.json().catch(() => ({}));
+
+  if (res.status === 429) {
+    throw new Error(body.error ?? 'Too many games created. Please wait a moment.');
+  }
+  if (!res.ok) {
+    throw new Error(body.error ?? 'Failed to create game.');
+  }
+
+  return body as { gameId: string; questions: Question[] };
+}
+```
+
+### 15.4 RLS behavior (for debugging)
+
+| Table | INSERT | DELETE | SELECT | UPDATE |
+|-------|--------|--------|--------|--------|
+| `games` | ❌ anon | ❌ anon | ✅ | ✅ (gameplay fields only) |
+| `players` | ✅ validated | ❌ anon | ✅ | ✅ (own row gameplay) |
+
+If create fails with RLS error, the app is still using direct Supabase insert — switch to `/api/create-game`.
+
+### 15.5 Security reminders
 
 - Supabase anon key in the app is **expected** (same as web).
-- Never embed `OPENAI_API_KEY` in the RN bundle.
-- RLS is fully open — acceptable for private link games; do not change for iOS alone.
+- Never embed `OPENAI_API_KEY`, `XAI_API_KEY`, or `SUPABASE_SERVICE_ROLE_KEY` in the RN bundle.
+- `X-WhoSmarter-Client: ios` identifies mobile creates to the server (no Google JWT). Rate limiting is the abuse control; optional future: App Attest or shared mobile API key.
 
 ---
 
@@ -580,7 +709,7 @@ When porting, read these web files in this order:
 | 2 | `lib/supabase.ts` | DB + realtime + clock + join |
 | 3 | `hooks/useGameState.ts` | State machine |
 | 4 | `components/GameScreen.tsx` | Orchestration, speech throttle, rematch |
-| 5 | `components/CreateGame.tsx` | Host flow |
+| 5 | `components/CreateGame.tsx` | Host flow — **must use `/api/create-game`**, not Supabase insert |
 | 6 | `components/QuestionPanel.tsx`, `MCOptions.tsx` | Play UI |
 | 7 | `hooks/useMeshWebRTC.ts` | Hardest — do last |
 | 8 | `hooks/useSpeechRecognition.ts` | Replace internals only |
@@ -599,6 +728,9 @@ When porting, read these web files in this order:
 | Black remote video | No TURN / wrong ICE | Use `/api/ice-servers`; test on cellular not WiFi only |
 | Join creates duplicate seat | New `client_id` each launch | Persist in AsyncStorage |
 | API 404 | Relative `/api/...` URL | Use `EXPO_PUBLIC_API_BASE_URL` absolute path |
+| API 401 on create | Missing `X-WhoSmarter-Client: ios` or wrong endpoint | Use `/api/create-game`, not direct Supabase insert |
+| RLS policy violation on create | Still calling `games.insert()` from app | Use `/api/create-game` only |
+| API 429 | Rate limit | Show wait message; don't retry in a tight loop |
 | WebRTC works on sim but not phone | Expo Go | Use development build with `react-native-webrtc` |
 | Lobby doesn't update | Realtime not subscribed | Match channel names; add polling fallback |
 | Host can't start | Only 1 player | Need ≥2 — by design |
@@ -618,4 +750,60 @@ When porting, read these web files in this order:
 
 ---
 
-*This guide targets parity with the WhoSmarter web app as documented in `PROJECT.md` (6-player multiplayer, think-race mode, optional cameras, AI judging, OpenRouter via Next.js API, EN/RU).*
+*This guide targets parity with the WhoSmarter web app as documented in `PROJECT.md` (6-player multiplayer, regular/hardcore modes, optional cameras, AI judging via xAI→OpenRouter on server, EN/RU+).*
+
+---
+
+## 20. Agent Prompt — Security Parity Pass (copy-paste)
+
+Use this prompt when updating an **existing** iOS/RN codebase to match web security changes:
+
+```
+You are updating the WhoSmarter React Native iOS app for security parity with the web app.
+
+READ FIRST: ios_implementation_help.md §15 and §8 in the web repo.
+
+REQUIRED CHANGES:
+
+1. CREATE GAME — replace the old two-step flow:
+   OLD (broken): POST /api/generate-questions → supabase.from('games').insert(...)
+   NEW: POST {API_BASE}/api/create-game with headers:
+        Content-Type: application/json
+        X-WhoSmarter-Client: ios
+   Body: { topic, difficulty, num_questions, mc_mode, game_mode, cameras_enabled, locale, previous_questions }
+   Response: { gameId, questions } → navigate to /game/{gameId}?role=host
+   NO Google sign-in on iOS. NO Authorization header.
+
+2. REMATCH — unchanged endpoint:
+   POST {API_BASE}/api/generate-questions (host only, after rematch votes)
+   Then update existing game via rematch() — do NOT insert a new games row.
+
+3. RATE LIMITS — handle HTTP 429 on create-game and generate-questions:
+   Show user-friendly error from response JSON `error` field.
+
+4. SUPABASE — keep anon key for realtime/join/gameplay only:
+   - games: SELECT + UPDATE only (never INSERT from client)
+   - players: INSERT on join (validated by RLS)
+
+5. DO NOT add: Google auth, service role key, xAI/OpenRouter keys, or any server secrets.
+
+6. DEFAULTS — align with web CreateGame.tsx:
+   mc_mode: true, game_mode: 'regular', cameras_enabled: true, num_questions: 5
+
+VERIFY:
+- Create game from iOS → succeeds (no RLS error)
+- Web guest can join the same game
+- Rematch regenerates questions and resets lobby
+- 429 shows a clear message if spamming create
+
+Reference web files: app/api/create-game/route.ts, components/CreateGame.tsx, lib/question-generator.ts
+```
+
+### Backend prerequisite (already in web repo)
+
+Deploy web commit that includes:
+- `/api/create-game` accepting `X-WhoSmarter-Client: ios` without Bearer token
+- RLS migrations v11–v13 applied in Supabase SQL Editor
+- Netlify env: `SUPABASE_SERVICE_ROLE_KEY`, `XAI_API_KEY`, `OPENAI_API_KEY`
+
+If iOS create returns 401, the deployed API may not yet include the iOS client header support — redeploy web first.
