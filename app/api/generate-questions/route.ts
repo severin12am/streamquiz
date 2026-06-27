@@ -12,6 +12,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { validateConfig, generateQuestions } from '@/lib/question-generator';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { consumeCreateQuota } from '@/lib/creator-quota';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -36,8 +38,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400, headers: rateLimitHeaders(rl) });
     }
 
+    // Rematch counts as one create. Only enforced when X-Quota-Key is
+    // present (iOS build 8+); web stays unmetered. Consume before the AI call.
+    const quotaKey = req.headers.get('x-quota-key')?.trim();
+    let quota = null;
+    if (quotaKey) {
+      quota = await consumeCreateQuota(getSupabaseAdmin(), quotaKey);
+      if (!quota) {
+        return NextResponse.json(
+          { error: 'Create quota exceeded' },
+          { status: 402, headers: rateLimitHeaders(rl) },
+        );
+      }
+    }
+
     const { questions } = await generateQuestions(validation.config);
-    return NextResponse.json({ questions }, { headers: rateLimitHeaders(rl) });
+    return NextResponse.json(
+      { questions, ...(quota ? { quota } : {}) },
+      { headers: rateLimitHeaders(rl) },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[generate-questions] Error:', message);

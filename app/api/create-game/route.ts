@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateConfig, generateQuestions } from '@/lib/question-generator';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { consumeCreateQuota } from '@/lib/creator-quota';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 import type { GameMode } from '@/lib/types';
 
@@ -80,6 +81,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400, headers: rateLimitHeaders(rl) });
     }
 
+    // ---- 3a. Server-side create quota (iOS only) ----
+    // Only enforced when X-Quota-Key is present (iOS build 8+). The web
+    // frontend doesn't send it and stays unmetered. Consume BEFORE the AI
+    // call so a blocked user spends no tokens. Returns null when exceeded.
+    const quotaKey = req.headers.get('x-quota-key')?.trim();
+    let quota = null;
+    if (quotaKey) {
+      quota = await consumeCreateQuota(admin, quotaKey);
+      if (!quota) {
+        return NextResponse.json(
+          { error: 'Create quota exceeded' },
+          { status: 402, headers: rateLimitHeaders(rl) },
+        );
+      }
+    }
+
     const { questions, provider } = await generateQuestions(validation.config);
 
     // ---- 4. Insert the game (service role bypasses RLS) ----
@@ -108,7 +125,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { gameId: (data as { id: string }).id, questions, provider },
+      { gameId: (data as { id: string }).id, questions, provider, ...(quota ? { quota } : {}) },
       { headers: rateLimitHeaders(rl) },
     );
   } catch (err) {
