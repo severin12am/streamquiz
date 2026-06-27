@@ -1,92 +1,133 @@
 // ============================================================
 // API Route: GET /api/ice-servers
 //
-// Returns the list of ICE servers (STUN + TURN) the browser uses
-// to connect the two cameras. Computed on the server so TURN
-// credentials are NOT baked into the client JavaScript bundle.
+// Returns the list of ICE servers (STUN + TURN) every client (web, iOS,
+// native Swift) uses to connect cameras/audio. Computed on the server so
+// TURN credentials are never baked into a client bundle, and so we can
+// decide the relay strategy centrally without shipping a new app build.
 //
-// WHY THIS MATTERS:
-//   STUN alone fails on ~10-20% of networks (VPNs, strict NAT,
-//   and notably ISPs that block peer-to-peer — common in Russia).
-//   A TURN server RELAYS the video and makes it work everywhere.
+// RELAY STRATEGY (cost control):
+//   Direct peer-to-peer is always preferred automatically by WebRTC (host/
+//   srflx candidates outrank relay), so STUN is always included. When a
+//   relay IS needed (common on iPhone/cellular/VPN behind carrier-grade NAT)
+//   we want it to go through OUR self-hosted coturn VPS (flat monthly cost,
+//   not metered), and we want Metered.ca used ONLY as an emergency backup if
+//   our coturn box is down.
 //
-// ---- HOW TO ADD A FREE TURN SERVER (pick ONE) ----
+//   IMPORTANT: WebRTC does NOT treat the iceServers array as an ordered
+//   fallback list — if we returned BOTH coturn and Metered, both relays would
+//   compete on every call and Metered would silently relay (and bill) some of
+//   them even while coturn is healthy. To make Metered a TRUE backup, we
+//   health-check coturn HERE and return Metered only when coturn is
+//   unreachable. The client fetches this route fresh per connection
+//   (cache: 'no-store'), so the decision is always current.
 //
-// OPTION A — Metered (recommended: 20 GB/month free, global,
-//            routes over TLS:443 which bypasses most blocking):
-//   1. Sign up free at https://www.metered.ca/
-//   2. In their dashboard, note your app subdomain (e.g.
-//      "myapp.metered.live") and your API key.
-//   3. In Netlify → Site configuration → Environment variables, add:
-//        METERED_DOMAIN   = myapp.metered.live
-//        METERED_API_KEY  = <your api key>
-//   4. Redeploy.
-//
-// OPTION B — ExpressTURN or any provider giving STATIC creds
-//            (1 TB/month free at https://www.expressturn.com/):
-//   1. Sign up, copy the TURN URL(s), username, and password.
-//   2. In Netlify env vars, add:
-//        TURN_URLS        = turn:relay1.expressturn.com:3478,turns:relay1.expressturn.com:443
-//        TURN_USERNAME    = <username>
-//        TURN_CREDENTIAL  = <password>
-//   3. Redeploy.
-//
-// If NEITHER is configured, we fall back to public STUN + a free
-// public TURN relay (works on some networks, not all).
+// ---- ENV VARS (Netlify → Site configuration → Environment variables) ----
+//   Our coturn (primary relay) — ALL THREE REQUIRED:
+//     TURN_URLS        = turn:62.238.37.7:3478?transport=udp,turn:62.238.37.7:3478?transport=tcp
+//     TURN_USERNAME    = whosmarter
+//     TURN_CREDENTIAL  = <password matching coturn user= line on VPS>
+//   Optional health-check override (else parsed from first TURN_URLS entry):
+//     TURN_HEALTHCHECK_HOST = 62.238.37.7
+//     TURN_HEALTHCHECK_PORT = 3478
+//   Metered (emergency fallback only — keep configured):
+//     METERED_DOMAIN   = <subdomain>.metered.live
+//     METERED_API_KEY  = <api key>
 // ============================================================
 
 import { NextResponse } from 'next/server';
+import net from 'net';
 
-// Public fallback — used when no TURN provider is configured.
+// net.connect needs the Node.js runtime (not Edge), and the relay decision
+// must never be cached.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const STUN = { urls: 'stun:stun.l.google.com:19302' };
+
 const FALLBACK_ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'turn:freeturn.net:3478',  username: 'free', credential: 'free' },
-  { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' },
 ];
 
-export async function GET() {
-  // ---- OPTION A: Metered dynamic credentials ----
-  const meteredKey    = process.env.METERED_API_KEY;
-  const meteredDomain = process.env.METERED_DOMAIN; // e.g. "myapp.metered.live"
-  if (meteredKey && meteredDomain) {
-    try {
-      const res = await fetch(
-        `https://${meteredDomain}/api/v1/turn/credentials?apiKey=${meteredKey}`,
-        { cache: 'no-store' }
-      );
-      if (res.ok) {
-        const iceServers = await res.json();
-        if (Array.isArray(iceServers) && iceServers.length > 0) {
-          // Prepend Google STUN for good measure
-          return NextResponse.json({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, ...iceServers],
-          });
-        }
-      }
-      console.error('[ice-servers] Metered returned unexpected response');
-    } catch (err) {
-      console.error('[ice-servers] Metered fetch failed:', err);
-    }
-  }
+function parseHostPort(turnUrl: string): { host: string; port: number } | null {
+  const noScheme = turnUrl.replace(/^turns?:/i, '').split('?')[0];
+  const lastColon = noScheme.lastIndexOf(':');
+  if (lastColon === -1) return null;
+  const host = noScheme.slice(0, lastColon).trim();
+  const port = Number(noScheme.slice(lastColon + 1));
+  if (!host || !Number.isFinite(port)) return null;
+  return { host, port };
+}
 
-  // ---- OPTION B: Static TURN credentials (ExpressTURN, etc.) ----
-  const turnUrls = process.env.TURN_URLS; // comma-separated
+function tcpReachable(host: string, port: number, timeoutMs = 1500): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    const done = (ok: boolean) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+  });
+}
+
+async function getMeteredIceServers(): Promise<unknown[] | null> {
+  const meteredKey = process.env.METERED_API_KEY;
+  const meteredDomain = process.env.METERED_DOMAIN;
+  if (!meteredKey || !meteredDomain) return null;
+  try {
+    const res = await fetch(
+      `https://${meteredDomain}/api/v1/turn/credentials?apiKey=${meteredKey}`,
+      { cache: 'no-store' },
+    );
+    if (res.ok) {
+      const iceServers = await res.json();
+      if (Array.isArray(iceServers) && iceServers.length > 0) return iceServers;
+    }
+    console.error('[ice-servers] Metered returned unexpected response');
+  } catch (err) {
+    console.error('[ice-servers] Metered fetch failed:', err);
+  }
+  return null;
+}
+
+export async function GET() {
+  const turnUrls = process.env.TURN_URLS;
   const turnUser = process.env.TURN_USERNAME;
   const turnCred = process.env.TURN_CREDENTIAL;
-  if (turnUrls && turnUser && turnCred) {
-    return NextResponse.json({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        {
-          urls: turnUrls.split(',').map((u) => u.trim()).filter(Boolean),
-          username: turnUser,
-          credential: turnCred,
-        },
-      ],
-    });
+  const coturnConfigured = Boolean(turnUrls && turnUser && turnCred);
+
+  if (coturnConfigured) {
+    const urls = turnUrls!
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean);
+    const coturn = { urls, username: turnUser!, credential: turnCred! };
+
+    const probe = process.env.TURN_HEALTHCHECK_HOST
+      ? {
+          host: process.env.TURN_HEALTHCHECK_HOST,
+          port: Number(process.env.TURN_HEALTHCHECK_PORT ?? 3478),
+        }
+      : parseHostPort(urls[0] ?? '');
+
+    const coturnUp = probe ? await tcpReachable(probe.host, probe.port) : true;
+
+    if (coturnUp) {
+      return NextResponse.json({ iceServers: [STUN, coturn] });
+    }
+
+    console.warn('[ice-servers] coturn unreachable — falling back to Metered');
+    const metered = await getMeteredIceServers();
+    if (metered) return NextResponse.json({ iceServers: [STUN, ...metered] });
+    return NextResponse.json({ iceServers: [STUN, coturn] });
   }
 
-  // ---- Fallback ----
+  const metered = await getMeteredIceServers();
+  if (metered) return NextResponse.json({ iceServers: [STUN, ...metered] });
   return NextResponse.json({ iceServers: FALLBACK_ICE_SERVERS });
 }
