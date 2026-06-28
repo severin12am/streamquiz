@@ -67,7 +67,12 @@ export default function QuestionPanel({
   onAnswerHoldEnd,
 }: QuestionPanelProps) {
   const { t } = useLocale();
-  const currentQuestion = game.questions[game.current_question_index];
+  // `game.questions` can momentarily be undefined: Supabase Realtime omits
+  // unchanged TOASTed columns (the large jsonb) from UPDATE payloads, so a
+  // phase-only update can arrive without it. Guard so the render never throws
+  // while the full row catches up (the merge in useGameState restores it).
+  const questions       = game.questions ?? [];
+  const currentQuestion = questions[game.current_question_index];
   const phase           = game.phase;
 
   const myMcPick     = me.mc_index;
@@ -157,7 +162,7 @@ export default function QuestionPanel({
           <p className="text-xs sm:text-sm lg:text-xl font-semibold leading-snug text-[var(--text-primary)]">
             {currentQuestion.question}
             <span className="ml-1.5 font-bold tabular-nums whitespace-nowrap" style={{ color: 'var(--accent)' }}>
-              {game.current_question_index + 1}/{game.questions.length}
+              {game.current_question_index + 1}/{questions.length}
             </span>
           </p>
         </div>

@@ -95,6 +95,25 @@ function channelHealthFromStatus(status: string): ChannelHealth {
   return 'connecting';
 }
 
+// Merge a Realtime UPDATE payload onto the previous game row, preserving
+// the `questions` array when the payload omits it.
+//
+// WHY: `questions` is a large jsonb, so Postgres stores it out-of-line
+// (TOAST). Supabase Realtime `postgres_changes` does NOT include unchanged
+// TOASTed columns in the UPDATE payload — so every phase transition (which
+// only writes small columns like `phase`/`phase_deadline`) arrives with
+// `questions` missing/null. Blindly `setGame(payload.new)` would then wipe
+// the questions and crash the render (`game.questions[idx]` → undefined).
+// Questions never legitimately become empty mid-game, so keeping the prior
+// value is always correct; all other columns are scalars that are always
+// present in the payload (including intentional nulls), so we take those.
+function mergeGameUpdate(prev: Game | null, updated: Game): Game {
+  const incomingQuestions = updated.questions;
+  const hasQuestions = Array.isArray(incomingQuestions) && incomingQuestions.length > 0;
+  if (hasQuestions || !prev) return updated;
+  return { ...updated, questions: prev.questions };
+}
+
 // Helper: an ISO timestamp `seconds` from now (server time).
 function deadlineIn(seconds: number): string {
   return new Date(serverNow() + seconds * 1000).toISOString();
@@ -313,7 +332,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
     const gameChannel = subscribeToGame(
       gameId,
       (updated) => {
-        if (!cancelled) setGame(updated);
+        if (!cancelled) setGame((prev) => mergeGameUpdate(prev, updated));
       },
       (status) => {
         gameHealth = channelHealthFromStatus(status);

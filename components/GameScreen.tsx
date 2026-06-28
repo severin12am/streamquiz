@@ -309,7 +309,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     if (!game || rematchLoading) return;
     setRematchLoading(true);
     try {
-      const currentTexts = game.questions.map((q) => q.question);
+      const currentTexts = (game.questions ?? []).map((q) => q.question);
       const payload: CreateGamePayload = {
         topic: game.topic,
         difficulty: game.difficulty,
