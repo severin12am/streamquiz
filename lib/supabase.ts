@@ -74,9 +74,13 @@ export async function syncServerClock(): Promise<void> {
   if (isMisconfigured) return;
   try {
     const t0 = Date.now();
-    const res = await fetch(`${supabaseUrl}/rest/v1/`, {
+    // HEAD a real table (not the `/rest/v1/` spec root). New-style
+    // `sb_publishable_*` keys are not authorized on the spec root, which made
+    // the clock sync spam a harmless-but-ugly 401 in the console. A tiny HEAD
+    // on `games` is authorized, returns the same `Date` header, and 200s.
+    const res = await fetch(`${supabaseUrl}/rest/v1/games?select=id&limit=1`, {
       method: 'HEAD',
-      headers: { apikey: supabaseKey },
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
     });
     const t1 = Date.now();
     const dateHeader = res.headers.get('date');
