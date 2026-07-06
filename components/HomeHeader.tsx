@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useLocale } from '@/context/LocaleProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { playSound } from '@/lib/sounds';
 
 export default function HomeHeader() {
   const { t } = useLocale();
@@ -10,6 +11,7 @@ export default function HomeHeader() {
 
   const handleSPop = useCallback(() => {
     if (sPop) return;
+    playSound('meow');
     setSPop(true);
     window.setTimeout(() => setSPop(false), 420);
   }, [sPop]);

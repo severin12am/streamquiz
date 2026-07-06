@@ -18,7 +18,8 @@ export type SoundId =
   | 'winner'
   | 'tie'
   | 'point'
-  | 'vote';
+  | 'vote'
+  | 'meow';
 
 const MUTE_KEY = 'whosmarter-sounds-muted';
 
@@ -70,6 +71,52 @@ function tone(
   gain.connect(ctx.destination);
   osc.start(start);
   osc.stop(start + duration + 0.05);
+}
+
+// Real cat meow (~0.8s) — CC BY-SA 3.0, Dan Crosby via Wikimedia Commons (File:Meow.ogg)
+let meowBuffer: AudioBuffer | null = null;
+let meowLoadPromise: Promise<AudioBuffer | null> | null = null;
+
+function loadMeowBuffer(ctx: AudioContext): Promise<AudioBuffer | null> {
+  if (meowBuffer) return Promise.resolve(meowBuffer);
+  if (meowLoadPromise) return meowLoadPromise;
+  meowLoadPromise = fetch('/sounds/meow.mp3')
+    .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error('meow fetch failed'))))
+    .then((data) => ctx.decodeAudioData(data))
+    .then((buf) => {
+      meowBuffer = buf;
+      return buf;
+    })
+    .catch(() => null);
+  return meowLoadPromise;
+}
+
+function playSample(
+  ctx: AudioContext,
+  buffer: AudioBuffer,
+  start: number,
+  volume: number,
+  playbackRate = 1,
+): void {
+  const src = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  src.buffer = buffer;
+  src.playbackRate.value = playbackRate;
+  gain.gain.value = volume;
+  src.connect(gain);
+  gain.connect(ctx.destination);
+  src.start(start);
+}
+
+function meow(ctx: AudioContext, start: number, volume: number): void {
+  const level = volume * 2.8;
+  if (meowBuffer) {
+    playSample(ctx, meowBuffer, start, level, 1.5);
+    return;
+  }
+  void loadMeowBuffer(ctx).then((buf) => {
+    if (buf) playSample(ctx, buf, ctx.currentTime, level, 1.5);
+  });
 }
 
 export function playSound(id: SoundId): void {
@@ -140,6 +187,9 @@ export function playSound(id: SoundId): void {
     case 'vote':
       tone(ctx, 587, t, 0.06, 'sine', v * 0.65);
       tone(ctx, 740, t + 0.06, 0.08, 'sine', v * 0.55);
+      break;
+    case 'meow':
+      meow(ctx, t, v);
       break;
   }
 }
