@@ -4,7 +4,7 @@
 //
 // FLOW:
 //   1. Pick a stable client id (localStorage) + read the host intent.
-//   2. If we haven't claimed a seat yet → JoinScreen (enter a name).
+//   2. Host auto-claims slot 0 in the lobby; guests enter a name to join.
 //   3. While the match hasn't started → Lobby (player list + invite/start).
 //   4. Playing → a responsive grid of EVERY player's camera (a WebRTC
 //      mesh) + the central question panel.
@@ -26,7 +26,8 @@ import { useGameSounds } from '@/hooks/useGameSounds';
 import { useMeshWebRTC } from '@/hooks/useMeshWebRTC';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import SoundToggle from './SoundToggle';
-import { getClientId } from '@/lib/client-id';
+import { getClientId, resolveDefaultPlayerName, saveName } from '@/lib/client-id';
+import { useAuth } from '@/context/AuthProvider';
 import { useLocale }    from '@/context/LocaleProvider';
 import { detectSpeechLang } from '@/lib/i18n';
 import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
@@ -39,6 +40,7 @@ interface GameScreenProps {
 
 export default function GameScreen({ gameId, role }: GameScreenProps) {
   const { t, locale, speechLang } = useLocale();
+  const { user } = useAuth();
 
   // Stable per-browser id (set after mount to avoid an SSR mismatch).
   const [clientId, setClientId] = useState('');
@@ -49,6 +51,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const [rematchLoading, setRematchLoading] = useState(false);
   const [joinFull, setJoinFull] = useState(false);
   const rematchTriggeredRef = React.useRef(false);
+  const autoJoinAttemptedRef = React.useRef(false);
 
   // Tap-any-feed camera layout scheme (cycles through CameraGrid layouts).
   const [layoutMode, setLayoutMode] = useState(0);
@@ -374,6 +377,21 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     const p = await join(name, asHost);
     if (!p) setJoinFull(true);
   }, [join, asHost]);
+
+  // Host who just created a challenge lands in the lobby without a seat yet.
+  // Claim slot 0 immediately so they can share the link and start when ready.
+  useEffect(() => {
+    if (!clientId || loading || !game || game.status !== 'waiting' || me || !asHost) return;
+    if (autoJoinAttemptedRef.current) return;
+
+    autoJoinAttemptedRef.current = true;
+    const name = resolveDefaultPlayerName(user);
+    saveName(name);
+    void (async () => {
+      const p = await join(name, true);
+      if (!p) setJoinFull(true);
+    })();
+  }, [clientId, loading, game, me, asHost, user, join]);
 
   // ----------------------------------------------------------
   // Loading / error states

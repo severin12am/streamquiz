@@ -3,11 +3,11 @@
 // Lobby — shown before the match starts (game.status === 'waiting').
 //
 // Unified pre-game screen: shows who has joined (all 6 slots), the invite
-// link + QR (host), and EITHER a name input to take a seat (if this browser
-// hasn't joined yet) or the Start button / waiting message (once seated).
+// link + QR (host), a name field (join or rename), and Start / waiting once
+// seated. The host is auto-seated on arrival; guests still tap Join.
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLocale } from '@/context/LocaleProvider';
 import { MAX_PLAYERS, type Player } from '@/lib/types';
@@ -39,6 +39,22 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
   const isHost   = me ? me.role === 'host' : asHost;
   const canStart = players.length >= 2;
   const emptySlots = Math.max(0, MAX_PLAYERS - players.length);
+
+  useEffect(() => {
+    if (me?.name) setName(me.name);
+  }, [me?.id, me?.name]);
+
+  async function handleNameBlur() {
+    if (!me) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setName(me.name);
+      return;
+    }
+    if (trimmed === me.name) return;
+    saveName(trimmed);
+    await onJoin(trimmed);
+  }
 
   async function handleJoinSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -149,7 +165,7 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
           </div>
         )}
 
-        {/* ---- Action area: join (unseated) · start (host) · waiting (guest) ---- */}
+        {/* ---- Action area: join (guest) · name + start/waiting (seated) ---- */}
         {!seated ? (
           full ? (
             <div className="keycap-well-frame">
@@ -159,6 +175,11 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
               >
                 {t('join.full')}
               </p>
+            </div>
+          ) : asHost ? (
+            <div className="flex items-center justify-center gap-3 py-2">
+              <span className="w-5 h-5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
+              <p className="text-sm text-[var(--text-secondary)]">{t('join.joining')}</p>
             </div>
           ) : (
             <form onSubmit={handleJoinSubmit} className="flex flex-col gap-3">
@@ -185,23 +206,38 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
               </button>
             </form>
           )
-        ) : isHost ? (
-          <div className="flex flex-col items-center gap-2">
-            <button
-              onClick={() => { playSound('click'); onStart(); }}
-              disabled={!canStart}
-              className="keycap keycap-primary w-full py-3.5 rounded-xl font-semibold text-base text-white"
-            >
-              {t('lobby.start')}
-            </button>
-            {!canStart && (
-              <p className="text-xs text-[var(--text-muted)]">{t('lobby.needMore')}</p>
-            )}
-          </div>
         ) : (
-          <div className="flex items-center justify-center gap-3 py-2">
-            <span className="w-5 h-5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
-            <p className="text-sm text-[var(--text-secondary)]">{t('lobby.waitingHost')}</p>
+          <div className="flex flex-col gap-3">
+            <div className="keycap-input-frame">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => { void handleNameBlur(); }}
+                placeholder={t('join.namePlaceholder')}
+                maxLength={24}
+                className="keycap-input w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base text-center"
+              />
+            </div>
+            {isHost ? (
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={() => { playSound('click'); onStart(); }}
+                  disabled={!canStart}
+                  className="keycap keycap-primary w-full py-3.5 rounded-xl font-semibold text-base text-white"
+                >
+                  {t('lobby.start')}
+                </button>
+                {!canStart && (
+                  <p className="text-xs text-[var(--text-muted)]">{t('lobby.needMore')}</p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-3 py-2">
+                <span className="w-5 h-5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
+                <p className="text-sm text-[var(--text-secondary)]">{t('lobby.waitingHost')}</p>
+              </div>
+            )}
           </div>
         )}
       </div>
