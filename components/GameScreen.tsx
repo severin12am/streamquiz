@@ -4,7 +4,7 @@
 //
 // FLOW:
 //   1. Pick a stable client id (localStorage) + read the host intent.
-//   2. Host auto-claims slot 0 in the lobby; guests enter a name to join.
+//   2. Lobby auto-claims a seat (host → slot 0, guest → next free slot).
 //   3. While the match hasn't started → Lobby (player list + invite/start).
 //   4. Playing → a responsive grid of EVERY player's camera (a WebRTC
 //      mesh) + the central question panel.
@@ -378,17 +378,16 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     if (!p) setJoinFull(true);
   }, [join, asHost]);
 
-  // Host who just created a challenge lands in the lobby without a seat yet.
-  // Claim slot 0 immediately so they can share the link and start when ready.
+  // Claim a lobby seat on arrival so nobody has to tap Join first.
   useEffect(() => {
-    if (!clientId || loading || !game || game.status !== 'waiting' || me || !asHost) return;
+    if (!clientId || loading || !game || game.status !== 'waiting' || me) return;
     if (autoJoinAttemptedRef.current) return;
 
     autoJoinAttemptedRef.current = true;
-    const name = resolveDefaultPlayerName(user);
+    const name = resolveDefaultPlayerName(user, asHost ? 'Host' : 'Player');
     saveName(name);
     void (async () => {
-      const p = await join(name, true);
+      const p = await join(name, asHost);
       if (!p) setJoinFull(true);
     })();
   }, [clientId, loading, game, me, asHost, user, join]);

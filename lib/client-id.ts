@@ -38,8 +38,11 @@ export function saveName(name: string): void {
   localStorage.setItem(NAME_KEY, name.trim());
 }
 
-/** Best display name when the host should join without typing one. */
-export function resolveDefaultPlayerName(user?: User | null): string {
+/** Best display name when a player should join without typing one. */
+export function resolveDefaultPlayerName(
+  user?: User | null,
+  fallback = 'Player',
+): string {
   const saved = getSavedName().trim();
   if (saved) return saved.slice(0, MAX_NAME_LEN);
 
@@ -54,5 +57,5 @@ export function resolveDefaultPlayerName(user?: User | null): string {
   const emailLocal = user?.email?.split('@')[0]?.trim();
   if (emailLocal) return emailLocal.slice(0, MAX_NAME_LEN);
 
-  return 'Host';
+  return fallback.slice(0, MAX_NAME_LEN);
 }

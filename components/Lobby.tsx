@@ -4,7 +4,7 @@
 //
 // Unified pre-game screen: shows who has joined (all 6 slots), the invite
 // link + QR (host), a name field (join or rename), and Start / waiting once
-// seated. The host is auto-seated on arrival; guests still tap Join.
+// seated. Everyone is auto-seated on arrival; rename via the name field.
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
@@ -30,10 +30,8 @@ interface LobbyProps {
 
 export default function Lobby({ players, me, asHost, shareLink, full, onStart, onJoin }: LobbyProps) {
   const { t } = useLocale();
-  const [copied, setCopied]       = useState(false);
-  const [name, setName]           = useState(() => getSavedName());
-  const [joining, setJoining]     = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [name, setName]     = useState(() => getSavedName());
 
   const seated   = !!me;
   const isHost   = me ? me.role === 'host' : asHost;
@@ -54,24 +52,6 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
     if (trimmed === me.name) return;
     saveName(trimmed);
     await onJoin(trimmed);
-  }
-
-  async function handleJoinSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setNameError(t('join.errorEmptyName'));
-      return;
-    }
-    setNameError(null);
-    setJoining(true);
-    playSound('click');
-    try {
-      saveName(trimmed);
-      await onJoin(trimmed);
-    } finally {
-      setJoining(false);
-    }
   }
 
   return (
@@ -165,7 +145,7 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
           </div>
         )}
 
-        {/* ---- Action area: join (guest) · name + start/waiting (seated) ---- */}
+        {/* ---- Action area: joining spinner · name + start/waiting (seated) ---- */}
         {!seated ? (
           full ? (
             <div className="keycap-well-frame">
@@ -176,35 +156,11 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
                 {t('join.full')}
               </p>
             </div>
-          ) : asHost ? (
+          ) : (
             <div className="flex items-center justify-center gap-3 py-2">
               <span className="w-5 h-5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
               <p className="text-sm text-[var(--text-secondary)]">{t('join.joining')}</p>
             </div>
-          ) : (
-            <form onSubmit={handleJoinSubmit} className="flex flex-col gap-3">
-              <div className="keycap-input-frame">
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t('join.namePlaceholder')}
-                  maxLength={24}
-                  autoFocus
-                  className="keycap-input w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base text-center"
-                />
-              </div>
-              {nameError && (
-                <p className="text-sm text-center" style={{ color: 'var(--wrong)' }}>{nameError}</p>
-              )}
-              <button
-                type="submit"
-                disabled={joining}
-                className="keycap keycap-primary py-3.5 rounded-xl font-semibold text-base text-white"
-              >
-                {joining ? t('join.joining') : t('join.button')}
-              </button>
-            </form>
           )
         ) : (
           <div className="flex flex-col gap-3">
