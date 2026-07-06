@@ -26,6 +26,7 @@ export const messages = {
       signInError: 'Sign-in failed. Please try again.',
       signedInAs: 'Signed in as {email}',
       signOut: 'Sign out',
+      downloadIosApp: 'Download iOS app',
       loading: 'Loading…',
     },
     lang: {
