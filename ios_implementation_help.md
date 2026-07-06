@@ -9,6 +9,7 @@ Read this file **together with**:
 | `PROJECT.md` | Authoritative product + architecture reference (state machine, DB schema, API contracts, timing) |
 | `README.md` | Quick orientation, setup, and file map |
 | **`ios_implementation_help.md`** (this file) | RN/iOS-specific decisions, porting map, parity checklist, and how to avoid dozens of on-device test loops |
+| **`docs/IOS_CAMERA_LAYOUTS.md`** | **iOS-only** tap-to-cycle camera layouts (top-right PiP, 5 modes, portrait) — **do not** copy web `CameraGrid.tsx` |
 
 **Do not re-read the web codebase line-by-line if these three files are present.** Port logic from the web source only when this guide points you to a specific file.
 
@@ -182,7 +183,8 @@ src/
     HomeScreen.tsx
     GameScreen.tsx
   components/
-    CreateGame.tsx, JoinScreen.tsx, Lobby.tsx, CameraGrid.tsx,
+    CreateGame.tsx, JoinScreen.tsx, Lobby.tsx,
+    IOSCameraGrid.tsx,   # see docs/IOS_CAMERA_LAYOUTS.md — NOT web CameraGrid.tsx
     CameraPanel.tsx, QuestionPanel.tsx, MCOptions.tsx,
     ScoreBoard.tsx, CountdownTimer.tsx, WinnerScreen.tsx
   navigation/
@@ -610,6 +612,7 @@ Rematch generation: host calls `/api/generate-questions` with `mergePreviousQues
 6. **Result phase** shows ✓/✗ per player on camera tiles and in panel.
 7. **Countdown timer** uses `timeLeftMs` for smooth SVG/circular progress (100ms tick).
 8. **Camera grid** shows placeholder avatar when cameras off (colored initial per slot).
+8b. **Camera layout modes (iOS-only):** tap any feed cycles layouts (PiP-self → one-other PiP → half-split ×2 → letterbox for **2-player only**). **Never stack PiPs** (max 1). Letterbox fits **max 2 feeds** in middle band. Full spec: `docs/IOS_CAMERA_LAYOUTS.md`. Do **not** port web's 3-mode top-left layouts.
 9. **Winner screen** ranks by score; handles ties; shows rematch button state from `me.rematch`.
 10. **Error state** for failed game load: show VPN hint (Supabase geo-blocking) — copy from web `useGameState` error string.
 

@@ -86,10 +86,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   } = useMeshWebRTC(gameId, me?.id ?? '', camerasEnabled);
 
   // Start the camera as soon as we've taken a seat (so the mesh can form
-  // while we're still in the lobby).
+  // while we're still in the lobby). Keyed on `me?.id` (a stable primitive),
+  // NOT the `me` object — otherwise every realtime/poll refresh of `players`
+  // hands back a new object reference and re-fires this effect, hammering
+  // startCamera (and flooding the console when the device is busy).
+  const seated = !!me;
   useEffect(() => {
-    if (me) startCamera();
-  }, [me, startCamera]);
+    if (seated) startCamera();
+  }, [seated, startCamera]);
 
   // ----------------------------------------------------------
   // Mic policy + answering model:
@@ -147,7 +151,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   useEffect(() => {
     if (game && game.phase !== 'ended' && feedsCut) {
       setFeedsCut(false);
-      startCamera();
+      startCamera({ force: true }); // deliberate rematch re-acquire — retry now
     }
   }, [game?.phase, feedsCut, startCamera]);
 

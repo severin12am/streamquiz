@@ -128,7 +128,7 @@ export interface UseMeshWebRTCReturn {
   /** Per-peer connection status, keyed by the other player's id. */
   connected:     Record<string, boolean>;
   cameraError:   string | null;
-  startCamera:   () => Promise<void>;
+  startCamera:   (opts?: { force?: boolean }) => Promise<void>;
   /** Tear down all peer connections + stop local tracks (cut every feed).
    *  Used at the end of a game's discussion window. `startCamera()` will
    *  re-acquire everything if the players rematch. */
@@ -174,15 +174,35 @@ export function useMeshWebRTC(
   const peersRef       = useRef<Map<string, PeerConn>>(new Map());
   const channelRef     = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+  // Camera-acquisition guards. `startCamera` is called from many places (the
+  // seat effect on every `me` change, the visibility/online recovery handler,
+  // etc.). Without these, a failing getUserMedia (e.g. NotReadableError: the
+  // device is held by another tab/app) gets retried on every render — flooding
+  // the console and spinning the CPU. We therefore:
+  //   • skip while an attempt is already in flight, and
+  //   • back off for a cooldown after a failure (unless an explicit recovery
+  //     forces an immediate retry).
+  const cameraStartingRef = useRef(false);
+  const cameraFailedAtRef = useRef(0);
+  const CAMERA_RETRY_COOLDOWN_MS = 5000;
+
   // -------------------------------------------------------
   // startCamera — request the webcam + mic once
   // -------------------------------------------------------
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (opts?: { force?: boolean }) => {
     if (localStreamRef.current) {
       // Idempotent: already capturing. (Intentionally not logged — this is
       // called on nearly every render and would drown the useful logs.)
       return;
     }
+    if (cameraStartingRef.current) return; // an attempt is already running
+    // After a failure, don't hammer getUserMedia on every re-render. Genuine
+    // recovery events (tab refocus / network back) pass force:true to retry now.
+    if (!opts?.force && cameraFailedAtRef.current &&
+        Date.now() - cameraFailedAtRef.current < CAMERA_RETRY_COOLDOWN_MS) {
+      return;
+    }
+    cameraStartingRef.current = true;
     logWebRTC('startCamera called', { camerasEnabled, videoRequested: camerasEnabled });
     try {
       const tier = videoTierForPeerCount(0);
@@ -202,6 +222,8 @@ export function useMeshWebRTC(
       // so voice answers still transcribe even while the peer mic is muted.)
       stream.getAudioTracks().forEach((track) => { track.enabled = false; });
       localStreamRef.current = stream;
+      cameraFailedAtRef.current = 0;
+      setCameraError(null);
       setLocalStream(stream);
       logWebRTC('[Camera] getUserMedia success', {
         camerasEnabled,
@@ -218,7 +240,14 @@ export function useMeshWebRTC(
         ? `Camera/mic error: ${err.message}. Please allow access and reload.`
         : 'Could not access your camera/mic.';
       setCameraError(msg);
-      console.error('[Camera] getUserMedia failed', { camerasEnabled, error: err });
+      // Log only on the first failure of a cooldown window — not on every
+      // retry — so a persistently-busy device doesn't spam the console.
+      if (!cameraFailedAtRef.current) {
+        console.error('[Camera] getUserMedia failed', { camerasEnabled, error: err });
+      }
+      cameraFailedAtRef.current = Date.now();
+    } finally {
+      cameraStartingRef.current = false;
     }
   }, [camerasEnabled]);
 
@@ -843,7 +872,7 @@ export function useMeshWebRTC(
               if (cancelled) return;
               if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
               logSignaling('recovery: page visible / online — re-announcing presence + reconciling', { myId });
-              startCamera();
+              startCamera({ force: true });
               channel.track({ id: myId, at: Date.now() }).catch(() => { /* noop */ });
               reconcile();
             };
