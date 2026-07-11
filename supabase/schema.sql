@@ -287,6 +287,47 @@ ALTER PUBLICATION supabase_realtime ADD TABLE players;
 CREATE INDEX IF NOT EXISTS players_game_id_idx ON players (game_id);
 
 -- -------------------------------------------------------
+-- 6. TELEMETRY — anonymous product metrics (service role only)
+--    See docs/ANALYTICS.md and migration-v14-telemetry.sql.
+-- -------------------------------------------------------
+CREATE TABLE IF NOT EXISTS telemetry_events (
+  id           BIGSERIAL PRIMARY KEY,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  event        TEXT NOT NULL,
+  game_ref     TEXT,
+  platform     TEXT,
+  locale       TEXT,
+  difficulty   TEXT,
+  game_mode    TEXT,
+  mc_mode      BOOLEAN,
+  cameras_on   BOOLEAN,
+  num_questions SMALLINT,
+  player_count  SMALLINT,
+  is_public    BOOLEAN,
+  status       TEXT,
+  webrtc_pairs_total     SMALLINT,
+  webrtc_pairs_p2p       SMALLINT,
+  webrtc_pairs_relay     SMALLINT,
+  webrtc_pairs_failed    SMALLINT,
+  relay_provider         TEXT,
+  bytes_sent_total       BIGINT,
+  bytes_recv_total       BIGINT,
+  cameras_enabled_mesh   BOOLEAN,
+  meta         JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS telemetry_events_created_at_idx
+  ON telemetry_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS telemetry_events_event_idx
+  ON telemetry_events (event, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS telemetry_game_created_uniq
+  ON telemetry_events (game_ref)
+  WHERE event = 'game_created' AND game_ref IS NOT NULL;
+
+ALTER TABLE telemetry_events ENABLE ROW LEVEL SECURITY;
+-- No anon/authenticated policies — service role only.
+
+-- -------------------------------------------------------
 -- Done! You can verify with:
 --   SELECT * FROM games LIMIT 5;
 --   SELECT * FROM players LIMIT 5;

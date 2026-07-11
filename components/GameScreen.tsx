@@ -32,6 +32,8 @@ import { useLocale }    from '@/context/LocaleProvider';
 import { detectSpeechLang } from '@/lib/i18n';
 import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
 import { mergePreviousQuestions, rememberQuestions, filterUnseenQuestions } from '@/lib/question-history';
+import { sendTelemetry } from '@/lib/telemetry';
+import { roundTelemetryBytes } from '@/lib/telemetry-shared';
 
 interface GameScreenProps {
   gameId: string;
@@ -85,8 +87,61 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const camerasEnabled = game?.cameras_enabled ?? false;
   const {
     localStream, remoteStreams, connected, cameraError, startCamera, stopCamera,
-    setMicEnabled,
+    setMicEnabled, collectMeshTelemetry,
   } = useMeshWebRTC(gameId, me?.id ?? '', camerasEnabled);
+
+  // Host-only product telemetry once the match ends (before discussion cut).
+  // No names, IPs, topics, or account ids — see docs/ANALYTICS.md.
+  const endTelemetrySentRef = React.useRef(false);
+  useEffect(() => {
+    if (!game || game.phase !== 'ended' || game.status !== 'ended') {
+      if (game && game.phase !== 'ended') endTelemetrySentRef.current = false;
+      return;
+    }
+    if (!me || me.role !== 'host') return;
+    if (endTelemetrySentRef.current) return;
+    endTelemetrySentRef.current = true;
+
+    const playerCount = Math.min(6, Math.max(1, players.length));
+    sendTelemetry({
+      event: 'game_finished',
+      game_ref: gameId,
+      platform: 'web',
+      difficulty: game.difficulty,
+      game_mode: game.game_mode,
+      mc_mode: game.mc_mode,
+      cameras_on: game.cameras_enabled,
+      num_questions: game.num_questions,
+      player_count: playerCount,
+      status: 'ended',
+    });
+
+    void collectMeshTelemetry().then((mesh) => {
+      sendTelemetry({
+        event: 'webrtc_summary',
+        game_ref: gameId,
+        platform: 'web',
+        cameras_on: game.cameras_enabled,
+        cameras_enabled_mesh: mesh.cameras_enabled_mesh,
+        webrtc_pairs_total: mesh.webrtc_pairs_total,
+        webrtc_pairs_p2p: mesh.webrtc_pairs_p2p,
+        webrtc_pairs_relay: mesh.webrtc_pairs_relay,
+        webrtc_pairs_failed: mesh.webrtc_pairs_failed,
+        bytes_sent_total: roundTelemetryBytes(mesh.bytes_sent_total),
+        bytes_recv_total: roundTelemetryBytes(mesh.bytes_recv_total),
+        player_count: playerCount,
+      });
+    });
+  }, [
+    game,
+    game?.phase,
+    game?.status,
+    me,
+    me?.role,
+    players.length,
+    gameId,
+    collectMeshTelemetry,
+  ]);
 
   // Start the camera as soon as we've taken a seat (so the mesh can form
   // while we're still in the lobby). Keyed on `me?.id` (a stable primitive),

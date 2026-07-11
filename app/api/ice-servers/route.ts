@@ -35,8 +35,10 @@
 //     METERED_API_KEY  = <api key>
 // ============================================================
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import net from 'net';
+import { insertTelemetryEvent } from '@/lib/telemetry-server';
+import { platformFromClientHeader, type RelayPool } from '@/lib/telemetry-shared';
 
 // net.connect needs the Node.js runtime (not Edge), and the relay decision
 // must never be cached.
@@ -95,7 +97,18 @@ async function getMeteredIceServers(): Promise<unknown[] | null> {
   return null;
 }
 
-export async function GET() {
+/** Always record Metered fallback; sample healthy coturn/stun (~15%) to limit volume. */
+function noteIcePool(req: NextRequest, relay_pool: RelayPool) {
+  if (relay_pool !== 'metered' && Math.random() > 0.15) return;
+  void insertTelemetryEvent({
+    event: 'ice_config_served',
+    platform: platformFromClientHeader(req.headers.get('x-whosmarter-client')),
+    relay_provider: relay_pool,
+    meta: { relay_pool },
+  });
+}
+
+export async function GET(req: NextRequest) {
   const turnUrls = process.env.TURN_URLS;
   const turnUser = process.env.TURN_USERNAME;
   const turnCred = process.env.TURN_CREDENTIAL;
@@ -118,16 +131,25 @@ export async function GET() {
     const coturnUp = probe ? await tcpReachable(probe.host, probe.port) : true;
 
     if (coturnUp) {
+      noteIcePool(req, 'coturn');
       return NextResponse.json({ iceServers: [STUN, coturn] });
     }
 
     console.warn('[ice-servers] coturn unreachable — falling back to Metered');
     const metered = await getMeteredIceServers();
-    if (metered) return NextResponse.json({ iceServers: [STUN, ...metered] });
+    if (metered) {
+      noteIcePool(req, 'metered');
+      return NextResponse.json({ iceServers: [STUN, ...metered] });
+    }
+    noteIcePool(req, 'coturn');
     return NextResponse.json({ iceServers: [STUN, coturn] });
   }
 
   const metered = await getMeteredIceServers();
-  if (metered) return NextResponse.json({ iceServers: [STUN, ...metered] });
+  if (metered) {
+    noteIcePool(req, 'metered');
+    return NextResponse.json({ iceServers: [STUN, ...metered] });
+  }
+  noteIcePool(req, 'stun_only');
   return NextResponse.json({ iceServers: FALLBACK_ICE_SERVERS });
 }

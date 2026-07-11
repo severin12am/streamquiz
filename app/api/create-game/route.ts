@@ -19,6 +19,8 @@ import { validateConfig, generateQuestions } from '@/lib/question-generator';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { consumeCreateQuota } from '@/lib/creator-quota';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
+import { insertTelemetryEvent } from '@/lib/telemetry-server';
+import { platformFromClientHeader } from '@/lib/telemetry-shared';
 import type { GameMode } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -124,8 +126,28 @@ export async function POST(req: NextRequest) {
       throw new Error(error?.message ?? 'Failed to create the game.');
     }
 
+    const gameId = (data as { id: string }).id;
+
+    // Privacy-safe product metrics (no topic, email, host_user_id, or IP).
+    const bodyLocale =
+      typeof (body as Record<string, unknown>).locale === 'string'
+        ? String((body as Record<string, unknown>).locale).trim().slice(0, 8)
+        : null;
+    void insertTelemetryEvent({
+      event: 'game_created',
+      game_ref: gameId,
+      platform: platformFromClientHeader(clientPlatform),
+      locale: bodyLocale || null,
+      difficulty: validation.config.difficulty,
+      game_mode: gameMode,
+      mc_mode: validation.config.mcMode,
+      cameras_on: camerasEnabled,
+      num_questions: validation.config.count,
+      player_count: 1,
+    });
+
     return NextResponse.json(
-      { gameId: (data as { id: string }).id, questions, provider, ...(quota ? { quota } : {}) },
+      { gameId, questions, provider, ...(quota ? { quota } : {}) },
       { headers: rateLimitHeaders(rl) },
     );
   } catch (err) {

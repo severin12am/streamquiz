@@ -47,6 +47,112 @@ function candidateType(candidate?: string): string {
   return m ? m[1] : 'unknown';
 }
 
+type PairPath = 'p2p' | 'relay' | 'failed' | 'unknown';
+
+function pathFromCandidateTypes(
+  localType: string | undefined,
+  remoteType: string | undefined,
+  iceState: string,
+  connectionState: string,
+): PairPath {
+  if (
+    iceState === 'failed' ||
+    iceState === 'disconnected' ||
+    connectionState === 'failed' ||
+    connectionState === 'disconnected'
+  ) {
+    return 'failed';
+  }
+  if (localType === 'relay' || remoteType === 'relay') return 'relay';
+  if (localType && remoteType && localType !== '?' && remoteType !== '?') return 'p2p';
+  if (connectionState === 'connected' || iceState === 'connected' || iceState === 'completed') {
+    return 'p2p'; // connected but types unknown — treat as direct-ish
+  }
+  return 'unknown';
+}
+
+/** Read selected ICE path + RTP byte counters for one peer connection (no IPs). */
+async function summarizePeerConnection(pc: RTCPeerConnection): Promise<{
+  path: PairPath;
+  bytesSent: number;
+  bytesRecv: number;
+}> {
+  try {
+    const stats = await pc.getStats();
+    const pairs = new Map<string, RTCStats>();
+    const locals = new Map<string, RTCStats>();
+    const remotes = new Map<string, RTCStats>();
+    let selectedPairId: string | undefined;
+    let bytesSent = 0;
+    let bytesRecv = 0;
+
+    for (const r of stats.values()) {
+      const s = r as unknown as Record<string, unknown>;
+      switch (r.type) {
+        case 'candidate-pair':
+          pairs.set(r.id, r);
+          break;
+        case 'local-candidate':
+          locals.set(r.id, r);
+          break;
+        case 'remote-candidate':
+          remotes.set(r.id, r);
+          break;
+        case 'transport':
+          if (typeof s.selectedCandidatePairId === 'string') {
+            selectedPairId = s.selectedCandidatePairId;
+          }
+          break;
+        case 'outbound-rtp':
+          if (typeof s.bytesSent === 'number') bytesSent += s.bytesSent;
+          break;
+        case 'inbound-rtp':
+          if (typeof s.bytesReceived === 'number') bytesRecv += s.bytesReceived;
+          break;
+      }
+    }
+
+    let pair = selectedPairId ? pairs.get(selectedPairId) : undefined;
+    if (!pair) {
+      for (const p of pairs.values()) {
+        const ps = p as unknown as Record<string, unknown>;
+        if (ps.state === 'succeeded' && (ps.nominated || ps.selected)) {
+          pair = p;
+          break;
+        }
+      }
+    }
+    const pairObj = pair as unknown as Record<string, unknown> | undefined;
+    const local = pairObj
+      ? (locals.get(pairObj.localCandidateId as string) as unknown as Record<string, unknown> | undefined)
+      : undefined;
+    const remote = pairObj
+      ? (remotes.get(pairObj.remoteCandidateId as string) as unknown as
+          | Record<string, unknown>
+          | undefined)
+      : undefined;
+    const localType = (local?.candidateType as string) ?? '?';
+    const remoteType = (remote?.candidateType as string) ?? '?';
+
+    return {
+      path: pathFromCandidateTypes(
+        localType,
+        remoteType,
+        pc.iceConnectionState,
+        pc.connectionState,
+      ),
+      bytesSent,
+      bytesRecv,
+    };
+  } catch {
+    return {
+      path: pathFromCandidateTypes(undefined, undefined, pc.iceConnectionState, pc.connectionState),
+      bytesSent: 0,
+      bytesRecv: 0,
+    };
+  }
+}
+
 // Mask credentials but show URLs so we can confirm a TURN server is present.
 function describeIceServers(servers: RTCIceServer[]): string[] {
   return servers.flatMap((s) => {
@@ -121,6 +227,17 @@ async function fetchIceServers(): Promise<RTCIceServer[]> {
   return FALLBACK_ICE_SERVERS;
 }
 
+/** Privacy-safe WebRTC mesh summary (no IPs / candidates). */
+export interface MeshTelemetrySummary {
+  webrtc_pairs_total: number;
+  webrtc_pairs_p2p: number;
+  webrtc_pairs_relay: number;
+  webrtc_pairs_failed: number;
+  bytes_sent_total: number;
+  bytes_recv_total: number;
+  cameras_enabled_mesh: boolean;
+}
+
 export interface UseMeshWebRTCReturn {
   localStream:   MediaStream | null;
   /** Remote camera streams, keyed by the other player's id. */
@@ -137,6 +254,8 @@ export interface UseMeshWebRTCReturn {
   micEnabled:    boolean;
   /** Enable/disable sending my mic to peers (push-to-talk / answer phase). */
   setMicEnabled: (on: boolean) => void;
+  /** Snapshot P2P vs TURN pair counts + rounded-ish byte totals (for telemetry). */
+  collectMeshTelemetry: () => Promise<MeshTelemetrySummary>;
 }
 
 interface PeerConn {
@@ -260,6 +379,38 @@ export function useMeshWebRTC(
     tracks.forEach((track) => { track.enabled = on; });
     setMicEnabledState(on);
   }, []);
+
+  /** Privacy-safe mesh stats for product telemetry (no ICE IPs). */
+  const collectMeshTelemetry = useCallback(async (): Promise<MeshTelemetrySummary> => {
+    const peers = peersRef.current;
+    let p2p = 0;
+    let relay = 0;
+    let failed = 0;
+    let unknown = 0;
+    let bytesSent = 0;
+    let bytesRecv = 0;
+
+    const entries = [...peers.values()];
+    for (const entry of entries) {
+      const s = await summarizePeerConnection(entry.pc);
+      bytesSent += s.bytesSent;
+      bytesRecv += s.bytesRecv;
+      if (s.path === 'p2p') p2p += 1;
+      else if (s.path === 'relay') relay += 1;
+      else if (s.path === 'failed') failed += 1;
+      else unknown += 1;
+    }
+
+    return {
+      webrtc_pairs_total: entries.length,
+      webrtc_pairs_p2p: p2p,
+      webrtc_pairs_relay: relay,
+      webrtc_pairs_failed: failed + unknown,
+      bytes_sent_total: bytesSent,
+      bytes_recv_total: bytesRecv,
+      cameras_enabled_mesh: camerasEnabled,
+    };
+  }, [camerasEnabled]);
 
   // -------------------------------------------------------
   // stopCamera — cut every feed: close all peer connections and stop our
@@ -935,5 +1086,15 @@ export function useMeshWebRTC(
     };
   }, []);
 
-  return { localStream, remoteStreams, connected, cameraError, startCamera, stopCamera, micEnabled, setMicEnabled };
+  return {
+    localStream,
+    remoteStreams,
+    connected,
+    cameraError,
+    startCamera,
+    stopCamera,
+    micEnabled,
+    setMicEnabled,
+    collectMeshTelemetry,
+  };
 }
