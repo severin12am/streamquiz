@@ -365,23 +365,6 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         {...(!showAdjust ? { inert: true } : {})}
       >
         <div ref={adjustInnerRef} className="adjust-panel-inner flex flex-col gap-6 pt-1">
-          {/* ---- Browse open games (first) ---- */}
-          <button
-            type="button"
-            onClick={() => {
-              playSound('click');
-              onBrowseOpen?.();
-            }}
-            className="keycap keycap-secondary w-full py-3 px-4 rounded-xl text-left flex flex-col gap-0.5"
-          >
-            <span className="text-sm font-medium text-[var(--text-primary)]">
-              {t('create.browseOpenGames')}
-            </span>
-            <span className="text-xs text-[var(--text-muted)]">
-              {t('create.browseOpenGamesHint')}
-            </span>
-          </button>
-
           {/* ---- Difficulty ---- */}
           <div>
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
@@ -506,6 +489,23 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
               <span className="toggle-thumb" aria-hidden />
             </button>
           </div>
+
+          {/* ---- Browse open games (after invite only) ---- */}
+          <button
+            type="button"
+            onClick={() => {
+              playSound('click');
+              onBrowseOpen?.();
+            }}
+            className="keycap keycap-secondary w-full py-3 px-4 rounded-xl text-left flex flex-col gap-0.5"
+          >
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              {t('create.browseOpenGames')}
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">
+              {t('create.browseOpenGamesHint')}
+            </span>
+          </button>
         </div>
       </div>
 
