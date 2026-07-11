@@ -1,18 +1,31 @@
 -- ============================================================
 -- WhoSmarter — Migration v14: privacy-safe product telemetry
 -- ============================================================
--- Run ONCE in Supabase SQL Editor.
+-- Run ONCE in your Supabase SQL Editor. Safe to re-run.
 --
--- This file ONLY creates a table + indexes + RLS.
--- It does NOT delete any existing data.
+-- WHAT THIS DOES (safe for existing schema):
+--   1. CREATE TABLE IF NOT EXISTS telemetry_events  → no overwrite of games/players
+--   2. CREATE INDEX IF NOT EXISTS                   → no-op if already present
+--   3. ENABLE RLS on telemetry_events only          → does not change games/players RLS
+--   4. CREATE OR REPLACE cleanup_old_games()        → same function name as v12;
+--      keeps the existing games retention rules and ADDS a 90-day prune of
+--      telemetry_events only. Does NOT drop tables. Does NOT run DELETE
+--      immediately when you execute this script — DELETE only runs later when
+--      the hourly cron job (from migration-v12) calls cleanup_old_games().
 --
--- Stores anonymous game/settings/WebRTC path stats for the operator.
--- NO names, emails, IPs, topics, or account ids.
--- RLS: no policies for anon/authenticated → only service role can read/write.
+-- WHAT THIS DOES NOT DO:
+--   • Does not alter games / players columns or policies
+--   • Does not drop any table
+--   • Does not delete rows at migration time
+--   • Does not touch pg_cron schedule (v12 already schedules hourly cleanup)
 --
--- Optional 90-day retention: see bottom comment (run separately if you want).
+-- If you never ran migration-v12, this still creates cleanup_old_games() so you
+-- can call SELECT cleanup_old_games(); manually; cron scheduling remains optional.
+--
+-- Privacy: NO names, emails, IPs, topics, or account ids in telemetry_events.
 -- ============================================================
 
+-- 1) New table (independent of games/players)
 CREATE TABLE IF NOT EXISTS telemetry_events (
   id           BIGSERIAL PRIMARY KEY,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -51,22 +64,53 @@ CREATE INDEX IF NOT EXISTS telemetry_events_created_at_idx
 CREATE INDEX IF NOT EXISTS telemetry_events_event_idx
   ON telemetry_events (event, created_at DESC);
 
--- One game_created row per game id.
+-- One game_created row per game id (rematches may send multiple finish/webrtc rows).
 CREATE UNIQUE INDEX IF NOT EXISTS telemetry_game_created_uniq
   ON telemetry_events (game_ref)
   WHERE event = 'game_created' AND game_ref IS NOT NULL;
 
 ALTER TABLE telemetry_events ENABLE ROW LEVEL SECURITY;
--- Intentionally no policies for anon/authenticated (service role only).
+-- No anon/authenticated policies → only service role can read/write.
 
--- Verify:
---   SELECT * FROM telemetry_events LIMIT 5;
+-- 2) Extend the existing v12 cleanup function (same signature: returns integer).
+--    Games retention rules UNCHANGED from migration-v12.
+--    NEW: also delete telemetry older than 90 days when the function runs.
+CREATE OR REPLACE FUNCTION cleanup_old_games()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  removed integer;
+  tel_removed integer;
+BEGIN
+  -- Same as v12: prune ephemeral quiz sessions
+  DELETE FROM games
+  WHERE created_at < NOW() - INTERVAL '24 hours'
+     OR (status = 'ended' AND created_at < NOW() - INTERVAL '3 hours');
+  GET DIAGNOSTICS removed = ROW_COUNT;
+
+  -- New: prune old anonymous metrics (table may be empty; always safe)
+  DELETE FROM telemetry_events
+  WHERE created_at < NOW() - INTERVAL '90 days';
+  GET DIAGNOSTICS tel_removed = ROW_COUNT;
+
+  RETURN removed;
+END;
+$$;
 
 -- -------------------------------------------------------
--- OPTIONAL later (separate query — contains DELETE, so Supabase warns):
+-- Supabase SQL Editor may warn "destructive operations" because this
+-- script CONTAINS the word DELETE inside the function body. That is
+-- expected. Running this migration does NOT delete data right now.
 --
---   DELETE FROM telemetry_events
---   WHERE created_at < NOW() - INTERVAL '90 days';
+-- Verify table:
+--   SELECT * FROM telemetry_events LIMIT 5;
 --
--- Or fold into cleanup_old_games() from migration-v12 if you already use it.
+-- Verify cleanup still works (optional, runs deletes for OLD rows only):
+--   SELECT cleanup_old_games();
+--
+-- Useful queries: docs/TELEMETRY_VISUALIZE.md
+-- iOS parity:      docs/TELEMETRY_IOS.md
 -- -------------------------------------------------------
