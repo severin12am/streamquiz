@@ -364,7 +364,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         aria-hidden={!showAdjust}
         {...(!showAdjust ? { inert: true } : {})}
       >
-        <div ref={adjustInnerRef} className="adjust-panel-inner flex flex-col gap-6 pt-1">
+        <div ref={adjustInnerRef} className="adjust-panel-inner flex flex-col gap-6 pt-1 pb-3">
           {/* ---- Difficulty ---- */}
           <div>
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
