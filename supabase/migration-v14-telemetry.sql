@@ -1,12 +1,16 @@
 -- ============================================================
 -- WhoSmarter — Migration v14: privacy-safe product telemetry
 -- ============================================================
--- Run ONCE in the Supabase SQL Editor. Safe to re-run.
+-- Run ONCE in Supabase SQL Editor.
+--
+-- This file ONLY creates a table + indexes + RLS.
+-- It does NOT delete any existing data.
 --
 -- Stores anonymous game/settings/WebRTC path stats for the operator.
 -- NO names, emails, IPs, topics, or account ids.
 -- RLS: no policies for anon/authenticated → only service role can read/write.
--- Retention: 90 days (folded into cleanup_old_games when that function exists).
+--
+-- Optional 90-day retention: see bottom comment (run separately if you want).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS telemetry_events (
@@ -47,48 +51,22 @@ CREATE INDEX IF NOT EXISTS telemetry_events_created_at_idx
 CREATE INDEX IF NOT EXISTS telemetry_events_event_idx
   ON telemetry_events (event, created_at DESC);
 
--- One game_created per game id (rematches reuse the same game_ref, so
--- finish/webrtc summaries are allowed multiple times).
+-- One game_created row per game id.
 CREATE UNIQUE INDEX IF NOT EXISTS telemetry_game_created_uniq
   ON telemetry_events (game_ref)
   WHERE event = 'game_created' AND game_ref IS NOT NULL;
 
 ALTER TABLE telemetry_events ENABLE ROW LEVEL SECURITY;
--- Intentionally no GRANT/policies for anon or authenticated.
+-- Intentionally no policies for anon/authenticated (service role only).
 
--- Extend cleanup if v12 function exists; otherwise define a standalone pruner.
-CREATE OR REPLACE FUNCTION cleanup_old_games()
-RETURNS integer
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  removed integer;
-  tel_removed integer;
-BEGIN
-  DELETE FROM games
-  WHERE created_at < NOW() - INTERVAL '24 hours'
-     OR (status = 'ended' AND created_at < NOW() - INTERVAL '3 hours');
-  GET DIAGNOSTICS removed = ROW_COUNT;
-
-  DELETE FROM telemetry_events
-  WHERE created_at < NOW() - INTERVAL '90 days';
-  GET DIAGNOSTICS tel_removed = ROW_COUNT;
-
-  RETURN removed;
-END;
-$$;
+-- Verify:
+--   SELECT * FROM telemetry_events LIMIT 5;
 
 -- -------------------------------------------------------
--- Useful queries (Supabase SQL Editor):
+-- OPTIONAL later (separate query — contains DELETE, so Supabase warns):
 --
--- Creates per day, web vs ios:
---   SELECT date_trunc('day', created_at) AS day, platform, COUNT(*)
---   FROM telemetry_events WHERE event = 'game_created'
---   GROUP BY 1, 2 ORDER BY 1 DESC;
+--   DELETE FROM telemetry_events
+--   WHERE created_at < NOW() - INTERVAL '90 days';
 --
--- P2P vs TURN:
---   SELECT SUM(webrtc_pairs_p2p), SUM(webrtc_pairs_relay), SUM(webrtc_pairs_failed)
---   FROM telemetry_events WHERE event = 'webrtc_summary';
+-- Or fold into cleanup_old_games() from migration-v12 if you already use it.
 -- -------------------------------------------------------

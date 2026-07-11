@@ -3,8 +3,13 @@
 Design for **operational metrics** you need (quiz usage, platforms, video path, rough bandwidth) **without** collecting personal data that creates heavy privacy/legal burden.
 
 **Status:** Implemented (web). View data in **Supabase → SQL Editor** (no in-app dashboard).  
-**Ship checklist:** run `supabase/migration-v14-telemetry.sql` once on your Supabase project.  
+**Ship checklist:** run `supabase/migration-v14-telemetry.sql` once on your Supabase project (creates table only — no data deletes).  
 **Related:** `telemetry_events` table, `POST /api/telemetry`, `game_created` in create-game, host `game_finished` + `webrtc_summary` on end, sampled `ice_config_served`.
+
+| Hand-off file | Use |
+|---------------|-----|
+| [`docs/TELEMETRY_VISUALIZE.md`](./TELEMETRY_VISUALIZE.md) | Paste into an AI with SQL results to chart/summarize |
+| [`docs/TELEMETRY_IOS.md`](./TELEMETRY_IOS.md) | Give to the iOS/RN project for client telemetry parity |
 
 **Not legal advice.** This is an engineering posture that *reduces* risk. If you operate in the EU/UK or grow significantly, still skim GDPR/CCPA basics or ask a lawyer once — especially if you later add ads, sell data, or identify users across sessions.
 
