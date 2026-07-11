@@ -129,7 +129,12 @@ CREATE TABLE IF NOT EXISTS games (
   -- ---- v13: host-only Google auth ----
   -- The Supabase auth user id of the host who created the game (set by the
   -- server in /api/create-game). NULL for legacy rows / anonymous creation.
-  host_user_id           UUID DEFAULT NULL
+  host_user_id           UUID DEFAULT NULL,
+
+  -- ---- v15: global rooms ----
+  -- Discoverable in Browse while status=waiting. Default false (invite only).
+  -- Host Start may only set true → false (cannot re-list).
+  is_public              BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- -------------------------------------------------------
@@ -172,6 +177,11 @@ BEGIN
   THEN
     RAISE EXCEPTION 'Cannot modify immutable game setup columns';
   END IF;
+  IF NEW.is_public IS DISTINCT FROM OLD.is_public THEN
+    IF NOT (OLD.is_public = TRUE AND NEW.is_public = FALSE) THEN
+      RAISE EXCEPTION 'Cannot modify is_public except to unlist (true → false)';
+    END IF;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -192,6 +202,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE games;
 -- 4. HELPFUL INDEXES
 -- -------------------------------------------------------
 CREATE INDEX IF NOT EXISTS games_created_at_idx ON games (created_at DESC);
+CREATE INDEX IF NOT EXISTS games_public_waiting_idx
+  ON games (created_at DESC)
+  WHERE is_public = TRUE AND status = 'waiting';
 
 -- -------------------------------------------------------
 -- 5. PLAYERS TABLE — one row per participant (up to 6 players)
@@ -285,6 +298,41 @@ CREATE TRIGGER players_lock_identity_columns_trg
 ALTER PUBLICATION supabase_realtime ADD TABLE players;
 
 CREATE INDEX IF NOT EXISTS players_game_id_idx ON players (game_id);
+
+-- -------------------------------------------------------
+-- 5b. GAME BANS + ban insert trigger (host kick)
+-- -------------------------------------------------------
+CREATE TABLE IF NOT EXISTS game_bans (
+  game_id              UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  client_id            TEXT NOT NULL,
+  banned_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  banned_by_player_id  UUID NULL,
+  PRIMARY KEY (game_id, client_id)
+);
+CREATE INDEX IF NOT EXISTS game_bans_game_id_idx ON game_bans (game_id);
+ALTER TABLE game_bans ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION players_reject_banned()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM game_bans b
+    WHERE b.game_id = NEW.game_id AND b.client_id = NEW.client_id
+  ) THEN
+    RAISE EXCEPTION 'banned_from_game' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS players_reject_banned_trg ON players;
+CREATE TRIGGER players_reject_banned_trg
+  BEFORE INSERT ON players
+  FOR EACH ROW EXECUTE FUNCTION players_reject_banned();
 
 -- -------------------------------------------------------
 -- 6. TELEMETRY — anonymous product metrics (service role only)

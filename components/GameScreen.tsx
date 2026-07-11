@@ -42,7 +42,7 @@ interface GameScreenProps {
 
 export default function GameScreen({ gameId, role }: GameScreenProps) {
   const { t, locale, speechLang } = useLocale();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
 
   // Stable per-browser id (set after mount to avoid an SSR mismatch).
   const [clientId, setClientId] = useState('');
@@ -63,7 +63,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // 1. Game state (synced via Supabase Realtime)
   // ----------------------------------------------------------
   const {
-    game, players, me, loading, error,
+    game, players, me, loading, error, removed,
     timeLeft, timeLeftMs, timerTotal,
     join, submitMCAnswer, startGame, updateTranscript, finishAnswer,
     rematch, voteRematch,
@@ -433,9 +433,29 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     if (!p) setJoinFull(true);
   }, [join, asHost]);
 
+  const handleKick = useCallback(async (player: { id: string; name: string; role: string }) => {
+    if (!clientId || player.role === 'host') return;
+    if (typeof window !== 'undefined' && game?.status !== 'waiting') {
+      const ok = window.confirm(t('lobby.removeConfirm', { name: player.name }));
+      if (!ok) return;
+    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+    const res = await fetch('/api/kick-player', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        gameId,
+        targetPlayerId: player.id,
+        hostClientId: clientId,
+      }),
+    });
+    if (!res.ok) throw new Error('kick failed');
+  }, [clientId, gameId, session?.access_token, t, game?.status]);
+
   // Claim a lobby seat on arrival so nobody has to tap Join first.
   useEffect(() => {
-    if (!clientId || loading || !game || game.status !== 'waiting' || me) return;
+    if (!clientId || loading || !game || game.status !== 'waiting' || me || removed) return;
     if (autoJoinAttemptedRef.current) return;
 
     autoJoinAttemptedRef.current = true;
@@ -445,7 +465,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       const p = await join(name, asHost);
       if (!p) setJoinFull(true);
     })();
-  }, [clientId, loading, game, me, asHost, user, join]);
+  }, [clientId, loading, game, me, asHost, user, join, removed]);
 
   // ----------------------------------------------------------
   // Loading / error states
@@ -480,6 +500,25 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     );
   }
 
+  if (removed) {
+    return (
+      <div className="flex h-dvh items-center justify-center">
+        <div className="card elevated text-center max-w-md px-8 py-10 mx-4">
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
+            {t('game.removedTitle')}
+          </h2>
+          <p className="text-[var(--text-secondary)] text-sm">{t('game.removedBody')}</p>
+          <a
+            href="/"
+            className="keycap keycap-primary inline-flex mt-6 px-6 py-2.5 rounded-xl font-semibold text-white"
+          >
+            {t('game.removedHome')}
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const shareLink =
     typeof window !== 'undefined' ? `${window.location.origin}/game/${gameId}` : '';
 
@@ -497,8 +536,10 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           asHost={asHost}
           shareLink={shareLink}
           full={joinFull}
+          isPublic={!!game.is_public}
           onStart={startGame}
           onJoin={handleJoin}
+          onKick={handleKick}
         />
       </>
     );
@@ -570,6 +611,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
               onFinish={handleFinishAnswer}
               onAnswerHoldStart={startAnswerHold}
               onAnswerHoldEnd={endAnswerHold}
+              canKick={me.role === 'host'}
+              onKick={(p) => { void handleKick(p); }}
             />
           </div>
         </div>

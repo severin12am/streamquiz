@@ -4,7 +4,7 @@
 //
 // Unified pre-game screen: shows who has joined (all 6 slots), the invite
 // link + QR (host), a name field (join or rename), and Start / waiting once
-// seated. Everyone is auto-seated on arrival; rename via the name field.
+// seated. Host can remove guests. Everyone is auto-seated on arrival.
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
@@ -24,14 +24,22 @@ interface LobbyProps {
   shareLink: string;
   /** The game is full (no free seat). */
   full:      boolean;
+  /** Game listed in Browse open games (host badge). */
+  isPublic?: boolean;
   onStart:   () => void;
   onJoin:    (name: string) => Promise<void> | void;
+  /** Host removes a guest (kick API). */
+  onKick?:   (player: Player) => Promise<void> | void;
 }
 
-export default function Lobby({ players, me, asHost, shareLink, full, onStart, onJoin }: LobbyProps) {
+export default function Lobby({
+  players, me, asHost, shareLink, full, isPublic, onStart, onJoin, onKick,
+}: LobbyProps) {
   const { t } = useLocale();
   const [copied, setCopied] = useState(false);
   const [name, setName]     = useState(() => getSavedName());
+  const [kickingId, setKickingId] = useState<string | null>(null);
+  const [kickError, setKickError] = useState<string | null>(null);
 
   const seated   = !!me;
   const isHost   = me ? me.role === 'host' : asHost;
@@ -54,6 +62,22 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
     await onJoin(trimmed);
   }
 
+  async function handleKick(p: Player) {
+    if (!onKick || !isHost || p.role === 'host') return;
+    const ok = window.confirm(t('lobby.removeConfirm', { name: p.name }));
+    if (!ok) return;
+    setKickError(null);
+    setKickingId(p.id);
+    playSound('click');
+    try {
+      await onKick(p);
+    } catch {
+      setKickError(t('lobby.removeError'));
+    } finally {
+      setKickingId(null);
+    }
+  }
+
   return (
     <div className="flex min-h-dvh items-center justify-center p-4 sm:p-6">
       <div className="card elevated flex flex-col gap-5 w-full max-w-md p-5 sm:p-7">
@@ -64,6 +88,11 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             {t('lobby.playersCount', { n: players.length, max: MAX_PLAYERS })}
           </p>
+          {isHost && isPublic && (
+            <p className="text-xs text-[var(--text-muted)] mt-1.5">
+              {t('lobby.listedPublicly')}
+            </p>
+          )}
         </div>
 
         {/* ---- Player list (all 6 slots) ---- */}
@@ -91,6 +120,17 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
                 {p.id === me?.id && (
                   <span style={{ color: 'var(--text-muted)' }}>({t('lobby.you')})</span>
                 )}
+                {isHost && me && p.role === 'player' && onKick && (
+                  <button
+                    type="button"
+                    disabled={kickingId === p.id}
+                    onClick={() => { void handleKick(p); }}
+                    className="keycap keycap-secondary keycap-compact normal-case tracking-normal font-semibold text-[11px]"
+                    style={{ color: 'var(--wrong)' }}
+                  >
+                    {kickingId === p.id ? '…' : t('lobby.removePlayer')}
+                  </button>
+                )}
               </span>
               </div>
             </div>
@@ -111,6 +151,10 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
           ))}
         </div>
 
+        {kickError && (
+          <p className="text-sm text-center" style={{ color: 'var(--wrong)' }}>{kickError}</p>
+        )}
+
         {/* ---- Invite link + QR (host) ---- */}
         {isHost && (
           <div className="flex flex-col items-center gap-3">
@@ -121,8 +165,6 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
               <QRCodeSVG value={shareLink} size={132} />
             </div>
             <div className="keycap-well-frame w-full">
-              {/* Flex layout lives on a plain div so truncation is reliable
-                  regardless of the .keycap-well display rule. */}
               <div className="keycap-well p-2.5">
                 <div className="flex items-center gap-2">
                   <span className="flex-1 min-w-0 truncate text-xs text-[var(--text-primary)] font-mono">
@@ -145,7 +187,7 @@ export default function Lobby({ players, me, asHost, shareLink, full, onStart, o
           </div>
         )}
 
-        {/* ---- Action area: joining spinner · name + start/waiting (seated) ---- */}
+        {/* ---- Action area ---- */}
         {!seated ? (
           full ? (
             <div className="keycap-well-frame">

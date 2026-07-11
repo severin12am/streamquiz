@@ -104,6 +104,9 @@ export async function POST(req: NextRequest) {
     // ---- 4. Insert the game (service role bypasses RLS) ----
     const camerasEnabled = Boolean((body as Record<string, unknown>).cameras_enabled);
     const gameMode = validGameMode((body as Record<string, unknown>).game_mode);
+    // Default private (invite only). Clients send is_public: true only when
+    // "Invite only" is turned off under More.
+    const isPublic = Boolean((body as Record<string, unknown>).is_public);
 
     const { data, error } = await admin
       .from('games')
@@ -114,6 +117,7 @@ export async function POST(req: NextRequest) {
         mc_mode: validation.config.mcMode,
         game_mode: gameMode,
         cameras_enabled: camerasEnabled,
+        is_public: isPublic,
         questions,
         status: 'waiting',
         phase: 'waiting',
@@ -144,6 +148,7 @@ export async function POST(req: NextRequest) {
       cameras_on: camerasEnabled,
       num_questions: validation.config.count,
       player_count: 1,
+      is_public: isPublic,
     });
 
     return NextResponse.json(

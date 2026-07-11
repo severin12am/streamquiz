@@ -48,6 +48,7 @@ import {
   resetPlayersForRound, resetPlayersForMatch, serverNow, syncServerClock,
 } from '@/lib/supabase';
 import { isMcAnswerCorrect } from '@/lib/mc-utils';
+import { getSavedName } from '@/lib/client-id';
 import type { Game, Player, Question } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -179,6 +180,8 @@ export interface UseGameStateReturn {
 
   // Actions
   join: (name: string, asHost: boolean) => Promise<Player | null>;
+  /** True after this client lost its seat and cannot rejoin (host kick). */
+  removed: boolean;
   submitMCAnswer: (optionIndex: number) => Promise<void>;
   startGame: () => Promise<void>;
   updateTranscript: (text: string) => Promise<void>;
@@ -190,6 +193,8 @@ export interface UseGameStateReturn {
 export function useGameState(gameId: string, clientId: string): UseGameStateReturn {
   const [game, setGame]       = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [removed, setRemoved] = useState(false);
+  const hadSeatRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_SECONDS);
@@ -208,6 +213,29 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   const roundReadyRef  = useRef<string | null>(null);
 
   const me = players.find((p) => p.client_id === clientId) ?? null;
+
+  // Track whether we ever held a seat; if it vanishes, try rejoin once → ban = removed.
+  useEffect(() => {
+    if (me) {
+      hadSeatRef.current = true;
+      return;
+    }
+    if (!hadSeatRef.current || !clientId || !gameId || removed) return;
+
+    let cancelled = false;
+    (async () => {
+      const result = await joinGame(gameId, clientId, getSavedName() || 'Player', false);
+      if (cancelled) return;
+      if (result.ok) {
+        const list = await fetchPlayers(gameId);
+        setPlayers(list);
+        return;
+      }
+      if (result.reason === 'banned') setRemoved(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [me, clientId, gameId, removed]);
 
   useEffect(() => { gameRef.current = game; }, [game]);
   useEffect(() => { playersRef.current = players; }, [players]);
@@ -628,12 +656,18 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   // 6. ACTIONS
   // =======================================================
 
-  // Join / re-attach to a seat. Returns the player row (null if full).
+  // Join / re-attach to a seat. Returns the player row (null if full/banned).
   const join = useCallback(async (name: string, asHost: boolean) => {
-    const p = await joinGame(gameId, clientId, name, asHost);
+    const result = await joinGame(gameId, clientId, name, asHost);
+    if (!result.ok) {
+      if (result.reason === 'banned') setRemoved(true);
+      const list = await fetchPlayers(gameId);
+      setPlayers(list);
+      return null;
+    }
     const list = await fetchPlayers(gameId);
     setPlayers(list);
-    return p;
+    return result.player;
   }, [gameId, clientId]);
 
   // Start the match (host only). Resets every player, then opens round 1.
@@ -641,8 +675,10 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
     const meNow = playersRef.current.find((p) => p.client_id === clientId);
     if (!meNow || meNow.role !== 'host') return;
     await resetPlayersForMatch(gameId);
+    // R1: unlist public rooms forever when the quiz starts (is_public true → false only).
     await updateGame(gameId, {
       status: 'playing',
+      is_public: false,
       current_question_index: 0,
       answer_correct: null,
       last_points: 0,
@@ -716,6 +752,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
     me,
     loading,
     error,
+    removed,
     timeLeft,
     timeLeftMs,
     timerTotal: phaseTotalSeconds(game),

@@ -47,6 +47,9 @@ interface QuestionPanelProps {
   onFinish:        () => void;        // typed answer submit (Enter)
   onAnswerHoldStart: () => void;      // press-and-hold to record a spoken answer
   onAnswerHoldEnd:   () => void;      // release to lock the spoken answer in
+  /** Host-only: remove a guest mid-game. */
+  canKick?: boolean;
+  onKick?: (player: Player) => void;
 }
 
 export default function QuestionPanel({
@@ -65,6 +68,8 @@ export default function QuestionPanel({
   onFinish,
   onAnswerHoldStart,
   onAnswerHoldEnd,
+  canKick = false,
+  onKick,
 }: QuestionPanelProps) {
   const { t } = useLocale();
   // `game.questions` can momentarily be undefined: Supabase Realtime omits
@@ -177,7 +182,15 @@ export default function QuestionPanel({
       {/* ---- DESKTOP top: centered topic + player status ---- */}
       <div className="hidden lg:flex w-full max-w-md mx-auto flex-col items-center gap-2 pointer-events-auto">
         <TopicPill topic={game.topic} background={panelQ} showLabel textClassName="max-w-[18rem]" />
-        <PlayerStatusBar players={players} meId={me.id} phase={phase} mcMode={game.mc_mode} align="center" />
+        <PlayerStatusBar
+          players={players}
+          meId={me.id}
+          phase={phase}
+          mcMode={game.mc_mode}
+          align="center"
+          canKick={canKick}
+          onKick={onKick}
+        />
       </div>
 
       {/* ---- MOBILE top: flows to the RIGHT of the self-PiP, then wraps BELOW it.
@@ -194,7 +207,15 @@ export default function QuestionPanel({
 
         {/* player status — inline chips wrap beside the PiP, then continue below it */}
         <div className="pt-1.5">
-          <PlayerStatusBar players={players} meId={me.id} phase={phase} mcMode={game.mc_mode} inline />
+          <PlayerStatusBar
+            players={players}
+            meId={me.id}
+            phase={phase}
+            mcMode={game.mc_mode}
+            inline
+            canKick={canKick}
+            onKick={onKick}
+          />
         </div>
       </div>
 

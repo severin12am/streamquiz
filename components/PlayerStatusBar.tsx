@@ -28,6 +28,9 @@ interface PlayerStatusBarProps {
   /** Inline mode (mobile): chips are inline-flex so they wrap around the PiP
    *  float — flowing to its right first, then continuing below it. */
   inline?: boolean;
+  /** When true, show remove control on guest chips. */
+  canKick?: boolean;
+  onKick?: (player: Player) => void;
 }
 
 /** Cap a name at 10 characters with an ellipsis. */
@@ -43,6 +46,8 @@ export default function PlayerStatusBar({
   mcMode = false,
   align = 'start',
   inline = false,
+  canKick = false,
+  onKick,
 }: PlayerStatusBarProps) {
   // Flash a score that just changed.
   const prevScores = useRef<Record<string, number>>({});
@@ -111,6 +116,20 @@ export default function PlayerStatusBar({
         >
           {p.score}
         </span>
+        {canKick && onKick && p.role === 'player' && (
+          <button
+            type="button"
+            title="Remove"
+            onClick={(e) => {
+              e.stopPropagation();
+              onKick(p);
+            }}
+            className="ml-0.5 text-[10px] font-bold leading-none opacity-80 hover:opacity-100"
+            style={{ color: 'var(--wrong)' }}
+          >
+            ×
+          </button>
+        )}
       </div>
     );
   });

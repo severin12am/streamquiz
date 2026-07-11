@@ -138,6 +138,9 @@ export interface Game {
   /** Supabase auth user id of the host who created the game (host-only
    *  Google auth). Null for legacy rows. Not used in client game logic. */
   host_user_id?: string | null;
+  /** Discoverable in Browse while waiting. Default false (invite only).
+   *  Cleared to false when the host starts the quiz (cannot re-list). */
+  is_public?: boolean;
 }
 
 // -------------------------------------------------------
@@ -154,6 +157,8 @@ export interface CreateGamePayload {
   locale?: Locale;
   /** Optional — question texts to avoid repeating (from session or rematch). */
   previous_questions?: string[];
+  /** When true, listed publicly until the host starts. Default false. */
+  is_public?: boolean;
 }
 
 // -------------------------------------------------------

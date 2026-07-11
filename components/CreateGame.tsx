@@ -31,7 +31,14 @@ interface PendingCreateForm {
   mcMode: boolean;
   gameMode: GameMode;
   camerasEnabled: boolean;
+  /** When true (default), game is private. Maps to is_public: !inviteOnly */
+  inviteOnly: boolean;
   locale: Locale;
+}
+
+interface CreateGameProps {
+  /** Opens the full-page public room browser on home. */
+  onBrowseOpen?: () => void;
 }
 
 function savePendingCreate(form: PendingCreateForm) {
@@ -52,7 +59,7 @@ function clearPendingCreate() {
   sessionStorage.removeItem(PENDING_CREATE_KEY);
 }
 
-export default function CreateGame() {
+export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   const router = useRouter();
   const { t, locale } = useLocale();
   const { user, session, loading: authLoading, signInWithGoogle, signOut } = useAuth();
@@ -67,6 +74,8 @@ export default function CreateGame() {
   const [mcMode,       setMcMode]       = useState(true);
   const [gameMode,     setGameMode]     = useState<GameMode>('regular');
   const [camerasEnabled, setCamerasEnabled] = useState(true);
+  /** Default ON = private (not listed). */
+  const [inviteOnly, setInviteOnly] = useState(true);
 
   // ---- UI state ----
   const [showAdjust,    setShowAdjust]    = useState(false);
@@ -111,7 +120,7 @@ export default function CreateGame() {
     void panel.offsetHeight;
     panel.classList.remove('adjust-panel--warm');
     panel.style.removeProperty('--warm-width');
-  }, [measureAdjustPanel, locale, gameMode]);
+  }, [measureAdjustPanel, locale, gameMode, inviteOnly]);
 
   useEffect(() => {
     const panel = adjustPanelRef.current;
@@ -137,6 +146,7 @@ export default function CreateGame() {
       mcMode,
       gameMode,
       camerasEnabled,
+      inviteOnly,
       locale,
     };
   }
@@ -148,6 +158,7 @@ export default function CreateGame() {
     setMcMode(form.mcMode);
     setGameMode(form.gameMode);
     setCamerasEnabled(form.camerasEnabled);
+    setInviteOnly(form.inviteOnly !== false);
   }
 
   const submitCreate = useCallback(
@@ -163,6 +174,7 @@ export default function CreateGame() {
           mc_mode: form.mcMode,
           game_mode: form.gameMode,
           cameras_enabled: form.camerasEnabled,
+          is_public: !form.inviteOnly,
           locale: form.locale,
           previous_questions: getPreviousQuestions(form.topic),
         };
@@ -353,6 +365,23 @@ export default function CreateGame() {
         {...(!showAdjust ? { inert: true } : {})}
       >
         <div ref={adjustInnerRef} className="adjust-panel-inner flex flex-col gap-6 pt-1">
+          {/* ---- Browse open games (first) ---- */}
+          <button
+            type="button"
+            onClick={() => {
+              playSound('click');
+              onBrowseOpen?.();
+            }}
+            className="keycap keycap-secondary w-full py-3 px-4 rounded-xl text-left flex flex-col gap-0.5"
+          >
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              {t('create.browseOpenGames')}
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">
+              {t('create.browseOpenGamesHint')}
+            </span>
+          </button>
+
           {/* ---- Difficulty ---- */}
           <div>
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
@@ -450,6 +479,28 @@ export default function CreateGame() {
               aria-checked={camerasEnabled}
               onClick={() => setCamerasEnabled(!camerasEnabled)}
               className="toggle"
+            >
+              <span className="toggle-well" aria-hidden />
+              <span className="toggle-thumb" aria-hidden />
+            </button>
+          </div>
+
+          {/* ---- Invite only (default ON = private) ---- */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-[var(--text-primary)]">
+                {t('create.inviteOnlyTitle')}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                {inviteOnly ? t('create.inviteOnlyHintOn') : t('create.inviteOnlyHintOff')}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={inviteOnly}
+              onClick={() => setInviteOnly(!inviteOnly)}
+              className="toggle flex-shrink-0"
             >
               <span className="toggle-well" aria-hidden />
               <span className="toggle-thumb" aria-hidden />

@@ -342,12 +342,17 @@ export async function resetPlayersForMatch(gameId: string) {
 //     two people can't grab the same seat — on a collision we just
 //     refetch and retry. Returns null if the game is full.
 // -------------------------------------------------------
+/** Join result: seat, full lobby, or banned after host kick. */
+export type JoinGameResult =
+  | { ok: true; player: Player }
+  | { ok: false; reason: 'full' | 'banned' | 'error' };
+
 export async function joinGame(
   gameId: string,
   clientId: string,
   name: string,
   asHost: boolean
-): Promise<Player | null> {
+): Promise<JoinGameResult> {
   // Reconnect path: we already have a seat in this game.
   const { data: existing } = await supabase
     .from('players')
@@ -362,7 +367,7 @@ export async function joinGame(
       await supabase.from('players').update({ name }).eq('id', row.id);
       row.name = name;
     }
-    return row;
+    return { ok: true, player: row };
   }
 
   // Claim a fresh seat (retry on a slot collision).
@@ -385,7 +390,7 @@ export async function joinGame(
       }
     }
 
-    if (slot === -1) return null; // game full
+    if (slot === -1) return { ok: false, reason: 'full' };
 
     const { data, error } = await supabase
       .from('players')
@@ -393,7 +398,12 @@ export async function joinGame(
       .select('*')
       .single();
 
-    if (!error && data) return data as Player;
+    if (!error && data) return { ok: true, player: data as Player };
+
+    // Banned by host (trigger players_reject_banned) or other insert failure.
+    if (error && /banned_from_game|P0001|banned/i.test(error.message)) {
+      return { ok: false, reason: 'banned' };
+    }
 
     // A concurrent tab may have inserted OUR row, or grabbed the slot.
     const { data: mine } = await supabase
@@ -402,9 +412,9 @@ export async function joinGame(
       .eq('game_id', gameId)
       .eq('client_id', clientId)
       .maybeSingle();
-    if (mine) return mine as Player;
+    if (mine) return { ok: true, player: mine as Player };
     // else: slot was taken → loop and pick the next free one
   }
 
-  return null;
+  return { ok: false, reason: 'full' };
 }
