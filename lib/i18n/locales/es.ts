@@ -8,6 +8,16 @@ export const es = {
   footer: {
     privacy: 'Privacidad',
   },
+  auth: {
+    signInTitle: 'Inicia sesión para crear tu concurso',
+    signInHint: 'Solo el anfitrión necesita una cuenta. Tus invitados se unen con tu enlace — no hace falta iniciar sesión.',
+    signInGoogle: 'Continuar con Google',
+    signInError: 'No se pudo iniciar sesión. Inténtalo de nuevo.',
+    signedInAs: 'Sesión iniciada como {email}',
+    signOut: 'Cerrar sesión',
+    downloadIosApp: 'Descargar app para iOS',
+    loading: 'Cargando…',
+  },
   lang: {
     label: 'Idioma',
     en: 'English',

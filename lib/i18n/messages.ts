@@ -255,6 +255,16 @@ export const messages = {
     footer: {
       privacy: 'Конфиденциальность',
     },
+    auth: {
+      signInTitle: 'Войдите, чтобы создать викторину',
+      signInHint: 'Аккаунт нужен только ведущему. Гости присоединяются по ссылке — вход не требуется.',
+      signInGoogle: 'Продолжить с Google',
+      signInError: 'Не удалось войти. Попробуйте снова.',
+      signedInAs: 'Вы вошли как {email}',
+      signOut: 'Выйти',
+      downloadIosApp: 'Скачать iOS-приложение',
+      loading: 'Загрузка…',
+    },
     lang: {
       label: 'Язык',
       en: 'English',

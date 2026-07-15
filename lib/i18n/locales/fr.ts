@@ -8,6 +8,16 @@ export const fr = {
   footer: {
     privacy: 'Confidentialité',
   },
+  auth: {
+    signInTitle: 'Connectez-vous pour créer votre quiz',
+    signInHint: 'Seul l’hôte a besoin d’un compte. Vos invités rejoignent via votre lien — aucune connexion requise.',
+    signInGoogle: 'Continuer avec Google',
+    signInError: 'Échec de la connexion. Veuillez réessayer.',
+    signedInAs: 'Connecté en tant que {email}',
+    signOut: 'Se déconnecter',
+    downloadIosApp: 'Télécharger l’app iOS',
+    loading: 'Chargement…',
+  },
   lang: {
     label: 'Langue',
     en: 'English',

@@ -8,6 +8,16 @@ export const ja = {
   footer: {
     privacy: 'プライバシー',
   },
+  auth: {
+    signInTitle: 'サインインしてクイズを作成',
+    signInHint: 'アカウントが必要なのはホストだけです。ゲストは招待リンクから参加できます — サインイン不要。',
+    signInGoogle: 'Google で続行',
+    signInError: 'サインインに失敗しました。もう一度お試しください。',
+    signedInAs: '{email} でサインイン中',
+    signOut: 'サインアウト',
+    downloadIosApp: 'iOSアプリをダウンロード',
+    loading: '読み込み中…',
+  },
   lang: {
     label: '言語',
     en: 'English',

@@ -8,6 +8,16 @@ export const de = {
   footer: {
     privacy: 'Datenschutz',
   },
+  auth: {
+    signInTitle: 'Melde dich an, um dein Quiz zu erstellen',
+    signInHint: 'Nur der Gastgeber braucht ein Konto. Gäste treten über deinen Einladungslink bei — keine Anmeldung nötig.',
+    signInGoogle: 'Mit Google fortfahren',
+    signInError: 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.',
+    signedInAs: 'Angemeldet als {email}',
+    signOut: 'Abmelden',
+    downloadIosApp: 'iOS-App herunterladen',
+    loading: 'Laden…',
+  },
   lang: {
     label: 'Sprache',
     en: 'English',

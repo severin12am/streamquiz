@@ -8,6 +8,16 @@ export const ar = {
   footer: {
     privacy: 'الخصوصية',
   },
+  auth: {
+    signInTitle: 'سجّل الدخول لإنشاء مسابقتك',
+    signInHint: 'المضيف فقط يحتاج حسابًا. ينضم الضيوف عبر رابط الدعوة — لا يلزم تسجيل الدخول.',
+    signInGoogle: 'المتابعة مع Google',
+    signInError: 'فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.',
+    signedInAs: 'مسجّل الدخول باسم {email}',
+    signOut: 'تسجيل الخروج',
+    downloadIosApp: 'تنزيل تطبيق iOS',
+    loading: 'جارٍ التحميل…',
+  },
   lang: {
     label: 'اللغة',
     en: 'English',
