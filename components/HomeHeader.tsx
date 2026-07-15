@@ -3,11 +3,15 @@
 import { useCallback, useState } from 'react';
 import { useLocale } from '@/context/LocaleProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import AboutModal from '@/components/AboutModal';
+import { about } from '@/lib/i18n/about';
 import { playSound } from '@/lib/sounds';
 
 export default function HomeHeader() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [sPop, setSPop] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const aboutCopy = about[locale as keyof typeof about] ?? about.en;
 
   const handleSPop = useCallback(() => {
     if (sPop) return;
@@ -42,7 +46,19 @@ export default function HomeHeader() {
         <span>{t('app.stepShare')}</span>
         <span className="hidden sm:inline text-[var(--border-strong)]">-</span>
         <span>{t('app.stepPlay')}</span>
+        <span className="hidden sm:inline text-[var(--border-strong)]">·</span>
+        <button
+          type="button"
+          onClick={() => setAboutOpen(true)}
+          className="underline underline-offset-2 hover:text-[var(--text-secondary)] transition-colors"
+        >
+          {aboutCopy.learnMore}
+        </button>
       </div>
+
+      {aboutOpen && (
+        <AboutModal locale={locale} onClose={() => setAboutOpen(false)} />
+      )}
     </div>
   );
 }
