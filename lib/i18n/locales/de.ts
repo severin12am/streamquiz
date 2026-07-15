@@ -7,6 +7,9 @@ export const de = {
   },
   footer: {
     privacy: 'Datenschutz',
+    terms: 'Nutzungsbedingungen',
+    refunds: 'Rückerstattungen',
+    support: 'Support',
   },
   auth: {
     signInTitle: 'Melde dich an, um dein Quiz zu erstellen',

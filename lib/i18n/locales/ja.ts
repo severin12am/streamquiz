@@ -7,6 +7,9 @@ export const ja = {
   },
   footer: {
     privacy: 'プライバシー',
+    terms: '利用規約',
+    refunds: '返金',
+    support: 'サポート',
   },
   auth: {
     signInTitle: 'サインインしてクイズを作成',

@@ -7,6 +7,9 @@ export const ar = {
   },
   footer: {
     privacy: 'الخصوصية',
+    terms: 'الشروط',
+    refunds: 'الاسترداد',
+    support: 'الدعم',
   },
   auth: {
     signInTitle: 'سجّل الدخول لإنشاء مسابقتك',

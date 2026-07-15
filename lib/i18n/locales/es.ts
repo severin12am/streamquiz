@@ -7,6 +7,9 @@ export const es = {
   },
   footer: {
     privacy: 'Privacidad',
+    terms: 'Términos',
+    refunds: 'Reembolsos',
+    support: 'Soporte',
   },
   auth: {
     signInTitle: 'Inicia sesión para crear tu concurso',

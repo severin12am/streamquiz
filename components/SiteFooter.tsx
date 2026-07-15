@@ -6,6 +6,9 @@
 // Contains:
 //   - IP / trademark disclaimer (required on all pages)
 //   - Privacy link (→ /privacy)
+//   - Terms (→ /terms)
+//   - Refunds (→ /refund-policy)
+//   - Support (→ /support)
 //
 // Text is localized via the current UI locale, falling back to
 // English for the legal copy.
@@ -35,6 +38,24 @@ export default function SiteFooter() {
             className="underline hover:text-[var(--text-secondary)]"
           >
             {t('footer.privacy')}
+          </Link>
+          <Link
+            href="/terms"
+            className="underline hover:text-[var(--text-secondary)]"
+          >
+            {t('footer.terms')}
+          </Link>
+          <Link
+            href="/refund-policy"
+            className="underline hover:text-[var(--text-secondary)]"
+          >
+            {t('footer.refunds')}
+          </Link>
+          <Link
+            href="/support"
+            className="underline hover:text-[var(--text-secondary)]"
+          >
+            {t('footer.support')}
           </Link>
         </div>
       </div>

@@ -21,6 +21,9 @@ export const messages = {
     },
     footer: {
       privacy: 'Privacy',
+      terms: 'Terms',
+      refunds: 'Refunds',
+      support: 'Support',
     },
     auth: {
       signInTitle: 'Sign in to generate your quiz',
@@ -254,6 +257,9 @@ export const messages = {
     },
     footer: {
       privacy: 'Конфиденциальность',
+      terms: 'Условия',
+      refunds: 'Возвраты',
+      support: 'Поддержка',
     },
     auth: {
       signInTitle: 'Войдите, чтобы создать викторину',
