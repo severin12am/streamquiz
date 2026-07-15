@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS games (
   -- Setup (set at creation, never change)
   topic                  TEXT NOT NULL,
   difficulty             TEXT NOT NULL CHECK (difficulty IN ('easy', 'medium', 'hard')),
-  num_questions          INTEGER NOT NULL CHECK (num_questions BETWEEN 3 AND 20),
+  num_questions          INTEGER NOT NULL CHECK (num_questions BETWEEN 3 AND 250),
   mc_mode                BOOLEAN DEFAULT FALSE,
 
   -- Host-chosen on the create screen. FALSE (default) = no cameras

@@ -12,6 +12,15 @@ import type { Difficulty, Question } from './types';
 import { sanitizeMcQuestion } from './mc-utils';
 import { buildQuestionPrompts } from './quiz-prompts';
 import { chatWithFallback } from './ai';
+import { generateGeographyQuestions } from './geography/generate';
+import {
+  encodeGeographyTopic,
+  GEOGRAPHY_REGIONS,
+  GEOGRAPHY_TYPES,
+  type GeographyConfig,
+  type GeographyRegion,
+  type GeographyType,
+} from './geography/types';
 
 const MAX_PREVIOUS_QUESTIONS = 20;
 const MAX_QUESTION_TEXT_LEN = 300;
@@ -41,28 +50,86 @@ export interface ValidatedConfig {
   count: number;
   mcMode: boolean;
   previousQuestions: string[];
+  /** When set, questions come from curated geography data (no LLM). */
+  geography?: GeographyConfig;
 }
 
 export type ValidationResult =
   | { ok: true; config: ValidatedConfig }
   | { ok: false; error: string };
 
+function parseGeographyPayload(raw: unknown): GeographyConfig | { error: string } {
+  if (raw == null || typeof raw !== 'object') {
+    return { error: 'Invalid geography config.' };
+  }
+  const g = raw as Record<string, unknown>;
+  const typesRaw = Array.isArray(g.types) ? g.types : [];
+  const types = typesRaw
+    .filter((t): t is string => typeof t === 'string')
+    .map((t) => t.trim())
+    .filter((t): t is GeographyType =>
+      (GEOGRAPHY_TYPES as readonly string[]).includes(t),
+    );
+
+  if (types.length === 0) {
+    return { error: 'Select at least one geography question type.' };
+  }
+
+  // Eliminate is exclusive.
+  const normalized: GeographyType[] = types.includes('eliminate')
+    ? ['eliminate']
+    : types;
+
+  const regionsRaw = Array.isArray(g.regions) ? g.regions : [];
+  const regions = regionsRaw
+    .filter((r): r is string => typeof r === 'string')
+    .map((r) => r.trim())
+    .filter((r): r is GeographyRegion =>
+      (GEOGRAPHY_REGIONS as readonly string[]).includes(r),
+    );
+
+  return { types: normalized, regions };
+}
+
 /**
  * Validate the raw request body. Returns either a clean config or an error
- * string suitable for a 400 response. Caps num_questions to [3, 20].
+ * string suitable for a 400 response.
+ * Caps num_questions to [3, 20] for normal quizzes; eliminate may be higher.
  */
 export function validateConfig(body: unknown): ValidationResult {
   const b = (body ?? {}) as Record<string, unknown>;
-  const topic = typeof b.topic === 'string' ? b.topic.trim() : '';
+
+  let geography: GeographyConfig | undefined;
+  if (b.geography != null) {
+    const parsed = parseGeographyPayload(b.geography);
+    if ('error' in parsed) {
+      return { ok: false, error: parsed.error };
+    }
+    geography = parsed;
+  }
+
+  const topic = geography
+    ? encodeGeographyTopic(geography)
+    : typeof b.topic === 'string'
+      ? b.topic.trim()
+      : '';
 
   if (!topic || topic.length > 200) {
     return { ok: false, error: 'Invalid topic.' };
   }
-  const difficulty = b.difficulty;
+
+  // Geography ignores difficulty in the UI; still store a valid DB value.
+  const difficulty = geography
+    ? 'medium'
+    : b.difficulty;
   if (difficulty !== 'easy' && difficulty !== 'medium' && difficulty !== 'hard') {
     return { ok: false, error: 'Invalid difficulty.' };
   }
-  const count = Math.min(Math.max(Number(b.num_questions) || 5, 3), 20);
+
+  const rawCount = Number(b.num_questions) || 5;
+  const count = geography?.types.includes('eliminate')
+    ? Math.min(Math.max(rawCount, 3), 250)
+    : Math.min(Math.max(rawCount, 3), 20);
 
   return {
     ok: true,
@@ -72,6 +139,7 @@ export function validateConfig(body: unknown): ValidationResult {
       count,
       mcMode: Boolean(b.mc_mode),
       previousQuestions: sanitizePreviousQuestions(b.previous_questions),
+      geography,
     },
   };
 }
@@ -84,12 +152,33 @@ export interface GenerateResult {
 
 /**
  * Generate a clean array of quiz questions for the given config.
- * Throws on AI failure or unparseable output.
+ * Geography: curated data (no LLM). Otherwise: AI provider chain.
  */
 export async function generateQuestions(
   config: ValidatedConfig,
 ): Promise<GenerateResult> {
-  const { topic, difficulty, count, mcMode, previousQuestions } = config;
+  const { topic, difficulty, count, mcMode, previousQuestions, geography } =
+    config;
+
+  if (geography) {
+    let questions = generateGeographyQuestions(
+      geography,
+      mcMode,
+      count,
+      previousQuestions,
+    );
+    questions = questions.map((q) =>
+      q.options ? sanitizeMcQuestion(q) : q,
+    );
+    if (questions.length === 0) {
+      throw new Error('No geography questions could be built.');
+    }
+    return {
+      questions,
+      provider: 'geography',
+      model: 'curated',
+    };
+  }
 
   const { systemPrompt, userPrompt } = buildQuestionPrompts({
     topic,

@@ -62,6 +62,7 @@ export function sanitizeMcQuestion(raw: Question): Question {
   }
 
   return {
+    ...raw,
     question: String(raw.question ?? '').trim(),
     options: tuple,
     correct_answer: correct,

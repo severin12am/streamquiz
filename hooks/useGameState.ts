@@ -64,6 +64,15 @@ const CHECK_TIMEOUT_SECONDS = 15;   // safety: max time to wait for AI judging
 // 'regular'/'hardcore' modes never shrink the timer.
 const FIRST_ANSWER_GRACE_SECONDS = 4;
 
+/** True when this round should use MC UI/scoring (global MC or per-question force). */
+function questionUsesMc(game: Game | null, questionIndex?: number): boolean {
+  if (!game) return false;
+  if (game.mc_mode) return true;
+  const idx = questionIndex ?? game.current_question_index;
+  const q: Question | undefined = game.questions?.[idx];
+  return Boolean(q?.force_mc);
+}
+
 // Modes where the timer shrinks to FIRST_ANSWER_GRACE_SECONDS once the first
 // player answers. The new modes ('regular'/'hardcore') keep the full timer.
 function shrinksOnFirstAnswer(game: Game | null): boolean {
@@ -143,19 +152,19 @@ function phaseTotalSeconds(game: Game | null): number {
 
 // Where a fresh round begins. Legacy THINK mode starts LOCKED; every other
 // mode ('regular'/'hardcore'/'classic') jumps straight into answering.
-function roundStartPatch(game: Game | null): Partial<Game> {
+function roundStartPatch(game: Game | null, questionIndex?: number): Partial<Game> {
   const mode = game?.game_mode ?? 'regular';
   if (mode === 'think') {
     return { phase: 'thinking', phase_deadline: deadlineIn(THINK_TIME_SECONDS) };
   }
-  return game?.mc_mode
+  return questionUsesMc(game, questionIndex)
     ? { phase: 'question',  phase_deadline: deadlineIn(QUESTION_TIME_SECONDS) }
     : { phase: 'answering', phase_deadline: deadlineIn(VOICE_ANSWER_SECONDS) };
 }
 
 // Where to go when the think lock lifts (depends on the answer style).
 function afterThinkPatch(game: Game | null): Partial<Game> {
-  return game?.mc_mode
+  return questionUsesMc(game)
     ? { phase: 'question',  phase_deadline: deadlineIn(QUESTION_TIME_SECONDS) }
     : { phase: 'answering', phase_deadline: deadlineIn(VOICE_ANSWER_SECONDS) };
 }
@@ -526,7 +535,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
         current_question_index: nextIndex,
         answer_correct: null,
         last_points: 0,
-        ...roundStartPatch(g),
+        ...roundStartPatch(g, nextIndex),
       });
       if (won) await resetPlayersForRound(gameId);
     }
@@ -552,9 +561,10 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
       //     question opens — see advanceToNext) would instantly resolve it,
       //     making every other question flash by. Robust to realtime events
       //     for `games` / `players` arriving in either order. ---
+      const mcRound = questionUsesMc(g);
       const answerablePhase = g.phase === 'question' || g.phase === 'answering';
       if (answerablePhase && g.phase_deadline &&
-          !roster.some((p) => hasAnswered(p, g.mc_mode))) {
+          !roster.some((p) => hasAnswered(p, mcRound))) {
         roundReadyRef.current = g.phase_deadline;
       }
       const roundReady = answerablePhase && roundReadyRef.current === g.phase_deadline;
@@ -569,7 +579,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
           roundReady &&
           g.phase_deadline &&
           shrunkDeadline.current !== g.phase_deadline &&
-          roster.some((p) => hasAnswered(p, g.mc_mode)) &&
+          roster.some((p) => hasAnswered(p, mcRound)) &&
           msUntil(g.phase_deadline) > (FIRST_ANSWER_GRACE_SECONDS + 0.4) * 1000) {
         shrunkDeadline.current = g.phase_deadline;
         updateGameIfDeadline(gameId, g.phase, g.phase_deadline, {
@@ -581,7 +591,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
       // --- EARLY ADVANCE: everyone has answered before the timer ends. ---
       const everyoneAnswered =
         roundReady &&
-        roster.length > 0 && roster.every((p) => hasAnswered(p, g.mc_mode));
+        roster.length > 0 && roster.every((p) => hasAnswered(p, mcRound));
 
       if (g.phase === 'question' && everyoneAnswered &&
           earlyDoneRef.current !== g.phase_deadline) {
@@ -695,7 +705,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   const submitMCAnswer = useCallback(async (optionIndex: number) => {
     const g = gameRef.current;
     const meNow = playersRef.current.find((p) => p.client_id === clientId);
-    if (!g || !meNow || !g.mc_mode) return;
+    if (!g || !meNow || !questionUsesMc(g)) return;
     if (g.phase !== 'question') return;
     const alreadyPicked = meNow.mc_index !== null;
     const canChange = g.game_mode === 'regular';

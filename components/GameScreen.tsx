@@ -34,6 +34,7 @@ import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
 import { mergePreviousQuestions, rememberQuestions, filterUnseenQuestions } from '@/lib/question-history';
 import { sendTelemetry } from '@/lib/telemetry';
 import { roundTelemetryBytes } from '@/lib/telemetry-shared';
+import { parseGeographyTopic } from '@/lib/geography/types';
 
 interface GameScreenProps {
   gameId: string;
@@ -164,7 +165,10 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   //     Starting recognition on the hold (a user gesture) is also what makes
   //     it work reliably on mobile — the old auto-start never fired there.
   // ----------------------------------------------------------
-  const voiceMode  = !!game && !game.mc_mode;
+  const voiceMode  = !!game && !(
+    game.mc_mode ||
+    Boolean(game.questions?.[game.current_question_index]?.force_mc)
+  );
   const isAnswering = game?.phase === 'answering';
   const [answerHeld, setAnswerHeld] = useState(false);
   useEffect(() => {
@@ -275,14 +279,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     const prev = prevPhaseRef.current;
     const cur = game?.phase;
     prevPhaseRef.current = cur;
-    if (prev === 'answering' && cur && cur !== 'answering' && !game?.mc_mode) {
+    if (prev === 'answering' && cur && cur !== 'answering' && voiceMode) {
       const s = writeState.current;
       if (s.timer) { clearTimeout(s.timer); s.timer = null; }
       if (!iAmDone && answerDraftRef.current.trim()) {
         finishAnswer(answerDraftRef.current);
       }
     }
-  }, [game?.phase, game?.mc_mode, iAmDone, finishAnswer]);
+  }, [game?.phase, voiceMode, iAmDone, finishAnswer]);
 
   // Listen ONLY while the answer button is held (voice mode, answering phase,
   // not typing). Starting on the hold is a user gesture, which is required for
@@ -372,6 +376,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     setRematchLoading(true);
     try {
       const currentTexts = (game.questions ?? []).map((q) => q.question);
+      const geography = parseGeographyTopic(game.topic);
       const payload: CreateGamePayload = {
         topic: game.topic,
         difficulty: game.difficulty,
@@ -380,6 +385,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         game_mode: game.game_mode,
         locale,
         previous_questions: mergePreviousQuestions(game.topic, currentTexts),
+        ...(geography
+          ? { geography: { types: geography.types, regions: geography.regions } }
+          : {}),
       };
       const res = await fetch('/api/generate-questions', {
         method: 'POST',
@@ -390,11 +398,11 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       if (res.ok) {
         const { questions } = (await res.json()) as { questions: Question[] };
         if (Array.isArray(questions) && questions.length > 0) {
-          // Cache-aware dedupe: drop any question already seen this session
-          // for this topic so a rematch never repeats. If the generator
-          // returned only repeats (rare), fall back to its raw output so the
-          // rematch can still proceed.
-          const unseen = filterUnseenQuestions(game.topic, questions);
+          // Geography rematch reshuffles the bank; skip session dedupe so
+          // eliminate / region packs stay complete.
+          const unseen = geography
+            ? questions
+            : filterUnseenQuestions(game.topic, questions);
           const finalQuestions = unseen.length > 0 ? unseen : questions;
           rememberQuestions(game.topic, finalQuestions);
           await rematch(finalQuestions);

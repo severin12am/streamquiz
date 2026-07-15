@@ -26,6 +26,8 @@ interface MCOptionsProps {
   /** Label for the "your pick" tag. */
   youLabel?:      string;
   onSelect:       (index: number) => void;
+  /** When true, option values are ISO country codes shown as flag images. */
+  optionsAsFlags?: boolean;
 }
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
@@ -38,6 +40,7 @@ export default function MCOptions({
   canSelect,
   youLabel = 'You',
   onSelect,
+  optionsAsFlags = false,
 }: MCOptionsProps) {
   const revealed = correctAnswer != null;
 
@@ -93,10 +96,21 @@ export default function MCOptions({
               {OPTION_LABELS[i]}
             </span>
 
-            {/* Option text */}
-            <span className="leading-tight flex-1 min-w-0 break-words [color:inherit]">
-              {option}
-            </span>
+            {optionsAsFlags ? (
+              <span className="flex-1 min-w-0 flex items-center justify-center py-0.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`https://flagcdn.com/w160/${option.toLowerCase()}.png`}
+                  alt=""
+                  className="h-8 sm:h-10 w-auto max-w-full rounded-sm object-contain"
+                  loading="lazy"
+                />
+              </span>
+            ) : (
+              <span className="leading-tight flex-1 min-w-0 break-words [color:inherit]">
+                {option}
+              </span>
+            )}
 
             {/* Tags */}
             <span className="flex flex-col items-end gap-1 ml-auto flex-shrink-0">

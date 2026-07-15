@@ -18,9 +18,12 @@ import { useAuth } from '@/context/AuthProvider';
 import type { Difficulty, GameMode, CreateGamePayload, Question } from '@/lib/types';
 import type { Locale } from '@/lib/i18n';
 import KeycapSegSlider from '@/components/KeycapSegSlider';
+import GeographySetupModal from '@/components/GeographySetupModal';
 import { getPreviousQuestions, rememberQuestions } from '@/lib/question-history';
 import { playSound } from '@/lib/sounds';
 import SoundToggle from '@/components/SoundToggle';
+import type { GeographyConfig } from '@/lib/geography/types';
+import { displayGeographyTopic, encodeGeographyTopic } from '@/lib/geography/types';
 
 const PENDING_CREATE_KEY = 'whosmarter-pending-create';
 
@@ -34,6 +37,7 @@ interface PendingCreateForm {
   /** When true (default), game is private. Maps to is_public: !inviteOnly */
   inviteOnly: boolean;
   locale: Locale;
+  geography: GeographyConfig | null;
 }
 
 interface CreateGameProps {
@@ -76,6 +80,8 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   const [camerasEnabled, setCamerasEnabled] = useState(true);
   /** Default ON = private (not listed). */
   const [inviteOnly, setInviteOnly] = useState(true);
+  const [geography, setGeography] = useState<GeographyConfig | null>(null);
+  const [geoModalOpen, setGeoModalOpen] = useState(false);
 
   // ---- UI state ----
   const [showAdjust,    setShowAdjust]    = useState(false);
@@ -120,7 +126,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     void panel.offsetHeight;
     panel.classList.remove('adjust-panel--warm');
     panel.style.removeProperty('--warm-width');
-  }, [measureAdjustPanel, locale, gameMode, inviteOnly]);
+  }, [measureAdjustPanel, locale, gameMode, inviteOnly, geography]);
 
   useEffect(() => {
     const panel = adjustPanelRef.current;
@@ -148,6 +154,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
       camerasEnabled,
       inviteOnly,
       locale,
+      geography,
     };
   }
 
@@ -159,6 +166,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     setGameMode(form.gameMode);
     setCamerasEnabled(form.camerasEnabled);
     setInviteOnly(form.inviteOnly !== false);
+    setGeography(form.geography ?? null);
   }
 
   const submitCreate = useCallback(
@@ -167,16 +175,27 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
       setLoading(true);
 
       try {
+        const topicForApi = form.geography
+          ? encodeGeographyTopic(form.geography)
+          : form.topic;
         const payload: CreateGamePayload & { cameras_enabled: boolean } = {
-          topic: form.topic,
-          difficulty: form.difficulty,
+          topic: topicForApi,
+          difficulty: form.geography ? 'medium' : form.difficulty,
           num_questions: form.numQuestions,
           mc_mode: form.mcMode,
           game_mode: form.gameMode,
           cameras_enabled: form.camerasEnabled,
           is_public: !form.inviteOnly,
           locale: form.locale,
-          previous_questions: getPreviousQuestions(form.topic),
+          previous_questions: getPreviousQuestions(topicForApi),
+          ...(form.geography
+            ? {
+                geography: {
+                  types: form.geography.types,
+                  regions: form.geography.regions,
+                },
+              }
+            : {}),
         };
 
         const res = await fetch('/api/create-game', {
@@ -199,7 +218,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
           questions: Question[];
         };
         if (!gameId) throw new Error(t('create.errorCreate'));
-        rememberQuestions(form.topic, questions);
+        rememberQuestions(topicForApi, questions);
         router.push(`/game/${gameId}?role=host`);
       } catch (err) {
         setError(err instanceof Error ? err.message : t('create.errorGeneric'));
@@ -226,8 +245,12 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   // -------------------------------------------------------
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!topic.trim()) {
+    if (!geography && !topic.trim()) {
       setError(t('create.errorEmptyTopic'));
+      return;
+    }
+    if (geography && geography.types.length === 0) {
+      setError('Select at least one geography question type.');
       return;
     }
     if (authLoading) return;
@@ -273,17 +296,44 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
           {t('create.topic')}
         </label>
-        <div className="keycap-input-frame">
-          <input
-            type="text"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder={t('create.topicPlaceholder')}
-            maxLength={100}
-            className="keycap-input w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base"
-            autoFocus
-          />
-        </div>
+        {geography ? (
+          <div className="flex items-center gap-2">
+            <div
+              className="flex-1 rounded-xl px-4 py-3 text-sm font-medium text-[var(--text-primary)]"
+              style={{
+                background: 'rgba(47,125,119,0.10)',
+                border: '1px solid var(--accent)',
+              }}
+            >
+              Geography chosen
+              <span className="block text-xs font-normal text-[var(--text-muted)] mt-0.5 truncate">
+                {displayGeographyTopic(encodeGeographyTopic(geography))}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                playSound('click');
+                setGeography(null);
+              }}
+              className="keycap keycap-secondary px-3 py-3 rounded-xl text-sm flex-shrink-0"
+            >
+              Clear
+            </button>
+          </div>
+        ) : (
+          <div className="keycap-input-frame">
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder={t('create.topicPlaceholder')}
+              maxLength={100}
+              className="keycap-input w-full rounded-xl px-4 py-3 text-[var(--text-primary)] text-base"
+              autoFocus
+            />
+          </div>
+        )}
       </div>
 
       {/* ---- Error message ---- */}
@@ -365,40 +415,49 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         {...(!showAdjust ? { inert: true } : {})}
       >
         <div ref={adjustInnerRef} className="adjust-panel-inner flex flex-col gap-6 pt-1 pb-3">
-          {/* ---- Difficulty ---- */}
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-              {t('create.difficulty')}
-            </label>
-            <div className="flex gap-2">
-              {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDifficulty(d)}
-                  className={`keycap flex-1 py-2.5 rounded-xl text-sm font-medium ${
-                    difficulty === d ? 'keycap-primary' : 'keycap-secondary'
-                  }`}
-                >
-                  {d === 'easy' ? t('create.difficultyEasy') : d === 'medium' ? t('create.difficultyMedium') : t('create.difficultyHard')}
-                </button>
-              ))}
+          {/* ---- Difficulty (hidden for Geography — region filters instead) ---- */}
+          {!geography && (
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+                {t('create.difficulty')}
+              </label>
+              <div className="flex gap-2">
+                {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDifficulty(d)}
+                    className={`keycap flex-1 py-2.5 rounded-xl text-sm font-medium ${
+                      difficulty === d ? 'keycap-primary' : 'keycap-secondary'
+                    }`}
+                  >
+                    {d === 'easy' ? t('create.difficultyEasy') : d === 'medium' ? t('create.difficultyMedium') : t('create.difficultyHard')}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* ---- Number of questions ---- */}
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
-              {t('create.questions')}
-            </label>
-            <KeycapSegSlider
-              min={3}
-              max={20}
-              value={numQuestions}
-              onChange={setNumQuestions}
-              aria-label={t('create.questions')}
-            />
-          </div>
+          {/* ---- Number of questions (Eliminate uses every country in region) ---- */}
+          {!(geography?.types.includes('eliminate')) && (
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+                {t('create.questions')}
+              </label>
+              <KeycapSegSlider
+                min={3}
+                max={20}
+                value={numQuestions}
+                onChange={setNumQuestions}
+                aria-label={t('create.questions')}
+              />
+            </div>
+          )}
+          {geography?.types.includes('eliminate') && (
+            <p className="text-xs text-[var(--text-muted)]">
+              Eliminate mode asks one question per country in the selected region(s).
+            </p>
+          )}
 
           {/* ---- Game mode ---- */}
           <div>
@@ -490,7 +549,36 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
             </button>
           </div>
 
-          {/* ---- Browse open games (after invite only) ---- */}
+          {/* ---- Specific types of quiz (above Browse) ---- */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+              Specific types of quiz
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  playSound('click');
+                  setGeoModalOpen(true);
+                }}
+                className={`keycap flex-1 py-3 px-3 rounded-xl text-sm font-medium ${
+                  geography ? 'keycap-primary' : 'keycap-secondary'
+                }`}
+              >
+                Geography
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Coming soon"
+                className="keycap flex-1 py-3 px-3 rounded-xl text-sm font-medium keycap-secondary opacity-50 cursor-not-allowed"
+              >
+                IQ testing
+              </button>
+            </div>
+          </div>
+
+          {/* ---- Browse open games (after invite only / specific types) ---- */}
           <button
             type="button"
             onClick={() => {
@@ -541,6 +629,18 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         </div>
       </div>
     </form>
+
+    <GeographySetupModal
+      open={geoModalOpen}
+      initial={geography}
+      onClose={() => setGeoModalOpen(false)}
+      onConfirm={(cfg) => {
+        setGeography(cfg);
+        setTopic('');
+        setGeoModalOpen(false);
+        playSound('click');
+      }}
+    />
     </div>
   );
 }

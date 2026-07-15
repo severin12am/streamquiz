@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale } from '@/context/LocaleProvider';
 import { playSound } from '@/lib/sounds';
 import SoundToggle from './SoundToggle';
+import { displayGeographyTopic, isGeographyTopic } from '@/lib/geography/types';
 
 export type PublicGameSummary = {
   id: string;
@@ -131,10 +132,12 @@ export default function PublicGamesBrowser({ onBack }: PublicGamesBrowserProps) 
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
-                        {g.topic}
+                        {isGeographyTopic(g.topic) ? displayGeographyTopic(g.topic) : g.topic}
                       </p>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5 leading-relaxed">
-                        {difficultyLabel(g.difficulty)}
+                        {isGeographyTopic(g.topic) ? 'Geography' : difficultyLabel(g.difficulty)}
+                        {' · '}
+                        {g.num_questions} Q
                         {' · '}
                         {g.mc_mode ? t('rooms.mc') : t('rooms.voice')}
                         {' · '}

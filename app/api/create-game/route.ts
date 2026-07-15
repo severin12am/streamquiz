@@ -107,13 +107,14 @@ export async function POST(req: NextRequest) {
     // Default private (invite only). Clients send is_public: true only when
     // "Invite only" is turned off under More.
     const isPublic = Boolean((body as Record<string, unknown>).is_public);
+    const numQuestions = questions.length;
 
     const { data, error } = await admin
       .from('games')
       .insert({
         topic: validation.config.topic,
         difficulty: validation.config.difficulty,
-        num_questions: validation.config.count,
+        num_questions: numQuestions,
         mc_mode: validation.config.mcMode,
         game_mode: gameMode,
         cameras_enabled: camerasEnabled,
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
       game_mode: gameMode,
       mc_mode: validation.config.mcMode,
       cameras_on: camerasEnabled,
-      num_questions: validation.config.count,
+      num_questions: numQuestions,
       player_count: 1,
       is_public: isPublic,
     });

@@ -10,6 +10,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocale } from '@/context/LocaleProvider';
+import { displayGeographyTopic, isGeographyTopic } from '@/lib/geography/types';
 
 interface TopicPillProps {
   topic:       string;
@@ -30,6 +31,7 @@ export default function TopicPill({
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const label = isGeographyTopic(topic) ? displayGeographyTopic(topic) : topic;
 
   // Close the popover on any outside tap.
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function TopicPill({
         className="flex items-center gap-2 px-2.5 py-1 rounded-full max-w-full"
         style={{ background, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}
         aria-expanded={open}
-        title={topic}
+        title={label}
       >
         {showLabel && (
           <span className="text-[9px] font-semibold tracking-wider text-[var(--text-secondary)] uppercase flex-shrink-0">
@@ -57,7 +59,7 @@ export default function TopicPill({
           </span>
         )}
         <span className={`text-[11px] lg:text-xs font-medium text-[var(--text-primary)] truncate ${textClassName}`}>
-          {topic}
+          {label}
         </span>
       </button>
 
@@ -76,7 +78,7 @@ export default function TopicPill({
             {t('game.topic')}
           </p>
           <p className="text-xs font-medium text-[var(--text-primary)] leading-snug break-words">
-            {topic}
+            {label}
           </p>
         </div>
       )}

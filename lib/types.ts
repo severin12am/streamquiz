@@ -43,6 +43,19 @@ export interface Question {
   /** Open-ended only — alternative acceptable phrasings/synonyms.
    *  Used as a fast local check before falling back to the AI judge. */
   accepted_answers?: string[];
+
+  // ---- Geography / media (optional; ignored by classic topic quizzes) ----
+  /** Force MC UI + scoring for this question even when game.mc_mode is false
+   *  (flags / map ID cannot be typed reliably). */
+  force_mc?: boolean;
+  /** Flag (or other) image shown in the question stem. */
+  image_url?: string;
+  /** ISO 3166-1 alpha-2 of the country to highlight on the map. */
+  map_country?: string;
+  /** ISO codes visible / fitted on the map (usually the selected region). */
+  map_scope?: string[];
+  /** When true, `options` are ISO country codes rendered as flag images. */
+  options_as_flags?: boolean;
 }
 
 // -------------------------------------------------------
@@ -146,6 +159,13 @@ export interface Game {
 // -------------------------------------------------------
 // Payload for creating a new game (sent from the form)
 // -------------------------------------------------------
+/** Geography create/rematch config (deterministic; no LLM). */
+export interface GeographyPayload {
+  types: string[];
+  /** Empty / omitted = all regions. */
+  regions?: string[];
+}
+
 export interface CreateGamePayload {
   topic: string;
   difficulty: Difficulty;
@@ -159,6 +179,8 @@ export interface CreateGamePayload {
   previous_questions?: string[];
   /** When true, listed publicly until the host starts. Default false. */
   is_public?: boolean;
+  /** When set, build curated geography questions instead of calling the LLM. */
+  geography?: GeographyPayload;
 }
 
 // -------------------------------------------------------

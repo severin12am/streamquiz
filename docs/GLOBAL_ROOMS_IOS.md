@@ -1,56 +1,190 @@
-# Global Rooms — iOS / React Native Implementation Instructions
+# Global Rooms — Native Client Parity Spec
 
-Self-contained guide for adding **public / discoverable lobbies** to the WhoSmarter **React Native iOS** app.
+Product rules, API contracts, UX copy, and behavioral requirements for **public / discoverable lobbies** on WhoSmarter native clients (iOS and any future Android build).
 
-**Give this file (plus the API contracts below) to the agent or developer working in the iOS repo.**  
-Web product rules and DB design live in [`docs/GLOBAL_ROOMS.md`](./GLOBAL_ROOMS.md). This document is the **native parity** checklist: screens, payloads, headers, and edge cases for RN.
+**Audience:** whoever implements native parity against the **deployed web API**.  
+**Not in scope here:** platform-specific UI code, navigation wiring, or framework choices.
 
-**Status:** Spec only — web ships first; implement iOS after (or against) the deployed web API that supports `is_public` and `GET /api/public-games`.
+**Status:** **Web shipped.** Native clients should match web behavior against the same backend.
 
-**Related general iOS guides in this monorepo:**
+**Related docs in this repo:**
 
 | File | Role |
 |------|------|
-| `ios_implementation_help.md` | Overall RN architecture, env, create-game headers, parity map |
-| `docs/GAME_MODES_REGULAR_HARDCORE.md` | Mode semantics |
-| `docs/GLOBAL_ROOMS.md` | Full product + web implementation (source of truth for rules) |
+| [`docs/GLOBAL_ROOMS.md`](./GLOBAL_ROOMS.md) | Full product + web design (source of truth for rules) |
+| [`docs/GLOBAL_ROOMS.md` §14](./GLOBAL_ROOMS.md#14-host-kick-required) | Host kick — server design |
+| `ios_implementation_help.md` | iOS repo env, `X-WhoSmarter-Client: ios`, general API base URL |
+| `lib/types.ts` | Shared types (`Game`, `CreateGamePayload`, `PublicGameSummary`) |
+
+**Web reference implementation:**
+
+| Area | Files |
+|------|--------|
+| Create + More panel | `components/CreateGame.tsx` |
+| Browse list | `components/PublicGamesBrowser.tsx` |
+| Lobby + kick | `components/Lobby.tsx`, `components/GameScreen.tsx` |
+| Game state / R1 / removed | `hooks/useGameState.ts` |
+| Join + ban | `lib/supabase.ts` (`joinGame`) |
+| APIs | `app/api/create-game/route.ts`, `app/api/public-games/route.ts`, `app/api/kick-player/route.ts` |
+| Schema | `supabase/migration-v15-global-rooms.sql` |
 
 ---
 
-## 1. What you are building (native)
+## 1. Product summary
 
-Same product as web:
+A “global room” is not a separate system. It is a normal `games` row that is **optionally listed** while `status === 'waiting'`.
 
-1. **Create:** optional public lobby via an **Invite only** switch (default **ON** = private).
-2. **Browse:** list of open public waiting rooms; join one.
-3. **Start quiz:** host start **permanently unlists** the room (`is_public → false`).
+Native must support:
 
-iOS does **not** invent a separate room system. A “room” is still a Supabase `games` row + existing join/lobby/`GameScreen` flow.
+1. **Create** — optional public lobby via **Invite only** (default **ON** = private).
+2. **Browse** — list open public waiting rooms; user picks one to join.
+3. **Start quiz** — host start **permanently unlists** the room (`is_public → false`).
+4. **Host kick** — host removes guests in lobby and during play; banned clients cannot rejoin that game.
+
+Private link/ID join continues to work for both public and private games.
 
 ---
 
-## 2. Product rules (locked — do not re-litigate)
+## 2. Product rules (locked)
 
 | Rule | Value |
 |------|--------|
 | Default privacy | **Invite only ON** → `is_public: false` |
-| Public opt-in | Turn Invite only **OFF** before create |
+| Public opt-in | Turn Invite only **OFF** before create → `is_public: true` |
 | When listed | `is_public === true` **and** `status === 'waiting'` |
-| When unlisted forever | Host **Start quiz** sets `is_public = false` (and status leaves waiting) |
-| Privacy change after create | **Not allowed** (create-time only) |
-| Rematch | Must **not** reappear in Browse (flag already false after start) |
-| Browse auth | **No** Google sign-in required to browse or join |
-| Create auth (iOS) | Existing: `X-WhoSmarter-Client: ios`, no Google JWT (see `ios_implementation_help.md`) |
-| Join | Existing guest join path with `gameId` (same as deep link / paste ID) |
-| **Host kick** | **Required** — host removes guests (lobby + in-game); per-game ban by `client_id` (§3.5 / §6.8) |
+| When unlisted forever | Host **Start quiz** sets `is_public = false` (Rule R1) |
+| Privacy change after create | **Not allowed** (create-time only; DB trigger allows only true → false) |
+| Rematch | Must **not** reappear in Browse (flag already false after first start) |
+| Browse auth | **No** sign-in required to browse or join |
+| Create auth (iOS) | Existing pattern: `X-WhoSmarter-Client: ios`, no Google JWT |
+| Join | Same guest join path as deep link / paste game ID |
+| Host kick | **Required** — lobby + in-game; per-game ban by `client_id` |
+| Directory query | **Must use** `GET /api/public-games` — never client `select *` on `games` |
+| Staleness | Waiting rooms older than **6 hours** are excluded from Browse |
+| Full lobbies | Rooms with `player_count >= 6` are excluded from Browse |
 
 ---
 
-## 3. Backend contract (deployed web host)
+## 3. UX specification
 
-Base URL: `EXPO_PUBLIC_API_BASE_URL` (no trailing slash), e.g. `https://whosmarter.netlify.app`.
+### 3.1 Home — More panel
 
-### 3.1 Create game — add `is_public`
+Panel toggle labels (EN):
+
+| Open | Close |
+|------|-------|
+| **More** | **Hide** |
+
+**Panel order** (matches shipped web):
+
+1. Difficulty  
+2. Number of questions  
+3. Game mode (regular / hardcore)  
+4. Multiple choice  
+5. Player cameras  
+6. **Invite only** (switch, default **ON**)  
+7. **Browse open games** (navigates to full browse view — **last** in panel)
+
+Browse is secondary to create; it lives under More, not as the primary home CTA.
+
+**Invite only mapping:**
+
+```
+is_public = !inviteOnly   // inviteOnly defaults true
+```
+
+### 3.2 Browse — entry + full view
+
+**Entry row (inside More):**
+
+| | EN |
+|--|-----|
+| Title | Browse open games |
+| Hint | Join a quiz that’s waiting for players |
+
+Tap opens a **separate full browse view** (not an inline list inside More). User can return to the create home from browse.
+
+**Browse screen:**
+
+| Element | EN |
+|---------|-----|
+| Title | Open games |
+| Back | Back |
+| Refresh | Refresh |
+| Loading | Loading… |
+| Empty | No open games right now. |
+| Error | Could not load open games. |
+| Row CTA | Join |
+
+**Row metadata** (shown on each listed game):
+
+| Field | Shown |
+|-------|-------|
+| Topic | Yes (primary) |
+| Player count | Yes — `{n}/{max}` (max is always 6) |
+| Difficulty | Yes |
+| MC vs voice | Yes |
+| Game mode | Yes — regular / hardcore display names |
+| Relative created time | Yes — e.g. “Just now”, “3 min ago”, “2 h ago” |
+| Question count | **No** (API may include; do not show in v1) |
+| Cameras enabled | **No** (API may include; do not show in v1) |
+
+Legacy `game_mode` values (`think`, `classic`) may appear in API data; treat anything other than `hardcore` as regular for display.
+
+### 3.3 Lobby
+
+| Element | When | EN |
+|---------|------|-----|
+| Public listing hint | Host + `is_public === true` + waiting | Visible in Browse until you start. |
+| Remove control | Host only, on guest rows | Remove |
+| Remove confirm | Lobby kick | Remove {name} from this game? |
+| Remove error | Kick API failure | Couldn’t remove that player. Try again. |
+
+Share link / invite flow remains available for public games (link + browse can coexist).
+
+### 3.4 In-game kick
+
+Host can remove guests **during play** as well as in lobby (same Remove affordance on guest rows).
+
+**Confirm dialog:** web shows confirm in lobby always; in-game kick also confirms before calling the API.
+
+### 3.5 Kicked / banned player
+
+**After kick** (this device had a seat, row deleted, rejoin blocked):
+
+| Element | EN |
+|---------|-----|
+| Title | You were removed |
+| Body | The host removed you from this game. |
+| CTA | Back to home |
+
+Stop media/WebRTC; do not auto-reclaim a seat.
+
+**Join attempt while banned** (never had seat, or explicit join fails):
+
+| Copy | EN |
+|------|-----|
+| Message | You can’t rejoin this game. |
+
+Do not leave the user on an indefinite “Joining…” state.
+
+### 3.6 Join from Browse
+
+After user taps Join on a row:
+
+1. Open the game with `gameId = row.id` as **guest** (not host).
+2. Use the **existing** join/seat/lobby flow (same as opening `/game/[id]` on web).
+3. Web **auto-claims a seat** on arrival when the lobby is open and a seat exists; native should match that expectation so Browse → Join feels immediate.
+
+Full room: show existing full-lobby copy (`join.full`).
+
+---
+
+## 4. Backend API contracts
+
+Base URL: production web host (iOS: `EXPO_PUBLIC_API_BASE_URL`, no trailing slash), e.g. `https://whosmarter.netlify.app`.
+
+### 4.1 Create game — `is_public`
 
 `POST {API}/api/create-game`
 
@@ -63,7 +197,7 @@ X-WhoSmarter-Client: ios
 
 Optional (quota builds): `X-Quota-Key: …` as today.
 
-**Body (extend existing payload):**
+**Body** — extend existing create payload:
 
 ```json
 {
@@ -80,29 +214,19 @@ Optional (quota builds): `X-Quota-Key: …` as today.
 
 | Field | Type | Default if omitted | Notes |
 |-------|------|--------------------|--------|
-| `is_public` | boolean | **`false`** | Must omit or send `false` for invite-only. Send `true` only when Invite only is off. |
+| `is_public` | boolean | **`false`** | Send `true` only when Invite only is off |
 
-**UI mapping:**
+**Response:** unchanged — `{ gameId, questions, provider?, quota? }`.
 
-```ts
-const is_public = !inviteOnly; // inviteOnly defaults to true
-```
+**Back-compat:** Clients that omit `is_public` create **private** games.
 
-**Response:** unchanged shape `{ gameId, questions, provider?, quota? }`. Navigate host into lobby / `GameScreen` with that `gameId` as today.
-
-**Back-compat:** Old app builds that never send `is_public` stay **private**. Safe to ship API before the App Store build.
-
-### 3.2 List open games
+### 4.2 List open games
 
 `GET {API}/api/public-games`
 
-**Headers:** none required (anonymous). Optional: same client header for metrics if you want:
+**Headers:** none required. Optional: `X-WhoSmarter-Client: ios` for metrics.
 
-```http
-X-WhoSmarter-Client: ios
-```
-
-**Response 200 (conceptual):**
+**Response 200:**
 
 ```json
 {
@@ -122,52 +246,54 @@ X-WhoSmarter-Client: ios
 }
 ```
 
-Exact envelope may be a bare array or `{ games: [...] }` — **match the deployed web route** when implemented; prefer `{ games: PublicGameSummary[] }` for extensibility.
+Envelope is always `{ games: PublicGameSummary[] }` (never a bare array).
 
-**Do not expect** `questions` or correct answers in this payload. If present, **do not render or cache** them.
+**Server filters (client should not reimplement listing logic):**
+
+- `is_public = true` and `status = 'waiting'`
+- `created_at` within last **6 hours**
+- `player_count < max_players` (full rooms omitted)
+- Ordered newest first; capped at **30** rows
+- **Never** includes `questions`, answers, or `host_user_id`
 
 **Errors:**
 
-| Status | Meaning | UI |
-|--------|---------|-----|
-| 429 | Rate limited | “Too many requests. Try again in a moment.” |
-| 5xx | Server error | Retry + error state |
-| Network | Offline / DNS | Offline message |
+| Status | Body | User-facing |
+|--------|------|-------------|
+| 429 | `{ error: "Too many requests" }` | Slow down / try again |
+| 500 | `{ error: "Failed to list open games" }` | Error + retry |
+| Network | — | Offline / retry |
 
-**Client rules:**
+Rate-limit response may include standard rate-limit headers from web.
 
-- Call on Browse screen focus + pull-to-refresh.
-- Optional poll every 15–30s while Browse is focused (not in background).
-- Sort: trust server order (newest first).
-- Hide or disable Join if `player_count >= max_players` (server should already filter).
+Refresh browse on screen open and on user refresh; optional polling while browse is visible is fine (web loads on mount only).
 
-### 3.3 Start quiz unlists (Rule R1)
+### 4.3 Start quiz — Rule R1
 
-Web client (or agreed server path) sets:
+When the host starts from lobby, the game update **must** include:
 
-```ts
-// When host starts — conceptual
-{ status: 'playing', is_public: false, /* existing start fields */ }
+```json
+{
+  "status": "playing",
+  "is_public": false
+}
 ```
 
-**iOS host start** must do the **same** update the web host does (port from web `useGameState` start handler once web lands R1).
+plus existing start fields (`current_question_index`, phase reset, etc. — match web `useGameState` → `startGame`).
 
-If iOS only sets `status` and leaves `is_public: true`, rematch that returns to `waiting` could re-list the room — **bug**. Always clear `is_public` on start if the column is still true.
+If start sets `status` but leaves `is_public: true`, a later rematch that returns to `waiting` could incorrectly re-list the room.
 
-**If `is_public` is locked by a DB trigger** after create: web will document the allowed transition (true→false on start) or a service-role endpoint. Follow whatever web shipped; do not invent a second path.
+DB trigger `games_lock_setup_columns` only allows `is_public` to change **true → false** (never re-list).
 
-### 3.4 Join
+### 4.4 Join
 
-No new API. After user taps Join on a row:
+No new join API. Seat claim uses existing Supabase `players` insert path.
 
-1. Navigate to `GameScreen` with `gameId = row.id`, role = guest/player (not host).
-2. Existing seat claim / name / lobby / full-room handling.
+**Ban enforcement:** `game_bans` + `players_reject_banned` trigger raises `banned_from_game` on insert. Client should map that to `join.banned` / removed UX.
 
-Deep links and paste-ID join remain valid for both public and private games.
+**Reconnect:** same `client_id` with an existing `players` row re-attaches (rename allowed).
 
-If join fails because of a **kick ban**, show: *You can’t rejoin this game.* (do not leave the user spinning on “Joining…”).
-
-### 3.5 Kick player (required)
+### 4.5 Kick player
 
 `POST {API}/api/kick-player`
 
@@ -177,6 +303,8 @@ If join fails because of a **kick ban**, show: *You can’t rejoin this game.* (
 Content-Type: application/json
 X-WhoSmarter-Client: ios
 ```
+
+Web may also send `Authorization: Bearer <supabase access token>` when the host signed in with Google; iOS uses **`hostClientId`** only.
 
 **Body:**
 
@@ -191,52 +319,48 @@ X-WhoSmarter-Client: ios
 | Field | Required | Notes |
 |-------|----------|--------|
 | `gameId` | yes | Current game |
-| `targetPlayerId` | yes | `players.id` of the **guest** to remove |
-| `hostClientId` | yes on iOS | Must match the host’s `players.client_id` for this game (server verifies `role === 'host'`) |
+| `targetPlayerId` | yes | `players.id` of the **guest** |
+| `hostClientId` | yes on iOS | Must match host’s `players.client_id` for this game |
 
-Web may also send `Authorization: Bearer …` matching `host_user_id`; iOS relies on **`hostClientId`** path (same pattern as other host-proven client actions).
+**Success:** `{ "ok": true }`
 
-**Success:** `{ "ok": true }`  
-**Effects (server):** deletes guest `players` row + inserts `(game_id, client_id)` into `game_bans` so that browser cannot rejoin **this** game.
+**Server effects:** upsert `game_bans (game_id, client_id)` → delete guest `players` row.
 
-**Errors to handle:**
+**Errors:**
 
-| Status | UI |
-|--------|-----|
-| 400 | Target invalid / cannot kick host |
+| Status | When |
+|--------|------|
+| 400 | Invalid ids; `hostClientId` missing/too long; target is host |
 | 403 | Caller not host |
-| 404 | Game or player gone |
-| 429 | Slow down |
-| Network | Retry toast |
+| 404 | Game or player not found |
+| 429 | Rate limited |
+| 500 | DB failure |
 
 **Rules:**
 
-- Only call when `me.role === 'host'`.
-- Never send host’s own `players.id` as target.
-- Available in **lobby** and **during play**.
-- After kick, roster updates via existing Supabase Realtime on `players` (DELETE).
+- Only host may call.
+- Never target host’s own `players.id`.
+- Kick must go through this API — not client-side `players` delete (RLS denies anon delete).
 
-Full web design: `docs/GLOBAL_ROOMS.md` §14.
+**Removed detection (web behavior to match):** if this client previously held a seat and the row disappears, attempt one rejoin; if ban blocks insert → show removed screen.
 
 ---
 
-## 4. Types (keep in sync with web `lib/types.ts`)
+## 5. Types
+
+Keep aligned with web `lib/types.ts` and `app/api/public-games/route.ts`:
 
 ```ts
-// Extend Game
 interface Game {
   // ...existing fields
-  /** Discoverable in Browse while waiting. Default false. */
   is_public?: boolean;
 }
 
-// Extend create payload
 interface CreateGamePayload {
   // ...existing fields
   is_public?: boolean;
 }
 
-// List row
 interface PublicGameSummary {
   id: string;
   topic: string;
@@ -246,381 +370,100 @@ interface PublicGameSummary {
   game_mode: 'regular' | 'hardcore' | 'think' | 'classic';
   created_at: string;
   player_count: number;
-  max_players: number;
+  max_players: number; // always 6 (MAX_PLAYERS)
 }
 ```
 
-Copy from web after web PR merges so field names never drift.
-
 ---
 
-## 5. Navigation & screens
+## 6. i18n keys (align with web)
 
-Mirror web’s home split:
+Reuse the same keys across locales (`lib/i18n/messages.ts` + `lib/i18n/locales/*`):
 
-| Web | RN |
-|-----|-----|
-| Home `homeView: 'create'` | `HomeScreen` (create form) |
-| Home `homeView: 'browse'` | `BrowseGamesScreen` (or modal stack screen) |
-| `/game/[id]` guest | `GameScreen` role player |
-| `/game/[id]?role=host` | `GameScreen` role host |
-
-### Suggested navigator change
-
-```
-RootStack
-  HomeScreen          // create + More
-  BrowseGamesScreen   // full list (push from Home More)
-  GameScreen
-  ...
-```
-
-**Entry:** first control inside **More** (renamed from Adjust) → `navigation.navigate('BrowseGames')`.  
-**Back:** stack back to Home create form.
-
-Do **not** put the list as the default tab on launch. Keep create as the primary home, Browse secondary under More — same subtlety as web.
-
----
-
-## 6. UI specification (iOS)
-
-### 6.1 Rename settings chrome
-
-| Was (if you matched web EN) | New EN |
-|-----------------------------|--------|
-| Adjust | **More** |
-| Hide settings | **Hide** |
-
-Localize all app languages you ship.
-
-### 6.2 More panel order
-
-```
-[ More ]
-  1. Browse open games     → push BrowseGamesScreen
-  2. Difficulty
-  3. Number of questions
-  4. Game mode
-  5. Multiple choice
-  6. Cameras
-  7. Invite only (Switch, default ON)
-```
-
-### 6.3 Invite only switch
-
-| | EN |
-|--|-----|
-| Title | Invite only |
-| Hint when ON | Only people with your link can join. Not shown in the public list. |
-| Hint when OFF | Listed under Browse open games until you start the quiz. |
-| Default | **ON** |
-
-Use `Switch` (or your existing toggle). Accessibility: state labels “Invite only, on/off”.
-
-Persist only in form state until create (no need to remember last choice across sessions unless you already do for other toggles).
-
-### 6.4 Browse open games — entry row
-
-| | EN |
-|--|-----|
-| Title | Browse open games |
-| Hint | Join a quiz that’s waiting for players |
-
-Chevron affordance; full-width pressable.
-
-### 6.5 BrowseGamesScreen
-
-| Element | Spec |
-|---------|------|
-| Title | Open games |
-| Refresh | Pull-to-refresh + optional header button “Refresh” |
-| Empty | “No open games right now.” |
-| Error | Message + Retry |
-| Loading | Activity indicator first load |
-| Row primary | **Topic** |
-| Row secondary | Difficulty · MC/Voice · Mode · `{n}/{max}` · relative time |
-| Row CTA | **Join** (or whole row tappable) |
-
-**Row fields (locked — match web):**
-
-- Topic  
-- Player count (`2/6`)  
-- Difficulty  
-- MC vs voice **and** game mode (regular / hardcore; use your existing display names)  
-- Relative created time (“3 min ago” — use a small relative-time helper; respect locale)
-
-**Not required on row:** question count, cameras (ignore even if API returns them).
-
-### 6.6 Optional lobby badge (host)
-
-If `game.is_public === true` and `status === 'waiting'`:
-
-> Visible in Browse until you start.
-
-Guests: no badge required.
-
-### 6.7 Share link still works
-
-Public games still get a share URL / QR if you already show them. Private games: share only (no Browse). Do not remove link share when public — both channels can work.
-
-### 6.8 Host kick UI (required)
-
-**Lobby player rows** (host only, guest rows only):
-
-- Trailing **Remove** control (destructive secondary / system destructive style is fine; keep it compact).
-- Optional `Alert` confirm: “Remove {name} from this game?”
-- On confirm → `kickPlayer({ gameId, targetPlayerId, hostClientId })`.
-- Disable control while request in flight.
-
-**In-game** (host only):
-
-- Same Remove on the player strip / player menu so a bad actor can be removed mid-quiz.
-- Minimum: lobby is not enough for public rooms — implement in-game too.
-
-**Kicked player screen:**
-
-When this device loses its seat and cannot rejoin (banned):
-
-| Element | EN |
+| Purpose | Key |
 |---------|-----|
-| Title | You were removed |
-| Body | The host removed you from this game. |
-| CTA | Back to home |
-
-Stop camera/mic/WebRTC; navigate home on CTA. Do not auto-navigate into a new seat.
-
-**Join banned copy:** You can’t rejoin this game.
-
----
-
-## 7. API helper sketch
-
-```ts
-// src/api/publicGames.ts
-import { api } from './base'; // `${EXPO_PUBLIC_API_BASE_URL}${path}`
-
-export type PublicGameSummary = {
-  id: string;
-  topic: string;
-  difficulty: string;
-  num_questions: number;
-  mc_mode: boolean;
-  game_mode: string;
-  created_at: string;
-  player_count: number;
-  max_players: number;
-};
-
-export async function fetchPublicGames(): Promise<PublicGameSummary[]> {
-  const res = await fetch(api('/api/public-games'), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'X-WhoSmarter-Client': 'ios',
-    },
-    cache: 'no-store',
-  });
-  if (res.status === 429) throw new Error('RATE_LIMIT');
-  if (!res.ok) throw new Error('FETCH_FAILED');
-  const data = await res.json();
-  // Support both envelopes until web locks one:
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.games)) return data.games;
-  return [];
-}
-```
-
-Create payload addition:
-
-```ts
-// when building body for POST /api/create-game
-is_public: !inviteOnly,
-```
-
-Kick helper:
-
-```ts
-// src/api/kickPlayer.ts
-export async function kickPlayer(args: {
-  gameId: string;
-  targetPlayerId: string;
-  hostClientId: string;
-}): Promise<void> {
-  const res = await fetch(api('/api/kick-player'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-WhoSmarter-Client': 'ios',
-    },
-    body: JSON.stringify(args),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? 'KICK_FAILED');
-  }
-}
-```
+| Open More | `create.adjustShow` |
+| Close More | `create.adjustHide` |
+| Browse entry title | `create.browseOpenGames` |
+| Browse entry hint | `create.browseOpenGamesHint` |
+| Invite only title | `create.inviteOnlyTitle` |
+| Invite only hint ON | `create.inviteOnlyHintOn` |
+| Invite only hint OFF | `create.inviteOnlyHintOff` |
+| Browse title | `rooms.title` |
+| Browse empty | `rooms.empty` |
+| Browse refresh | `rooms.refresh` |
+| Browse back | `rooms.back` |
+| Browse loading | `rooms.loading` |
+| Browse error | `rooms.error` |
+| Join | `rooms.join` |
+| Row players | `rooms.players` |
+| Relative time | `rooms.agoJustNow`, `rooms.agoMinutes`, `rooms.agoHours` |
+| Row MC/voice | `rooms.mc`, `rooms.voice` |
+| Row mode | `rooms.modeRegular`, `rooms.modeHardcore` |
+| Lobby public badge | `lobby.listedPublicly` |
+| Remove | `lobby.removePlayer` |
+| Remove confirm | `lobby.removeConfirm` |
+| Remove error | `lobby.removeError` |
+| Join banned | `join.banned` |
+| Removed title | `game.removedTitle` |
+| Removed body | `game.removedBody` |
+| Removed CTA | `game.removedHome` |
+| Full lobby | `join.full` |
 
 ---
 
-## 8. Start-quiz patch (critical)
+## 7. Security constraints
 
-In the host **Start quiz** action (wherever you currently update the game row to leave lobby):
-
-1. Diff against web after GLOBAL_ROOMS web PR — copy the exact fields web writes.
-2. Ensure `is_public: false` is included whenever start runs.
-3. Test: create public → appear in Browse on another device → host starts → pull-to-refresh Browse → **gone** → rematch → still **gone**.
-
-If start is “any client may advance” in some paths, only the **host start-from-lobby** transition needs R1; phase machines later in a match should not re-set `is_public: true`.
-
----
-
-## 9. Security notes for mobile
-
-- **Never** list rooms via:
-
-  ```ts
-  supabase.from('games').select('*').eq('is_public', true)
-  ```
-
-  That can over-fetch `questions` and private metadata depending on RLS. Prefer **`GET /api/public-games`** only.
-
+- **Never** list rooms via client `supabase.from('games').select('*').eq('is_public', true)` — over-fetches `questions` and private metadata.
+- Create stays on `POST /api/create-game` (not direct insert).
 - Do not log full game rows with answers.
-- Create still goes through `/api/create-game` (not direct insert) — unchanged from security hardening.
-- Public listing + iOS create without Google relies on existing rate limit + quota; do not weaken headers.
+- Kick + ban writes are service-role only (`game_bans` has no anon RLS policies).
 
 ---
 
-## 10. Implementation checklist (iOS)
-
-### Preconditions
-
-- [ ] Web API deployed: `is_public` on create, `GET /api/public-games`, start sets `is_public=false`.
-- [ ] Types synced from web `lib/types.ts`.
-
-### Create form
-
-- [ ] Rename Adjust → More, Hide settings → Hide (all locales).
-- [ ] Invite only switch default ON; maps to `is_public`.
-- [ ] First More row: Browse open games → navigate to browse screen.
-- [ ] Old builds without field remain private (server default).
-
-### Browse screen
-
-- [ ] Fetch list on focus + pull-to-refresh.
-- [ ] Empty / loading / error / 429 states.
-- [ ] Rows show locked metadata fields.
-- [ ] Join → GameScreen guest with `id`.
-- [ ] Full rooms handled by existing join UI.
-
-### Start / rematch
-
-- [ ] Host start clears `is_public` (R1).
-- [ ] Rematch does not re-list.
-
-### Host kick
-
-- [ ] Lobby Remove on guest rows (host only).
-- [ ] In-game Remove (host only).
-- [ ] `POST /api/kick-player` with `hostClientId`.
-- [ ] Realtime roster update for remaining players.
-- [ ] Kicked device: removed screen; ban blocks rejoin on same game.
-- [ ] Cannot kick host; guests do not see Remove.
-
-### QA matrix
+## 8. QA matrix
 
 | # | Steps | Expected |
 |---|--------|----------|
-| 1 | Create with Invite only ON | Not in Browse (web or iOS list) |
-| 2 | Create with Invite only OFF | Appears in Browse within refresh |
-| 3 | Second device Join from list | Seats as guest; lobby shows host |
-| 4 | Host Start | Room disappears from Browse |
+| 1 | Create with Invite only ON | Not in Browse |
+| 2 | Create with Invite only OFF | Appears in Browse after refresh |
+| 3 | Second client Join from list | Guest in lobby with host |
+| 4 | Host Start | Room gone from Browse |
 | 5 | Rematch | Still not listed |
-| 6 | Private link join | Still works without Browse |
-| 7 | Full lobby (6) | Not shown or Join shows full |
-| 8 | Airplane mode on Browse | Error + retry |
-| 9 | Burst refresh | 429 handled gracefully |
-| 10 | Host kicks guest in lobby | Guest removed for all; seat free |
-| 11 | Kicked guest reloads same game | Cannot rejoin; banned message |
-| 12 | Host kicks mid-game | Roster updates; game continues for rest |
-| 13 | Guest tries kick API | 403; no effect |
+| 6 | Private link join | Works without Browse |
+| 7 | Full lobby (6) | Not in list / join shows full |
+| 8 | Room older than 6 h | Not in list |
+| 9 | Offline / API error on Browse | Error + retry |
+| 10 | Burst refresh | 429 handled gracefully |
+| 11 | Host kicks guest in lobby | Guest removed; seat free; confirm shown |
+| 12 | Kicked guest reopens same game | Cannot rejoin; banned/removed copy |
+| 13 | Host kicks mid-game | Roster updates; game continues |
+| 14 | Guest calls kick API | 403; no effect |
+| 15 | Web host + iOS guest (and reverse) | Kick and browse behave consistently |
 
-### Out of scope (unless product expands)
+---
 
-- Topic text search  
-- Mid-lobby public toggle  
-- Showing in-progress games  
+## 9. Out of scope (v1)
+
+- Topic search / filters  
+- Mid-lobby privacy toggle  
+- In-progress games in Browse  
 - Global account bans / report pipeline  
-- Android-specific UX (reuse same screens if you ship Android later)
+- Showing question count or cameras on browse rows  
 
 ---
 
-## 11. Copy sheet (EN)
+## 10. Deployment note
 
-| Key purpose | String |
-|-------------|--------|
-| Open More | More |
-| Close More | Hide |
-| Browse entry title | Browse open games |
-| Browse entry hint | Join a quiz that’s waiting for players |
-| Invite only title | Invite only |
-| Invite only hint ON | Only people with your link can join. Not shown in the public list. |
-| Invite only hint OFF | Listed under Browse open games until you start the quiz. |
-| Browse screen title | Open games |
-| Empty | No open games right now. |
-| Refresh | Refresh |
-| Join | Join |
-| Lobby public badge | Visible in Browse until you start. |
-| Remove player | Remove |
-| Remove confirm | Remove {name} from this game? |
-| Kicked title | You were removed |
-| Kicked body | The host removed you from this game. |
-| Kicked CTA | Back to home |
-| Join banned | You can’t rejoin this game. |
+Native builds need `EXPO_PUBLIC_API_BASE_URL` (or equivalent) pointing at a host where migration v15+ is applied and these routes are live:
 
-Reuse web i18n keys where practical (`create.moreShow`, `rooms.*`, `lobby.removePlayer`, etc.) so EN/RU/other stay aligned.
+- `POST /api/create-game` with `is_public`
+- `GET /api/public-games`
+- `POST /api/kick-player`
+- Host start writes `is_public: false`
+
+If Browse is exposed before the API exists, list calls will fail — gate the entry behind version/config if needed.
 
 ---
 
-## 12. Coordination with web
-
-| Order | Owner |
-|-------|--------|
-| 1. Migration `is_public` + `game_bans` + list API + create field + R1 on start + **kick API** | Web repo |
-| 2. Web home Browse + Invite only + **host Remove UI** + kicked screen | Web repo |
-| 3. Point `EXPO_PUBLIC_API_BASE_URL` at build that has (1) | iOS |
-| 4. iOS UI + create payload + Browse + start patch + **kick** | iOS repo |
-| 5. Cross-client QA (web host kicks iOS guest and reverse) | Both |
-
-If iOS ships UI before web API: Browse will 404 — feature-flag Browse entry behind a remote config or min API version if needed.
-
----
-
-## 13. Agent prompt (paste into iOS Cursor session)
-
-```
-Implement Global Rooms / public lobbies for WhoSmarter React Native iOS.
-
-READ FIRST:
-- docs/GLOBAL_ROOMS_IOS.md (this file’s content — full native spec)
-- docs/GLOBAL_ROOMS.md §12 decisions (product rules)
-- ios_implementation_help.md for API base URL and X-WhoSmarter-Client: ios on create
-
-Requirements:
-1. Create form: rename Adjust→More, Hide settings→Hide.
-2. More panel first item: “Browse open games” → full BrowseGamesScreen (not an inline list).
-3. Invite only switch default ON; POST /api/create-game with is_public: !inviteOnly.
-4. BrowseGamesScreen: GET /api/public-games, pull-to-refresh, rows show topic, n/6, difficulty, MC/voice + mode, relative time; Join → existing GameScreen as guest.
-5. Host Start quiz must set is_public: false (match web useGameState after web PR).
-6. Do not query games table with select(*) for the directory.
-7. No mid-lobby privacy toggle. Anonymous browse/join.
-8. Host kick REQUIRED: lobby + in-game Remove for guests; POST /api/kick-player with hostClientId;
-   kicked user sees “You were removed”; banned client_id cannot rejoin same gameId.
-9. Never client-delete players rows for kick — API only (service role).
-
-Match existing RN patterns, i18n, and navigation. Do not break private link join.
-```
-
----
-
-*End of iOS global rooms instructions.*
+*End of native global rooms parity spec.*

@@ -14,6 +14,7 @@
 // ============================================================
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import MCOptions  from './MCOptions';
 import PlayerStatusBar from './PlayerStatusBar';
 import TopicPill from './TopicPill';
@@ -21,6 +22,8 @@ import CountdownTimer from './CountdownTimer';
 import { useLocale } from '@/context/LocaleProvider';
 import type { Game, Player } from '@/lib/types';
 import { playerColor, playerInitial } from '@/lib/player-colors';
+
+const CountryMap = dynamic(() => import('./CountryMap'), { ssr: false });
 
 /** One player's pick on an MC option (shown at the reveal). */
 export interface OptionPick {
@@ -79,6 +82,7 @@ export default function QuestionPanel({
   const questions       = game.questions ?? [];
   const currentQuestion = questions[game.current_question_index];
   const phase           = game.phase;
+  const roundUsesMc     = game.mc_mode || Boolean(currentQuestion?.force_mc);
 
   const myMcPick     = me.mc_index;
   const iHavePicked   = myMcPick !== null;
@@ -161,7 +165,7 @@ export default function QuestionPanel({
       {/* Question text — with the question counter appended inline (e.g. "… 2/5") */}
       {currentQuestion && phase !== 'ended' && phase !== 'result' && (
         <div
-          className="w-full text-center px-3 py-2 rounded-xl"
+          className="w-full text-center px-3 py-2 rounded-xl flex flex-col items-center gap-2"
           style={{ background: panelQ, backdropFilter: 'blur(8px)', border: '1px solid var(--border)' }}
         >
           <p className="text-xs sm:text-sm lg:text-xl font-semibold leading-snug text-[var(--text-primary)]">
@@ -170,6 +174,21 @@ export default function QuestionPanel({
               {game.current_question_index + 1}/{questions.length}
             </span>
           </p>
+          {currentQuestion.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={currentQuestion.image_url}
+              alt=""
+              className="h-16 sm:h-20 w-auto max-w-full rounded-md object-contain shadow-sm"
+            />
+          )}
+          {currentQuestion.map_country && (
+            <CountryMap
+              focusCode={currentQuestion.map_country}
+              scopeCodes={currentQuestion.map_scope}
+              className="max-w-md"
+            />
+          )}
         </div>
       )}
     </>
@@ -186,7 +205,7 @@ export default function QuestionPanel({
           players={players}
           meId={me.id}
           phase={phase}
-          mcMode={game.mc_mode}
+          mcMode={roundUsesMc}
           align="center"
           canKick={canKick}
           onKick={onKick}
@@ -211,7 +230,7 @@ export default function QuestionPanel({
             players={players}
             meId={me.id}
             phase={phase}
-            mcMode={game.mc_mode}
+            mcMode={roundUsesMc}
             inline
             canKick={canKick}
             onKick={onKick}
@@ -230,7 +249,7 @@ export default function QuestionPanel({
         </div>
 
         {/* ---- MC Options (2x2 always — fits without scrolling) ---- */}
-        {game.mc_mode && currentQuestion?.options &&
+        {roundUsesMc && currentQuestion?.options &&
           (phase === 'thinking' || phase === 'question' || phase === 'result') && (
           <MCOptions
             options={currentQuestion.options}
@@ -240,11 +259,12 @@ export default function QuestionPanel({
             canSelect={canPick}
             youLabel={t('mc.you')}
             onSelect={onMCSelect}
+            optionsAsFlags={Boolean(currentQuestion.options_as_flags)}
           />
         )}
 
         {/* ---- Voice answer area: hold-to-answer ---- */}
-        {phase === 'answering' && !game.mc_mode && !iAmDone && (
+        {phase === 'answering' && !roundUsesMc && !iAmDone && (
           <div className="w-full max-w-lg flex flex-col gap-1.5">
             <div
               className="w-full px-2.5 py-2 rounded-xl min-h-[3rem]"
@@ -291,7 +311,7 @@ export default function QuestionPanel({
         )}
 
         {/* ---- Voice RESULT reveal (every player) ---- */}
-        {phase === 'result' && !game.mc_mode && (
+        {phase === 'result' && !roundUsesMc && (
           <div className="w-full max-w-lg flex flex-col gap-1.5 max-h-[42vh] overflow-y-auto pr-0.5">
             {[...players]
               .sort((a, b) => a.slot - b.slot)
