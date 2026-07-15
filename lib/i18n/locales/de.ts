@@ -5,6 +5,9 @@ export const de = {
     stepPlay: 'Spielen',
     logoS: 'Tippe auf S',
   },
+  footer: {
+    privacy: 'Datenschutz',
+  },
   lang: {
     label: 'Sprache',
     en: 'English',

@@ -5,6 +5,9 @@ export const ja = {
     stepPlay: 'プレイ',
     logoS: 'Sをタップ',
   },
+  footer: {
+    privacy: 'プライバシー',
+  },
   lang: {
     label: '言語',
     en: 'English',

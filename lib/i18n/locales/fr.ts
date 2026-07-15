@@ -5,6 +5,9 @@ export const fr = {
     stepPlay: 'Jouez',
     logoS: 'Appuyez sur le S',
   },
+  footer: {
+    privacy: 'Confidentialité',
+  },
   lang: {
     label: 'Langue',
     en: 'English',

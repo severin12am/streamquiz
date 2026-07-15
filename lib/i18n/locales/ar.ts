@@ -5,6 +5,9 @@ export const ar = {
     stepPlay: 'العب',
     logoS: 'اضغط على S',
   },
+  footer: {
+    privacy: 'الخصوصية',
+  },
   lang: {
     label: 'اللغة',
     en: 'English',

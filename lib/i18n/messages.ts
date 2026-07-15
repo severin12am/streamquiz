@@ -19,6 +19,9 @@ export const messages = {
       stepPlay: 'Play',
       logoS: 'Tap the S',
     },
+    footer: {
+      privacy: 'Privacy',
+    },
     auth: {
       signInTitle: 'Sign in to generate your quiz',
       signInHint: 'Only the host needs an account. Your guests join via your invite link — no sign-in required.',
@@ -248,6 +251,9 @@ export const messages = {
       stepShare: 'Пригласите друзей',
       stepPlay: 'Играйте',
       logoS: 'Нажми на S',
+    },
+    footer: {
+      privacy: 'Конфиденциальность',
     },
     lang: {
       label: 'Язык',

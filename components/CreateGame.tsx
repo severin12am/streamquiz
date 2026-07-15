@@ -509,37 +509,21 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         </div>
       </div>
 
-      {/* ---- Footer ---- */}
-      <div
-        className={`flex items-center gap-3 pt-1 text-xs text-[var(--text-muted)] ${
-          user ? 'justify-between' : 'justify-end'
-        }`}
-      >
-        {user && (
+      {/* ---- Account controls (legal footer lives globally in SiteFooter) ---- */}
+      {user && (
+        <div className="flex items-center justify-between gap-3 pt-1 text-xs text-[var(--text-muted)]">
           <span className="truncate">
             {t('auth.signedInAs', { email: user.email ?? '' })}
           </span>
-        )}
-        <div className="flex shrink-0 items-center gap-3">
-          <a
-            href="https://apps.apple.com/us/app/id6780852034"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-[var(--text-secondary)]"
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="shrink-0 underline hover:text-[var(--text-secondary)]"
           >
-            {t('auth.downloadIosApp')}
-          </a>
-          {user && (
-            <button
-              type="button"
-              onClick={() => signOut()}
-              className="underline hover:text-[var(--text-secondary)]"
-            >
-              {t('auth.signOut')}
-            </button>
-          )}
+            {t('auth.signOut')}
+          </button>
         </div>
-      </div>
+      )}
     </form>
     </div>
   );
