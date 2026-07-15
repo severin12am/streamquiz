@@ -5,7 +5,7 @@
 //
 // Contains:
 //   - IP / trademark disclaimer (required on all pages)
-//   - Privacy link (→ /privacy) + Download iOS app link
+//   - Privacy link (→ /privacy)
 //
 // Text is localized via the current UI locale, falling back to
 // English for the legal copy.
@@ -15,8 +15,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/context/LocaleProvider';
 import { disclaimer } from '@/lib/i18n/legal';
-
-const APP_STORE_URL = 'https://apps.apple.com/us/app/id6780852034';
 
 export default function SiteFooter() {
   const { t, locale } = useLocale();
@@ -38,14 +36,6 @@ export default function SiteFooter() {
           >
             {t('footer.privacy')}
           </Link>
-          <a
-            href={APP_STORE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-[var(--text-secondary)]"
-          >
-            {t('auth.downloadIosApp')}
-          </a>
         </div>
       </div>
     </footer>
