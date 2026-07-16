@@ -35,7 +35,7 @@ export const onboarding = {
       },
       {
         title: 'Open games',
-        body: 'Don’t want to host? Browse open games and join a public quiz that’s waiting for players — or turn off Invite only so yours appears in that list.',
+        body: 'Don’t have friends to play with? Browse open games and join a public quiz that’s waiting for players — or turn off Invite only so yours appears in that list.',
       },
     ],
   },
@@ -69,7 +69,7 @@ export const onboarding = {
       },
       {
         title: 'Открытые игры',
-        body: 'Не хотите вести игру? Загляните в открытые игры и присоединитесь к публичной викторине, где ждут игроков — или отключите «Только по ссылке», чтобы ваша игра появилась в этом списке.',
+        body: 'Нет друзей, с кем сыграть? Загляните в открытые игры и присоединитесь к публичной викторине, где ждут игроков — или отключите «Только по ссылке», чтобы ваша игра появилась в этом списке.',
       },
     ],
   },
@@ -103,7 +103,7 @@ export const onboarding = {
       },
       {
         title: 'Partidas abiertas',
-        body: '¿No quieres ser anfitrión? Explora las partidas abiertas y únete a un concurso público que espera jugadores — o desactiva Solo por invitación para que el tuyo aparezca en esa lista.',
+        body: '¿No tienes amigos con quienes jugar? Explora las partidas abiertas y únete a un concurso público que espera jugadores — o desactiva Solo por invitación para que el tuyo aparezca en esa lista.',
       },
     ],
   },
@@ -137,7 +137,7 @@ export const onboarding = {
       },
       {
         title: 'Parties ouvertes',
-        body: 'Pas envie d’héberger ? Parcourez les parties ouvertes et rejoignez un quiz public qui attend des joueurs — ou désactivez Sur invitation uniquement pour que le vôtre apparaisse dans cette liste.',
+        body: 'Pas d’amis avec qui jouer ? Parcourez les parties ouvertes et rejoignez un quiz public qui attend des joueurs — ou désactivez Sur invitation uniquement pour que le vôtre apparaisse dans cette liste.',
       },
     ],
   },
@@ -171,7 +171,7 @@ export const onboarding = {
       },
       {
         title: 'Offene Spiele',
-        body: 'Nicht hosten? Durchsuche offene Spiele und tritt einem öffentlichen Quiz bei, das auf Spieler wartet — oder schalte Nur per Einladung aus, damit deines in der Liste erscheint.',
+        body: 'Keine Freunde zum Spielen? Durchsuche offene Spiele und tritt einem öffentlichen Quiz bei, das auf Spieler wartet — oder schalte Nur per Einladung aus, damit deines in der Liste erscheint.',
       },
     ],
   },
@@ -205,7 +205,7 @@ export const onboarding = {
       },
       {
         title: 'オープンゲーム',
-        body: 'ホストしたくない場合は、オープンゲームから参加待ちの公開クイズに入れます。または「招待のみ」をオフにすると、自分のクイズが一覧に表示されます。',
+        body: '一緒に遊ぶ友達がいない？オープンゲームから参加待ちの公開クイズに入れます。または「招待のみ」をオフにすると、自分のクイズが一覧に表示されます。',
       },
     ],
   },
@@ -239,7 +239,7 @@ export const onboarding = {
       },
       {
         title: 'الألعاب المفتوحة',
-        body: 'لا تريد الاستضافة؟ تصفّح الألعاب المفتوحة وانضم إلى مسابقة عامة تنتظر لاعبين — أو أوقف «بدعوة فقط» ليظهر لعبتك في تلك القائمة.',
+        body: 'ليس لديك أصدقاء للعب معهم؟ تصفّح الألعاب المفتوحة وانضم إلى مسابقة عامة تنتظر لاعبين — أو أوقف «بدعوة فقط» ليظهر لعبتك في تلك القائمة.',
       },
     ],
   },
