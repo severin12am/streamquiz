@@ -21,6 +21,7 @@ import { consumeCreateQuota } from '@/lib/creator-quota';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 import { insertTelemetryEvent } from '@/lib/telemetry-server';
 import { platformFromClientHeader } from '@/lib/telemetry-shared';
+import { notifyPublicGamesListingChanged } from '@/lib/indexnow';
 import type { GameMode } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -160,6 +161,12 @@ export async function POST(req: NextRequest) {
       player_count: 1,
       is_public: isPublic,
     });
+
+    // Public games appear on the home listing — nudge Bing to recrawl it.
+    // Do not submit /game/{id} (ephemeral rooms; disallowed in robots.txt).
+    if (isPublic) {
+      notifyPublicGamesListingChanged();
+    }
 
     return NextResponse.json(
       { gameId, questions, provider, ...(quota ? { quota } : {}) },
