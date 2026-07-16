@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS games (
   difficulty             TEXT NOT NULL CHECK (difficulty IN ('easy', 'medium', 'hard')),
   num_questions          INTEGER NOT NULL CHECK (num_questions BETWEEN 3 AND 250),
   mc_mode                BOOLEAN DEFAULT FALSE,
+  answer_seconds         INTEGER NOT NULL DEFAULT 20 CHECK (answer_seconds BETWEEN 5 AND 30),
 
   -- Host-chosen on the create screen. FALSE (default) = no cameras
   -- requested; players still get a mic (voice answers + peer audio work).
@@ -174,6 +175,7 @@ BEGIN
    OR NEW.game_mode       IS DISTINCT FROM OLD.game_mode
    OR NEW.cameras_enabled IS DISTINCT FROM OLD.cameras_enabled
    OR NEW.host_user_id    IS DISTINCT FROM OLD.host_user_id
+   OR NEW.answer_seconds  IS DISTINCT FROM OLD.answer_seconds
   THEN
     RAISE EXCEPTION 'Cannot modify immutable game setup columns';
   END IF;

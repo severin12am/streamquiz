@@ -132,6 +132,8 @@ export interface Game {
   difficulty: Difficulty;
   num_questions: number;
   mc_mode: boolean;
+  /** Seconds to answer each question (5–30). Default 20. Absent on pre-v17 rows. */
+  answer_seconds?: number;
   /** Host setting: request player cameras? Default false (mics only). */
   cameras_enabled: boolean;
   /** Game mode: 'regular' (default) or 'hardcore' (first correct scores).
@@ -171,6 +173,8 @@ export interface CreateGamePayload {
   difficulty: Difficulty;
   num_questions: number;
   mc_mode: boolean;
+  /** Seconds to answer (5–30). Defaults to 20. */
+  answer_seconds?: number;
   /** Game mode (defaults to 'regular'). */
   game_mode?: GameMode;
   /** UI language — questions are generated in this language. */

@@ -34,6 +34,13 @@ function validGameMode(v: unknown): GameMode {
   return v === 'hardcore' || v === 'think' || v === 'classic' ? v : 'regular';
 }
 
+/** Clamp host answer window to [5, 30]; default 20. */
+function validAnswerSeconds(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return 20;
+  return Math.min(30, Math.max(5, Math.round(n)));
+}
+
 export async function POST(req: NextRequest) {
   // ---- 1. Rate limit ----
   const rl = enforce(req, { name: 'create-game', limit: LIMIT, windowMs: WINDOW_MS });
@@ -104,6 +111,7 @@ export async function POST(req: NextRequest) {
     // ---- 4. Insert the game (service role bypasses RLS) ----
     const camerasEnabled = Boolean((body as Record<string, unknown>).cameras_enabled);
     const gameMode = validGameMode((body as Record<string, unknown>).game_mode);
+    const answerSecs = validAnswerSeconds((body as Record<string, unknown>).answer_seconds);
     // Default private (invite only). Clients send is_public: true only when
     // "Invite only" is turned off under More.
     const isPublic = Boolean((body as Record<string, unknown>).is_public);
@@ -117,6 +125,7 @@ export async function POST(req: NextRequest) {
         num_questions: numQuestions,
         mc_mode: validation.config.mcMode,
         game_mode: gameMode,
+        answer_seconds: answerSecs,
         cameras_enabled: camerasEnabled,
         is_public: isPublic,
         questions,

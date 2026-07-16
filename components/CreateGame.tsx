@@ -33,6 +33,8 @@ interface PendingCreateForm {
   numQuestions: number;
   mcMode: boolean;
   gameMode: GameMode;
+  /** Seconds to answer each question (5–30). Default 20. */
+  answerSeconds: number;
   camerasEnabled: boolean;
   /** When true (default), game is private. Maps to is_public: !inviteOnly */
   inviteOnly: boolean;
@@ -77,6 +79,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   const [numQuestions, setNumQuestions] = useState(5);
   const [mcMode,       setMcMode]       = useState(true);
   const [gameMode,     setGameMode]     = useState<GameMode>('regular');
+  const [answerSeconds, setAnswerSeconds] = useState(20);
   const [camerasEnabled, setCamerasEnabled] = useState(true);
   /** Default ON = private (not listed). */
   const [inviteOnly, setInviteOnly] = useState(true);
@@ -126,7 +129,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     void panel.offsetHeight;
     panel.classList.remove('adjust-panel--warm');
     panel.style.removeProperty('--warm-width');
-  }, [measureAdjustPanel, locale, gameMode, inviteOnly, geography]);
+  }, [measureAdjustPanel, locale, gameMode, answerSeconds, inviteOnly, geography]);
 
   useEffect(() => {
     const panel = adjustPanelRef.current;
@@ -151,6 +154,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
       numQuestions,
       mcMode,
       gameMode,
+      answerSeconds,
       camerasEnabled,
       inviteOnly,
       locale,
@@ -164,6 +168,12 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     setNumQuestions(form.numQuestions);
     setMcMode(form.mcMode);
     setGameMode(form.gameMode);
+    const secs = form.answerSeconds;
+    setAnswerSeconds(
+      typeof secs === 'number' && Number.isFinite(secs)
+        ? Math.min(30, Math.max(5, Math.round(secs)))
+        : 20,
+    );
     setCamerasEnabled(form.camerasEnabled);
     setInviteOnly(form.inviteOnly !== false);
     setGeography(form.geography ?? null);
@@ -184,6 +194,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
           num_questions: form.numQuestions,
           mc_mode: form.mcMode,
           game_mode: form.gameMode,
+          answer_seconds: form.answerSeconds,
           cameras_enabled: form.camerasEnabled,
           is_public: !form.inviteOnly,
           locale: form.locale,
@@ -482,6 +493,22 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
               {gameMode === 'regular' ? t('create.modeRegularHint') : t('create.modeHardcoreHint')}
             </p>
           </div>
+
+          {/* ---- Answer time (Every answer counts) ---- */}
+          {gameMode === 'regular' && (
+            <div>
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+                {t('create.answerTime')}
+              </label>
+              <KeycapSegSlider
+                min={5}
+                max={30}
+                value={answerSeconds}
+                onChange={setAnswerSeconds}
+                aria-label={t('create.answerTime')}
+              />
+            </div>
+          )}
 
           {/* ---- Multiple Choice toggle ---- */}
           <div className="flex items-center justify-between">

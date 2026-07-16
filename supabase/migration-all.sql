@@ -61,6 +61,12 @@ DROP POLICY IF EXISTS "games_update" ON games;
 CREATE POLICY "games_select" ON games FOR SELECT USING (true);
 CREATE POLICY "games_update" ON games FOR UPDATE USING (true) WITH CHECK (true);
 
+-- v17: configurable answer window
+ALTER TABLE games ADD COLUMN IF NOT EXISTS answer_seconds INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE games DROP CONSTRAINT IF EXISTS games_answer_seconds_check;
+ALTER TABLE games ADD CONSTRAINT games_answer_seconds_check
+  CHECK (answer_seconds BETWEEN 5 AND 30);
+
 CREATE OR REPLACE FUNCTION games_lock_setup_columns()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -73,6 +79,7 @@ BEGIN
    OR NEW.game_mode IS DISTINCT FROM OLD.game_mode
    OR NEW.cameras_enabled IS DISTINCT FROM OLD.cameras_enabled
    OR NEW.host_user_id IS DISTINCT FROM OLD.host_user_id
+   OR NEW.answer_seconds IS DISTINCT FROM OLD.answer_seconds
   THEN RAISE EXCEPTION 'Cannot modify immutable game setup columns';
   END IF;
   RETURN NEW;

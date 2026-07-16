@@ -55,14 +55,27 @@ import type { Game, Player, Question } from '@/lib/types';
 // TIMING SETTINGS — change these to adjust game pacing (seconds)
 // -------------------------------------------------------
 const THINK_TIME_SECONDS    = 5;    // (legacy think mode) locked countdown before answering
-const QUESTION_TIME_SECONDS = 20;   // MC: time to answer before the round resolves
-const VOICE_ANSWER_SECONDS  = 20;   // voice: time everyone has to speak
+const DEFAULT_ANSWER_SECONDS = 20;  // default MC / voice answer window
+const MIN_ANSWER_SECONDS     = 5;
+const MAX_ANSWER_SECONDS     = 30;
+/** @deprecated use answerSeconds(game) — kept for export / legacy callers */
+const QUESTION_TIME_SECONDS = DEFAULT_ANSWER_SECONDS;
+const VOICE_ANSWER_SECONDS  = DEFAULT_ANSWER_SECONDS;
 const RESULT_TIME_SECONDS   = 5;    // how long the result screen shows
 const CHECK_TIMEOUT_SECONDS = 15;   // safety: max time to wait for AI judging
 // (LEGACY 'classic'/'think' only) The moment the FIRST player locks in an
 // answer, everyone else gets only this many seconds left to respond. The new
 // 'regular'/'hardcore' modes never shrink the timer.
 const FIRST_ANSWER_GRACE_SECONDS = 4;
+
+/** Host-configured answer window (5–30s), falling back to 20 for legacy rows. */
+function answerSeconds(game: Game | null | undefined): number {
+  const n = game?.answer_seconds;
+  if (typeof n === 'number' && Number.isFinite(n)) {
+    return Math.min(MAX_ANSWER_SECONDS, Math.max(MIN_ANSWER_SECONDS, Math.round(n)));
+  }
+  return DEFAULT_ANSWER_SECONDS;
+}
 
 /** True when this round should use MC UI/scoring (global MC or per-question force). */
 function questionUsesMc(game: Game | null, questionIndex?: number): boolean {
@@ -140,13 +153,13 @@ function msUntil(iso: string | null): number {
 }
 
 function phaseTotalSeconds(game: Game | null): number {
-  if (!game) return QUESTION_TIME_SECONDS;
+  if (!game) return DEFAULT_ANSWER_SECONDS;
   switch (game.phase) {
     case 'thinking':  return THINK_TIME_SECONDS;
-    case 'question':  return QUESTION_TIME_SECONDS;
-    case 'answering': return VOICE_ANSWER_SECONDS;
+    case 'question':  return answerSeconds(game);
+    case 'answering': return answerSeconds(game);
     case 'result':    return RESULT_TIME_SECONDS;
-    default:          return QUESTION_TIME_SECONDS;
+    default:          return answerSeconds(game);
   }
 }
 
@@ -157,21 +170,66 @@ function roundStartPatch(game: Game | null, questionIndex?: number): Partial<Gam
   if (mode === 'think') {
     return { phase: 'thinking', phase_deadline: deadlineIn(THINK_TIME_SECONDS) };
   }
+  const secs = answerSeconds(game);
   return questionUsesMc(game, questionIndex)
-    ? { phase: 'question',  phase_deadline: deadlineIn(QUESTION_TIME_SECONDS) }
-    : { phase: 'answering', phase_deadline: deadlineIn(VOICE_ANSWER_SECONDS) };
+    ? { phase: 'question',  phase_deadline: deadlineIn(secs) }
+    : { phase: 'answering', phase_deadline: deadlineIn(secs) };
 }
 
 // Where to go when the think lock lifts (depends on the answer style).
 function afterThinkPatch(game: Game | null): Partial<Game> {
+  const secs = answerSeconds(game);
   return questionUsesMc(game)
-    ? { phase: 'question',  phase_deadline: deadlineIn(QUESTION_TIME_SECONDS) }
-    : { phase: 'answering', phase_deadline: deadlineIn(VOICE_ANSWER_SECONDS) };
+    ? { phase: 'question',  phase_deadline: deadlineIn(secs) }
+    : { phase: 'answering', phase_deadline: deadlineIn(secs) };
 }
 
 // True if a player has supplied an answer this round (MC or voice).
 function hasAnswered(p: Player, mcMode: boolean): boolean {
   return mcMode ? p.mc_index !== null : p.done;
+}
+
+/**
+ * True when the player's commit belongs to the CURRENT answer window.
+ * Leftover mc_index/done from the previous round (cleared a beat after the
+ * next question opens) must NOT count — otherwise early-advance auto-resolves
+ * the new question using stale picks. We require answered_at to fall inside
+ * the window that ends at `phase_deadline`.
+ */
+function answerBelongsToRound(
+  p: Player,
+  mcMode: boolean,
+  deadline: string | null,
+  phaseDurationSec: number,
+): boolean {
+  if (!hasAnswered(p, mcMode)) return false;
+  if (!deadline || !p.answered_at) return false;
+  const end = new Date(deadline).getTime();
+  const start = end - phaseDurationSec * 1000;
+  const at = new Date(p.answered_at).getTime();
+  // 2s slack each side for clock skew / shrink races.
+  return at >= start - 2000 && at <= end + 2000;
+}
+
+/** Cleared per-round fields — shared by optimistic UI reset. */
+function withClearedRound(p: Player): Player {
+  if (
+    p.mc_index === null &&
+    p.transcript === '' &&
+    p.correct === null &&
+    !p.done &&
+    p.answered_at === null
+  ) {
+    return p;
+  }
+  return {
+    ...p,
+    mc_index: null,
+    transcript: '',
+    correct: null,
+    done: false,
+    answered_at: null,
+  };
 }
 
 // -------------------------------------------------------
@@ -206,8 +264,8 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
   const hadSeatRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_SECONDS);
-  const [timeLeftMs, setTimeLeftMs] = useState(QUESTION_TIME_SECONDS * 1000);
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_ANSWER_SECONDS);
+  const [timeLeftMs, setTimeLeftMs] = useState(DEFAULT_ANSWER_SECONDS * 1000);
 
   const gameRef        = useRef<Game | null>(null);
   const playersRef     = useRef<Player[]>([]);
@@ -270,13 +328,10 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
     }
     if (idx !== lastRoundIndexRef.current) {
       lastRoundIndexRef.current = idx;
-      setPlayers((prev) =>
-        prev.map((p) =>
-          p.mc_index === null && p.transcript === '' && p.correct === null && !p.done && p.answered_at === null
-            ? p
-            : { ...p, mc_index: null, transcript: '', correct: null, done: false, answered_at: null }
-        )
-      );
+      roundReadyRef.current = null;
+      const cleared = playersRef.current.map(withClearedRound);
+      playersRef.current = cleared;
+      setPlayers(cleared);
     }
   }, [game?.current_question_index]);
 
@@ -481,9 +536,14 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
     const roster = await fetchPlayers(gameId);
     const q = g.questions[g.current_question_index];
 
+    // Ignore leftover picks from the previous round (answered_at outside
+    // this question's window) — same guard as the early-advance ticker.
+    const live = (p: Player) =>
+      answerBelongsToRound(p, true, g.phase_deadline, answerSeconds(g));
+
     const correctOf = (p: Player) =>
-      p.mc_index != null &&
-      isMcAnswerCorrect(q?.options?.[p.mc_index] ?? '', q?.correct_answer);
+      live(p) &&
+      isMcAnswerCorrect(q?.options?.[p.mc_index!] ?? '', q?.correct_answer);
 
     const anyCorrect = roster.some(correctOf);
 
@@ -537,6 +597,8 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
         last_points: 0,
         ...roundStartPatch(g, nextIndex),
       });
+      // Reset after advance (separate write). Stale picks that briefly linger
+      // are ignored by answerBelongsToRound until this lands.
       if (won) await resetPlayersForRound(gameId);
     }
   }, [gameId]);
@@ -556,15 +618,16 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
 
       // --- FRESH-ROUND GATE: a newly opened round only becomes eligible for
       //     early-advance / first-answer logic once we've actually seen the
-      //     roster fully unanswered for THIS deadline. Otherwise leftover
-      //     picks from the previous round (cleared a beat after the next
-      //     question opens — see advanceToNext) would instantly resolve it,
-      //     making every other question flash by. Robust to realtime events
-      //     for `games` / `players` arriving in either order. ---
+      //     roster with no answers that belong to THIS deadline. Leftover
+      //     picks from the previous round (old answered_at) are ignored so
+      //     they can't instantly resolve the new question — the bug that
+      //     made Eliminate rounds flash by before the map painted. ---
       const mcRound = questionUsesMc(g);
       const answerablePhase = g.phase === 'question' || g.phase === 'answering';
-      if (answerablePhase && g.phase_deadline &&
-          !roster.some((p) => hasAnswered(p, mcRound))) {
+      const phaseSecs = answerSeconds(g);
+      const liveAnswer = (p: Player) =>
+        answerBelongsToRound(p, mcRound, g.phase_deadline, phaseSecs);
+      if (answerablePhase && g.phase_deadline && !roster.some(liveAnswer)) {
         roundReadyRef.current = g.phase_deadline;
       }
       const roundReady = answerablePhase && roundReadyRef.current === g.phase_deadline;
@@ -579,7 +642,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
           roundReady &&
           g.phase_deadline &&
           shrunkDeadline.current !== g.phase_deadline &&
-          roster.some((p) => hasAnswered(p, mcRound)) &&
+          roster.some(liveAnswer) &&
           msUntil(g.phase_deadline) > (FIRST_ANSWER_GRACE_SECONDS + 0.4) * 1000) {
         shrunkDeadline.current = g.phase_deadline;
         updateGameIfDeadline(gameId, g.phase, g.phase_deadline, {
@@ -591,7 +654,7 @@ export function useGameState(gameId: string, clientId: string): UseGameStateRetu
       // --- EARLY ADVANCE: everyone has answered before the timer ends. ---
       const everyoneAnswered =
         roundReady &&
-        roster.length > 0 && roster.every((p) => hasAnswered(p, mcRound));
+        roster.length > 0 && roster.every(liveAnswer);
 
       if (g.phase === 'question' && everyoneAnswered &&
           earlyDoneRef.current !== g.phase_deadline) {
