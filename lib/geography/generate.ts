@@ -57,6 +57,7 @@ function buildMapQuestion(
     distractors.map((d) => d.name),
   );
   return {
+    // Stem is identical for all map IDs — uniqueness is map_country / answer.
     question: 'Which country is highlighted on the map?',
     options: mcMode || forceMc ? options : undefined,
     correct_answer: country.name,
@@ -65,6 +66,18 @@ function buildMapQuestion(
     map_country: country.code,
     map_scope: scopeCodes,
   };
+}
+
+/** Dedupe key — question text alone is not unique for map / flag-ID stems. */
+function questionIdentity(q: Question): string {
+  if (q.map_country) return `map:${q.map_country.toUpperCase()}`;
+  if (q.image_url) return `img:${q.image_url}`;
+  if (q.options_as_flags && q.correct_answer) {
+    return `flag-opt:${String(q.correct_answer).toUpperCase()}`;
+  }
+  const stem = q.question.trim().toLowerCase();
+  const ans = String(q.correct_answer ?? '').trim().toLowerCase();
+  return `${stem}|${ans}`;
 }
 
 function buildCapitalOf(
@@ -207,7 +220,10 @@ export function generateGeographyQuestions(
   }
 
   const scopeCodes = mappable(pool).map((c) => c.code);
-  const seen = new Set(previousQuestions.map((q) => q.trim().toLowerCase()));
+  // previous_questions from session history are stems only — ignore them for
+  // map/flag-ID (identical stems). Still useful for capital/currency text.
+  const seenStems = new Set(previousQuestions.map((q) => q.trim().toLowerCase()));
+  const seenIds = new Set<string>();
 
   // Eliminate is exclusive: clear the whole region (mappable only).
   if (config.types.includes('eliminate')) {
@@ -248,11 +264,17 @@ export function generateGeographyQuestions(
     const country = candidates[Math.floor(Math.random() * candidates.length)]!;
     const q = BUILDERS[type](country, pool, mcMode, scopeCodes);
     if (!q) continue;
-    const key = q.question.trim().toLowerCase();
-    if (seen.has(key)) continue;
-    // Also avoid duplicate stems within this batch
-    if (out.some((x) => x.question.trim().toLowerCase() === key)) continue;
-    seen.add(key);
+
+    const id = questionIdentity(q);
+    if (seenIds.has(id)) continue;
+
+    // Text-only types: also skip stems already used this session.
+    const stemShared =
+      type === 'map' || type === 'country_of_flag';
+    if (!stemShared && seenStems.has(q.question.trim().toLowerCase())) continue;
+
+    seenIds.add(id);
+    if (!stemShared) seenStems.add(q.question.trim().toLowerCase());
     out.push(q);
   }
 
