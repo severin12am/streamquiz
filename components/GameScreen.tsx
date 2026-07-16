@@ -580,6 +580,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           remoteStreams={remoteStreams}
           connected={connected}
           cameraError={cameraError}
+          onRetryCamera={() => { void startCamera({ force: true }); }}
           camerasEnabled={camerasEnabled}
           speaking={speaking}
           showResult={showResult}

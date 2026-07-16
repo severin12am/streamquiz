@@ -244,6 +244,7 @@ export interface UseMeshWebRTCReturn {
   remoteStreams: Record<string, MediaStream>;
   /** Per-peer connection status, keyed by the other player's id. */
   connected:     Record<string, boolean>;
+  /** Short error code for the local camera/mic tile (`permission`, `insecure`, …). */
   cameraError:   string | null;
   startCamera:   (opts?: { force?: boolean }) => Promise<void>;
   /** Tear down all peer connections + stop local tracks (cut every feed).
@@ -305,6 +306,26 @@ export function useMeshWebRTC(
   const cameraFailedAtRef = useRef(0);
   const CAMERA_RETRY_COOLDOWN_MS = 5000;
 
+  // Map getUserMedia failures to short UI codes (CameraPanel translates them).
+  // Safari's raw NotAllowedError text is long and gets clipped on phone tiles.
+  const cameraErrorCode = (err: unknown): string => {
+    if (typeof window !== 'undefined' && !window.isSecureContext) return 'insecure';
+    if (!(err instanceof DOMException)) return 'unknown';
+    switch (err.name) {
+      case 'NotAllowedError':
+      case 'PermissionDeniedError':
+        return 'permission';
+      case 'NotFoundError':
+      case 'DevicesNotFoundError':
+        return 'notfound';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return 'busy';
+      default:
+        return 'unknown';
+    }
+  };
+
   // -------------------------------------------------------
   // startCamera — request the webcam + mic once
   // -------------------------------------------------------
@@ -316,7 +337,8 @@ export function useMeshWebRTC(
     }
     if (cameraStartingRef.current) return; // an attempt is already running
     // After a failure, don't hammer getUserMedia on every re-render. Genuine
-    // recovery events (tab refocus / network back) pass force:true to retry now.
+    // recovery events (tab refocus / network back / tap-to-retry) pass
+    // force:true to retry now.
     if (!opts?.force && cameraFailedAtRef.current &&
         Date.now() - cameraFailedAtRef.current < CAMERA_RETRY_COOLDOWN_MS) {
       return;
@@ -324,6 +346,16 @@ export function useMeshWebRTC(
     cameraStartingRef.current = true;
     logWebRTC('startCamera called', { camerasEnabled, videoRequested: camerasEnabled });
     try {
+      // Safari / Chrome refuse getUserMedia on non-HTTPS (except localhost).
+      if (typeof window !== 'undefined' && !window.isSecureContext) {
+        throw new DOMException(
+          'Secure context required',
+          'NotAllowedError'
+        );
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new DOMException('getUserMedia unavailable', 'NotFoundError');
+      }
       const tier = videoTierForPeerCount(0);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: camerasEnabled
@@ -355,10 +387,7 @@ export function useMeshWebRTC(
         })),
       });
     } catch (err) {
-      const msg = err instanceof DOMException
-        ? `Camera/mic error: ${err.message}. Please allow access and reload.`
-        : 'Could not access your camera/mic.';
-      setCameraError(msg);
+      setCameraError(cameraErrorCode(err));
       // Log only on the first failure of a cooldown window — not on every
       // retry — so a persistently-busy device doesn't spam the console.
       if (!cameraFailedAtRef.current) {
@@ -784,7 +813,8 @@ export function useMeshWebRTC(
           const state = pc.connectionState;
           logWebRTC('connectionStateChange', { peerId, state, polite: entry.polite });
           setConnected((prev) => ({ ...prev, [peerId]: state === 'connected' }));
-          if (state === 'connected') setCameraError(null);
+          // Do NOT clear cameraError here — peer connect ≠ local mic/camera
+          // permission. Only a successful getUserMedia clears that error.
           if (state === 'failed' && !entry.polite) {
             logWebRTC('connection failed — impolite peer restarting ICE', { peerId });
             try { pc.restartIce(); } catch (err) { console.error('[WebRTC] restartIce failed', { peerId, err }); }

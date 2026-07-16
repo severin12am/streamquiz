@@ -33,6 +33,8 @@ interface CameraGridProps {
   /** Per-peer connection state, keyed by player id. */
   connected:     Record<string, boolean>;
   cameraError:   string | null;
+  /** Re-request local camera/mic (tap on the error tile). */
+  onRetryCamera?: () => void;
   /** Host turned cameras on for this game. */
   camerasEnabled: boolean;
   /** Highlight every tile (the voice answering phase). */
@@ -61,6 +63,7 @@ export default function CameraGrid({
   remoteStreams,
   connected,
   cameraError,
+  onRetryCamera,
   camerasEnabled,
   speaking,
   showResult,
@@ -109,6 +112,7 @@ export default function CameraGrid({
         isSpeaking={speaking}
         mirrored={isMe}
         error={isMe ? cameraError : null}
+        onRetry={isMe && cameraError && onRetryCamera ? onRetryCamera : undefined}
         correct={showResult ? p.correct : null}
         color={playerColor(p.slot)}
         isLocal={isMe}
@@ -122,8 +126,12 @@ export default function CameraGrid({
 
   // Resolve the active scheme. With no remote peers there's nothing to
   // rearrange, so we always fall back to a single full-screen feed.
+  // If the local tile has a camera/mic error, keep it on the big stage so
+  // the tap-to-retry message isn't clipped inside a tiny PiP.
   const mode = others.length === 0
     ? -1
+    : cameraError
+    ? 1
     : ((layoutMode % CAMERA_LAYOUTS) + CAMERA_LAYOUTS) % CAMERA_LAYOUTS;
 
   // stageList = big feeds in the grid; pipList = small corner feeds.

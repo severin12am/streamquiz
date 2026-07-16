@@ -26,7 +26,10 @@ interface CameraPanelProps {
   label:      string;
   isSpeaking: boolean;
   mirrored?:  boolean;
+  /** Short error code from useMeshWebRTC (`permission`, `busy`, …). */
   error?:     string | null;
+  /** Tap the error overlay to re-request camera/mic (needs a user gesture on iOS). */
+  onRetry?:   () => void;
   className?: string;
   /** Live score to show on the tile (multiplayer). Omit to hide. */
   score?:     number;
@@ -52,6 +55,7 @@ export default function CameraPanel({
   isSpeaking,
   mirrored = false,
   error,
+  onRetry,
   className = '',
   score,
   correct = null,
@@ -65,6 +69,17 @@ export default function CameraPanel({
   const { t } = useLocale();
   const videoRef = useRef<HTMLVideoElement>(null);
   const status = useStreamStatus(stream);
+
+  const errorMessage = (() => {
+    if (!error) return null;
+    switch (error) {
+      case 'permission': return t('game.cameraErrorPermission');
+      case 'insecure':   return t('game.cameraErrorInsecure');
+      case 'notfound':   return t('game.cameraErrorNotFound');
+      case 'busy':       return t('game.cameraErrorBusy');
+      default:           return t('game.cameraErrorUnknown');
+    }
+  })();
 
   // ---- Diagnostics derived from the live stream ----
   // Connection: only meaningful for remote peers.
@@ -168,26 +183,54 @@ export default function CameraPanel({
 
       {/* Placeholder overlay when there's no stream yet */}
       {!stream && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-          <div className="w-16 h-16 rounded-full bg-[var(--bg-card)] flex items-center justify-center">
-            {/* Simple camera icon made with CSS */}
-            <svg
-              className="w-8 h-8 text-[var(--text-muted)]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9A2.25 2.25 0 004.5 18.75z"
-              />
-            </svg>
-          </div>
-          <p className="text-[var(--text-muted)] text-sm text-center px-4">
-            {error ?? t('game.waitingCamera')}
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-center gap-2 px-3 py-2 min-h-0 ${
+            error && onRetry ? 'cursor-pointer' : ''
+          }`}
+          role={error && onRetry ? 'button' : undefined}
+          tabIndex={error && onRetry ? 0 : undefined}
+          onClick={error && onRetry ? (e) => { e.stopPropagation(); onRetry(); } : undefined}
+          onKeyDown={
+            error && onRetry
+              ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onRetry();
+                  }
+                }
+              : undefined
+          }
+        >
+          {!compact && (
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[var(--bg-card)] flex items-center justify-center flex-shrink-0">
+              <svg
+                className="w-6 h-6 sm:w-8 sm:h-8 text-[var(--text-muted)]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9A2.25 2.25 0 004.5 18.75z"
+                />
+              </svg>
+            </div>
+          )}
+          <p
+            className={`text-[var(--text-muted)] text-center break-words max-w-full overflow-hidden
+              ${compact ? 'text-[10px] leading-tight line-clamp-5' : 'text-xs sm:text-sm leading-snug line-clamp-6'}`}
+          >
+            {errorMessage ?? t('game.waitingCamera')}
           </p>
+          {error && onRetry && !compact && (
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide"
+              style={{ color: 'var(--accent)' }}>
+              {t('game.cameraErrorTap')}
+            </span>
+          )}
         </div>
       )}
 
