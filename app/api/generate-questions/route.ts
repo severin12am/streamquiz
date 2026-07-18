@@ -14,6 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateConfig, generateQuestions } from '@/lib/question-generator';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { consumeCreateQuota } from '@/lib/creator-quota';
+import { fetchTierForWebUser, webQuotaKey } from '@/lib/web-subscriptions';
+import { getUserFromRequest } from '@/lib/server-auth';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -38,17 +40,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400, headers: rateLimitHeaders(rl) });
     }
 
-    // Rematch counts as one create. Only enforced when X-Quota-Key is
-    // present (iOS build 8+); web stays unmetered. Consume before the AI call.
+    // Rematch counts as one create. iOS is keyed by X-Quota-Key
+    // (RevenueCat); web hosts send their Supabase JWT and are keyed by
+    // 'web:{auth uid}' with the Stripe-backed tier. Consume before the AI
+    // call. (Requests with neither header — old clients — stay unmetered;
+    // the IP rate limit above still applies.)
     const quotaKey = req.headers.get('x-quota-key')?.trim();
     let quota = null;
     if (quotaKey) {
       quota = await consumeCreateQuota(getSupabaseAdmin(), quotaKey);
       if (!quota) {
         return NextResponse.json(
-          { error: 'Create quota exceeded' },
+          { error: 'Create quota exceeded', code: 'quota_exceeded' },
           { status: 402, headers: rateLimitHeaders(rl) },
         );
+      }
+    } else {
+      const admin = getSupabaseAdmin();
+      const user = await getUserFromRequest(req, admin);
+      if (user) {
+        const tier = await fetchTierForWebUser(admin, user.id);
+        quota = await consumeCreateQuota(admin, webQuotaKey(user.id), tier);
+        if (!quota) {
+          return NextResponse.json(
+            { error: 'Create quota exceeded', code: 'quota_exceeded' },
+            { status: 402, headers: rateLimitHeaders(rl) },
+          );
+        }
       }
     }
 

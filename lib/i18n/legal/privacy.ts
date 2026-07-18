@@ -56,6 +56,8 @@ export const privacy = {
       'RevenueCat — handles subscriptions for creators (only if you purchase)',
     thirdPartyItem4:
       'Google — sign-in for hosts who choose to authenticate with Google',
+    thirdPartyItem5:
+      'Stripe — processes subscription payments for web hosts (only if you subscribe on whosmarter.com); we never see or store your card details',
     thirdPartyNote:
       'We do not sell your data. Data is retained only as long as needed for the game session and related service operation.',
 
@@ -119,6 +121,8 @@ export const privacy = {
       'RevenueCat — обрабатывает подписки для создателей (только при покупке)',
     thirdPartyItem4:
       'Google — вход для ведущих, которые выбирают аутентификацию через Google',
+    thirdPartyItem5:
+      'Stripe — обрабатывает оплату подписок для веб-ведущих (только если вы подписываетесь на whosmarter.com); данные карты мы не видим и не храним',
     thirdPartyNote:
       'Мы не продаём ваши данные. Данные хранятся только столько, сколько нужно для игровой сессии и работы сервиса.',
 
@@ -181,6 +185,8 @@ export const privacy = {
       'RevenueCat — gestiona suscripciones para creadores (solo si compras)',
     thirdPartyItem4:
       'Google — inicio de sesión para anfitriones que eligen autenticarse con Google',
+    thirdPartyItem5:
+      'Stripe — procesa los pagos de suscripción de los anfitriones web (solo si te suscribes en whosmarter.com); nunca vemos ni almacenamos los datos de tu tarjeta',
     thirdPartyNote:
       'No vendemos tus datos. Los datos se conservan solo el tiempo necesario para la sesión de juego y el funcionamiento del servicio.',
 
@@ -245,6 +251,8 @@ export const privacy = {
       'RevenueCat — gère les abonnements pour les créateurs (uniquement en cas d’achat)',
     thirdPartyItem4:
       'Google — connexion pour les hôtes qui choisissent l’authentification Google',
+    thirdPartyItem5:
+      'Stripe — traite les paiements d’abonnement des hôtes web (uniquement si vous vous abonnez sur whosmarter.com) ; nous ne voyons ni ne stockons jamais vos données de carte',
     thirdPartyNote:
       'Nous ne vendons pas vos données. Les données ne sont conservées que le temps nécessaire à la session de jeu et au fonctionnement du service.',
 
@@ -308,6 +316,8 @@ export const privacy = {
       'RevenueCat — verwaltet Abonnements für Ersteller (nur bei Kauf)',
     thirdPartyItem4:
       'Google — Anmeldung für Gastgeber, die sich mit Google authentifizieren',
+    thirdPartyItem5:
+      'Stripe — verarbeitet Abonnementzahlungen für Web-Gastgeber (nur bei einem Abo auf whosmarter.com); wir sehen oder speichern deine Kartendaten nie',
     thirdPartyNote:
       'Wir verkaufen Ihre Daten nicht. Daten werden nur so lange aufbewahrt, wie es für die Spielsitzung und den Betrieb des Dienstes erforderlich ist.',
 
@@ -367,6 +377,8 @@ export const privacy = {
     thirdPartyItem3:
       'RevenueCat — クリエイター向けサブスクリプションの処理（購入時のみ）',
     thirdPartyItem4: 'Google — Google 認証を選択するホストのサインイン',
+    thirdPartyItem5:
+      'Stripe — ウェブホストのサブスクリプション決済を処理（whosmarter.comで登録した場合のみ）。カード情報を当社が見たり保存したりすることはありません',
     thirdPartyNote:
       '当社はお客様のデータを販売しません。データはゲームセッションおよびサービス運営に必要な期間のみ保持します。',
 
@@ -428,6 +440,8 @@ export const privacy = {
     thirdPartyItem3: 'RevenueCat — يدير الاشتراكات للمنشئين (فقط عند الشراء)',
     thirdPartyItem4:
       'Google — تسجيل الدخول للمضيفين الذين يختارون المصادقة عبر Google',
+    thirdPartyItem5:
+      'Stripe — يعالج دفعات الاشتراك للمضيفين على الويب (فقط إذا اشتركت على whosmarter.com)؛ لا نرى أو نخزن بيانات بطاقتك أبدًا',
     thirdPartyNote:
       'لا نبيع بياناتك. تُحفظ البيانات فقط طالما كان ذلك ضروريًا لجلسة اللعب وتشغيل الخدمة.',
 

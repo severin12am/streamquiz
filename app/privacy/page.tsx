@@ -78,6 +78,7 @@ export default function PrivacyPage() {
               p.thirdPartyItem2,
               p.thirdPartyItem3,
               p.thirdPartyItem4,
+              p.thirdPartyItem5,
             ]}
           />
           <p>{p.thirdPartyNote}</p>

@@ -8,6 +8,7 @@
 // ============================================================
 
 import React from 'react';
+import Link from 'next/link';
 import { useLocale } from '@/context/LocaleProvider';
 import type { Player } from '@/lib/types';
 import { playerColor, playerInitial } from '@/lib/player-colors';
@@ -18,6 +19,8 @@ interface WinnerScreenProps {
   onVoteRematch?: () => void;
   myVote?:        boolean;
   rematchLoading?: boolean;
+  /** Last rematch replayed the same quiz because the host's create quota ran out. */
+  rematchQuotaExceeded?: boolean;
   onExit?:        () => void;
   /** Seconds left in the post-game discussion window (cameras still live). */
   discussLeft?:   number;
@@ -31,6 +34,7 @@ export default function WinnerScreen({
   onVoteRematch,
   myVote = false,
   rematchLoading = false,
+  rematchQuotaExceeded = false,
   onExit,
   discussLeft,
   feedsCut = false,
@@ -155,6 +159,14 @@ export default function WinnerScreen({
 
       {/* ---- Rematch voting ---- */}
       <div className="flex flex-col items-center gap-2">
+        {rematchQuotaExceeded && (
+          <p className="text-center text-xs text-[var(--text-muted)] max-w-sm px-2">
+            {t('billing.rematchQuotaExceeded')}{' '}
+            <Link href="/upgrade" className="underline hover:text-[var(--text-secondary)]">
+              {t('billing.seePlans')}
+            </Link>
+          </p>
+        )}
         <div className="flex items-center flex-wrap justify-center gap-2 text-[10px]">
           {players.map((p) => (
             <span

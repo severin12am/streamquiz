@@ -52,6 +52,12 @@ export default function SiteFooter() {
             {t('footer.refunds')}
           </Link>
           <Link
+            href="/upgrade"
+            className="underline hover:text-[var(--text-secondary)]"
+          >
+            {t('footer.pricing')}
+          </Link>
+          <Link
             href="/support"
             className="underline hover:text-[var(--text-secondary)]"
           >

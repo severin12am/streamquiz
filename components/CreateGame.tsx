@@ -12,6 +12,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale } from '@/context/LocaleProvider';
 import { useAuth } from '@/context/AuthProvider';
@@ -90,6 +91,14 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   const [showAdjust,    setShowAdjust]    = useState(false);
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState<string | null>(null);
+  /** Server said 402: create quota exhausted → offer the upgrade page. */
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  /** Remaining quiz-creation quota for the signed-in host (billing status). */
+  const [quotaInfo, setQuotaInfo] = useState<{
+    tier: 'free' | 'basic' | 'premium';
+    remaining: number;
+    limit: number;
+  } | null>(null);
 
   const adjustPanelRef = useRef<HTMLDivElement>(null);
   const adjustInnerRef = useRef<HTMLDivElement>(null);
@@ -142,6 +151,30 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     return () => ro.disconnect();
   }, [measureAdjustPanel]);
 
+  // Refresh the host's remaining quiz-creation quota whenever they sign in
+  // (and again after each create/rematch, via applyQuotaFromResponse below).
+  useEffect(() => {
+    const token = session?.access_token;
+    let active = true;
+    if (!token) {
+      Promise.resolve().then(() => { if (active) setQuotaInfo(null); });
+      return () => { active = false; };
+    }
+    fetch('/api/billing/status', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { tier?: 'free' | 'basic' | 'premium'; quota?: { remaining: number; limit: number } } | null) => {
+        if (!active || !data?.quota || !data.tier) return;
+        setQuotaInfo({ tier: data.tier, remaining: data.quota.remaining, limit: data.quota.limit });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [session?.access_token]);
+
   function toggleAdjust() {
     if (!showAdjust) measureAdjustPanel();
     setShowAdjust((v) => !v);
@@ -182,6 +215,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   const submitCreate = useCallback(
     async (accessToken: string, form: PendingCreateForm) => {
       setError(null);
+      setQuotaExceeded(false);
       setLoading(true);
 
       try {
@@ -220,15 +254,21 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         });
 
         if (!res.ok) {
+          if (res.status === 402) {
+            setQuotaExceeded(true);
+            return;
+          }
           const body = await res.json().catch(() => ({}));
           throw new Error(body.error ?? t('create.errorGenerate'));
         }
 
-        const { gameId, questions } = (await res.json()) as {
+        const { gameId, questions, quota } = (await res.json()) as {
           gameId: string;
           questions: Question[];
+          quota?: { tier: 'free' | 'basic' | 'premium'; remaining: number; limit: number };
         };
         if (!gameId) throw new Error(t('create.errorCreate'));
+        if (quota) setQuotaInfo(quota);
         rememberQuestions(topicForApi, questions);
         router.push(`/game/${gameId}?role=host`);
       } catch (err) {
@@ -346,6 +386,29 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
           </div>
         )}
       </div>
+
+      {/* ---- Quota exceeded → upgrade offer ---- */}
+      {quotaExceeded && (
+        <div
+          className="rounded-xl px-4 py-4 flex flex-col gap-3 text-center"
+          style={{ background: 'rgba(47,125,119,0.08)', border: '1px solid var(--accent)' }}
+        >
+          <div>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">
+              {t('billing.quotaExceededTitle')}
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mt-1.5">
+              {t('billing.quotaExceededBody')}
+            </p>
+          </div>
+          <Link
+            href="/upgrade"
+            className="keycap keycap-primary py-3 rounded-xl font-semibold text-sm text-white"
+          >
+            {t('billing.seePlans')}
+          </Link>
+        </div>
+      )}
 
       {/* ---- Error message ---- */}
       {error && (
@@ -631,8 +694,15 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         }`}
       >
         {user && (
-          <span className="truncate">
-            {t('auth.signedInAs', { email: user.email ?? '' })}
+          <span className="truncate flex flex-col gap-0.5">
+            <span>{t('auth.signedInAs', { email: user.email ?? '' })}</span>
+            {quotaInfo && (
+              <Link href="/upgrade" className="underline hover:text-[var(--text-secondary)]">
+                {quotaInfo.tier === 'free'
+                  ? t('billing.remainingFree', { n: quotaInfo.remaining, limit: quotaInfo.limit })
+                  : t('billing.remainingMonthly', { n: quotaInfo.remaining, limit: quotaInfo.limit })}
+              </Link>
+            )}
           </span>
         )}
         <div className="flex shrink-0 items-center gap-3">

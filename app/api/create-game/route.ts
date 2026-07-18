@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateConfig, generateQuestions } from '@/lib/question-generator';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { consumeCreateQuota } from '@/lib/creator-quota';
+import { fetchTierForWebUser, webQuotaKey } from '@/lib/web-subscriptions';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 import { insertTelemetryEvent } from '@/lib/telemetry-server';
 import { platformFromClientHeader } from '@/lib/telemetry-shared';
@@ -91,20 +92,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400, headers: rateLimitHeaders(rl) });
     }
 
-    // ---- 3a. Server-side create quota (iOS only) ----
-    // Only enforced when X-Quota-Key is present (iOS build 8+). The web
-    // frontend doesn't send it and stays unmetered. Consume BEFORE the AI
-    // call so a blocked user spends no tokens. Returns null when exceeded.
+    // ---- 3a. Server-side create quota ----
+    // iOS: keyed by X-Quota-Key (RevenueCat app user id), tier from
+    //      RevenueCat.
+    // Web: keyed by 'web:{auth uid}', tier from the Stripe-backed
+    //      web_subscriptions table (free = 5 lifetime, then subscribe).
+    // Consume BEFORE the AI call so a blocked user spends no tokens.
+    // Returns null when exceeded.
     const quotaKey = req.headers.get('x-quota-key')?.trim();
     let quota = null;
     if (quotaKey) {
       quota = await consumeCreateQuota(admin, quotaKey);
-      if (!quota) {
-        return NextResponse.json(
-          { error: 'Create quota exceeded' },
-          { status: 402, headers: rateLimitHeaders(rl) },
-        );
-      }
+    } else if (hostUserId) {
+      const tier = await fetchTierForWebUser(admin, hostUserId);
+      quota = await consumeCreateQuota(admin, webQuotaKey(hostUserId), tier);
+    }
+    if ((quotaKey || hostUserId) && !quota) {
+      return NextResponse.json(
+        { error: 'Create quota exceeded', code: 'quota_exceeded' },
+        { status: 402, headers: rateLimitHeaders(rl) },
+      );
     }
 
     const { questions, provider } = await generateQuestions(validation.config);

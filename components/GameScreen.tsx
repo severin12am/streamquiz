@@ -52,6 +52,9 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const asHost = role === 'host';
 
   const [rematchLoading, setRematchLoading] = useState(false);
+  /** True when the last rematch fell back to replaying the same questions
+   * because the host's create quota is exhausted (402 from generate-questions). */
+  const [rematchQuotaExceeded, setRematchQuotaExceeded] = useState(false);
   const [joinFull, setJoinFull] = useState(false);
   const rematchTriggeredRef = React.useRef(false);
   const autoJoinAttemptedRef = React.useRef(false);
@@ -374,6 +377,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   const handleRematch = useCallback(async () => {
     if (!game || rematchLoading) return;
     setRematchLoading(true);
+    setRematchQuotaExceeded(false);
     try {
       const currentTexts = (game.questions ?? []).map((q) => q.question);
       const geography = parseGeographyTopic(game.topic);
@@ -389,9 +393,13 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           ? { geography: { types: geography.types, regions: geography.regions } }
           : {}),
       };
+      // Rematch consumes one create from the host's quota, so identify the
+      // web host with their Supabase JWT (iOS sends X-Quota-Key instead).
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
       const res = await fetch('/api/generate-questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         cache: 'no-store',
         body: JSON.stringify(payload),
       });
@@ -408,6 +416,11 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           await rematch(finalQuestions);
           return;
         }
+      } else if (res.status === 402) {
+        // Quota exhausted — gracefully replay the SAME questions (no new
+        // AI cost) instead of blocking the group's rematch. Let the host
+        // know why the quiz didn't refresh.
+        setRematchQuotaExceeded(true);
       }
       await rematch();
     } catch (err) {
@@ -416,13 +429,17 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     } finally {
       setRematchLoading(false);
     }
-  }, [game, rematchLoading, locale, rematch]);
+  }, [game, rematchLoading, locale, rematch, session]);
 
   // Host drives the rematch once they AND at least one other player voted.
   useEffect(() => {
     if (!game || !me) return;
     if (game.phase !== 'ended') {
       rematchTriggeredRef.current = false;
+      if (rematchQuotaExceeded) {
+        const id = setTimeout(() => setRematchQuotaExceeded(false), 0);
+        return () => clearTimeout(id);
+      }
       return;
     }
     const hostVoted  = players.find((p) => p.role === 'host')?.rematch ?? false;
@@ -431,7 +448,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
       rematchTriggeredRef.current = true;
       handleRematch();
     }
-  }, [me, game, players, handleRematch]);
+  }, [me, game, players, handleRematch, rematchQuotaExceeded]);
 
   // ----------------------------------------------------------
   // Join handler
@@ -635,6 +652,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           onVoteRematch={() => voteRematch()}
           myVote={me.rematch}
           rematchLoading={rematchLoading}
+          rematchQuotaExceeded={rematchQuotaExceeded}
           onExit={() => (window.location.href = '/')}
           discussLeft={discussLeft}
           feedsCut={feedsCut}

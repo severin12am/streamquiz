@@ -1,19 +1,22 @@
 // ============================================================
 // WhoSmarter — server-side creator quota (SERVER ONLY)
 //
-// Authoritative create-quiz counters keyed by RevenueCat app user ID
-// (the `X-Quota-Key` header iOS sends). Survives app reinstalls so the
-// on-device counter can no longer be reset by reinstalling.
+// Authoritative create-quiz counters, keyed by:
+//   • iOS: the RevenueCat app user ID (`X-Quota-Key` header). Tier is
+//     resolved from RevenueCat via REVENUECAT_SECRET_API_KEY.
+//   • Web: 'web:{auth uid}'. Tier is resolved from the Stripe-backed
+//     `web_subscriptions` table (see lib/web-subscriptions.ts) and passed
+//     in as the pre-resolved `tier` argument.
 //
-// Tier is resolved from RevenueCat via the SECRET API key
-// (REVENUECAT_SECRET_API_KEY). Limits MUST stay in sync with the iOS app:
-//   free = 5 (lifetime trial), basic = 30/mo, premium = 300/mo.
+// Limits live in lib/billing-plans.ts and MUST stay in sync with the
+// iOS app: free = 5 (lifetime trial), basic = 30/mo, premium = 300/mo.
 //
 // Uses the SERVICE ROLE Supabase client — RLS forbids anon/authenticated
 // access to `creator_quota` by design.
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { FREE_TRIAL_CREATES, PLANS } from '@/lib/billing-plans';
 
 export type QuotaTier = 'free' | 'basic' | 'premium';
 
@@ -25,9 +28,8 @@ export interface QuotaSnapshot {
   remaining: number;
 }
 
-const FREE_TRIAL_CREATES = 5;
-const BASIC_MONTHLY_GAMES = 30;
-const PREMIUM_MONTHLY_GAMES = 300;
+const BASIC_MONTHLY_GAMES = PLANS.basic.monthlyQuizzes;
+const PREMIUM_MONTHLY_GAMES = PLANS.premium.monthlyQuizzes;
 
 function currentMonth(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -108,13 +110,17 @@ export async function getQuotaSnapshot(
 /**
  * Atomically check + consume one create. Returns null when quota is exceeded.
  * Call BEFORE generating AI questions / inserting the game row.
+ *
+ * Pass `presetTier` when the tier is already known (web users — resolved
+ * from web_subscriptions); otherwise it is fetched from RevenueCat (iOS).
  */
 export async function consumeCreateQuota(
   supabase: SupabaseClient,
   quotaKey: string,
+  presetTier?: QuotaTier,
 ): Promise<QuotaSnapshot | null> {
   if (!quotaKey) return null;
-  const tier = await fetchTierFromRevenueCat(quotaKey);
+  const tier = presetTier ?? (await fetchTierFromRevenueCat(quotaKey));
   const row = await readRow(supabase, quotaKey);
   const month = currentMonth();
   const monthly = monthlyLimit(tier);
