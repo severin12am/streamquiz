@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthProvider';
 import { useLocale } from '@/context/LocaleProvider';
-import { PLANS, FREE_TRIAL_CREATES, type PaidPlan } from '@/lib/billing-plans';
+import { PLANS, FREE_TRIAL_CREATES, TEST_PLAN, type PaidPlan } from '@/lib/billing-plans';
 import { playSound } from '@/lib/sounds';
 
 interface QuotaInfo {
@@ -46,8 +46,12 @@ export default function UpgradePage() {
 
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [banner, setBanner] = useState<Banner>(null);
-  const [busyPlan, setBusyPlan] = useState<PaidPlan | 'portal' | null>(null);
+  const [busyPlan, setBusyPlan] = useState<PaidPlan | 'test' | 'portal' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // TEMPORARY: ?test=1 reveals the $1 Stripe Live Mode verification SKU.
+  // Remove this + the 'test' card below once the provider confirms Live
+  // Mode works (see lib/billing-plans.ts TEST_PLAN).
+  const [showTestPlan, setShowTestPlan] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchStatus = useCallback(async (): Promise<BillingStatus | null> => {
@@ -70,9 +74,11 @@ export default function UpgradePage() {
   // tick so hydration completes with the prerendered (banner-less) markup.
   useEffect(() => {
     const id = setTimeout(() => {
-      const s = new URLSearchParams(window.location.search).get('status');
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('status');
       if (s === 'success') setBanner('activating');
       else if (s === 'cancelled') setBanner('cancelled');
+      if (params.get('test') === '1') setShowTestPlan(true);
     }, 0);
     return () => clearTimeout(id);
   }, []);
@@ -107,7 +113,7 @@ export default function UpgradePage() {
     };
   }, [authLoading, accessToken, banner, fetchStatus]);
 
-  async function startCheckout(plan: PaidPlan) {
+  async function startCheckout(plan: PaidPlan | 'test') {
     playSound('click');
     setError(null);
     if (!accessToken) {
@@ -162,7 +168,7 @@ export default function UpgradePage() {
   const quota = status?.quota ?? null;
 
   const planCards: Array<{
-    id: 'free' | PaidPlan;
+    id: 'free' | PaidPlan | 'test';
     name: string;
     price: string;
     includes: string;
@@ -185,6 +191,18 @@ export default function UpgradePage() {
       price: priceLabel(PLANS.premium.priceCents),
       includes: t('billing.quizzesPerMonth', { n: PLANS.premium.monthlyQuizzes }),
     },
+    // TEMPORARY: only shown via /upgrade?test=1 — see TEST_PLAN in
+    // lib/billing-plans.ts. Remove once Live Mode is verified.
+    ...(showTestPlan
+      ? [
+          {
+            id: 'test' as const,
+            name: TEST_PLAN.name,
+            price: priceLabel(TEST_PLAN.priceCents),
+            includes: 'Stripe Live Mode verification charge (temporary, not a real plan).',
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -278,7 +296,7 @@ export default function UpgradePage() {
                   <button
                     type="button"
                     disabled={busyPlan !== null || authLoading}
-                    onClick={() => startCheckout(plan.id as PaidPlan)}
+                    onClick={() => startCheckout(plan.id)}
                     className="keycap keycap-primary py-2.5 rounded-xl font-semibold text-sm text-white"
                   >
                     {busyPlan === plan.id ? (

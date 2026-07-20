@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getUserFromRequest } from '@/lib/server-auth';
-import { PLANS, isPaidPlan } from '@/lib/billing-plans';
+import { PLANS, isPaidPlan, TEST_PLAN } from '@/lib/billing-plans';
 import {
   getWebSubscription,
   tierFromSubscription,
@@ -55,13 +55,24 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json().catch(() => ({}))) as { plan?: unknown };
-    if (!isPaidPlan(body.plan)) {
+    const isTestSku = body.plan === TEST_PLAN.id;
+    if (!isTestSku && !isPaidPlan(body.plan)) {
       return NextResponse.json(
         { error: 'Invalid plan. Expected "basic" or "premium".' },
         { status: 400, headers: rateLimitHeaders(rl) },
       );
     }
-    const plan = PLANS[body.plan];
+    // TEMPORARY: the $1 Live Mode verification SKU is priced separately but
+    // grants the same tier/quota as `basic` (see lib/billing-plans.ts).
+    const plan = isTestSku
+      ? {
+          id: TEST_PLAN.id,
+          name: TEST_PLAN.name,
+          priceCents: TEST_PLAN.priceCents,
+          monthlyQuizzes: PLANS.basic.monthlyQuizzes,
+        }
+      : PLANS[body.plan as 'basic' | 'premium'];
+    const grantedTier = isTestSku ? TEST_PLAN.grantsTier : (plan.id as 'basic' | 'premium');
     const stripe = getStripe();
     const origin = siteOrigin(req);
 
@@ -110,16 +121,18 @@ export async function POST(req: NextRequest) {
             recurring: { interval: 'month' },
             product_data: {
               name: plan.name,
-              description: `${plan.monthlyQuizzes} AI-generated quizzes per month on whosmarter.com`,
+              description: isTestSku
+                ? 'Temporary Stripe Live Mode verification charge — not a real plan.'
+                : `${plan.monthlyQuizzes} AI-generated quizzes per month on whosmarter.com`,
             },
           },
         },
       ],
       // Copied onto the subscription so webhook events self-describe the plan.
       subscription_data: {
-        metadata: { whosmarter_user_id: user.id, whosmarter_plan: plan.id },
+        metadata: { whosmarter_user_id: user.id, whosmarter_plan: grantedTier },
       },
-      metadata: { whosmarter_user_id: user.id, whosmarter_plan: plan.id },
+      metadata: { whosmarter_user_id: user.id, whosmarter_plan: grantedTier },
       success_url: `${origin}/upgrade?status=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/upgrade?status=cancelled`,
       allow_promotion_codes: true,

@@ -44,3 +44,20 @@ export const PLANS: Record<PaidPlan, PlanInfo> = {
 export function isPaidPlan(v: unknown): v is PaidPlan {
   return v === 'basic' || v === 'premium';
 }
+
+// ------------------------------------------------------------------
+// TEMPORARY: Stripe Live Mode verification SKU.
+//
+// The payment provider asked for a $1 test tariff/subscription to pay
+// with a real card and confirm Live Mode works end-to-end. This is NOT
+// a real pricing tier — it's only reachable via /upgrade?test=1 and is
+// internally recorded as the 'basic' tier (the DB/quota schema only
+// knows free/basic/premium). DELETE this block + its call sites once
+// the provider confirms everything works.
+// ------------------------------------------------------------------
+export const TEST_PLAN = {
+  id: 'test' as const,
+  name: 'WhoSmarter Live Mode Test',
+  priceCents: 100,
+  grantsTier: 'basic' as const,
+};
