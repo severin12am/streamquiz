@@ -296,7 +296,7 @@ export default function UpgradePage() {
                   <button
                     type="button"
                     disabled={busyPlan !== null || authLoading}
-                    onClick={() => startCheckout(plan.id)}
+                    onClick={() => startCheckout(plan.id as PaidPlan | 'test')}
                     className="keycap keycap-primary py-2.5 rounded-xl font-semibold text-sm text-white"
                   >
                     {busyPlan === plan.id ? (
