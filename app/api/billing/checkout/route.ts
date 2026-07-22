@@ -15,7 +15,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, isStaleModeCustomerError } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getUserFromRequest } from '@/lib/server-auth';
 import { PLANS, isPaidPlan, TEST_PLAN } from '@/lib/billing-plans';
@@ -76,24 +76,53 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe();
     const origin = siteOrigin(req);
 
-    const existing = await getWebSubscription(admin, user.id);
+    let existing = await getWebSubscription(admin, user.id);
 
     // Already subscribed → manage the subscription in the Billing Portal
     // instead of stacking a second subscription on the same customer.
     if (tierFromSubscription(existing) !== 'free' && existing?.stripe_customer_id) {
-      const portal = await stripe.billingPortal.sessions.create({
-        customer: existing.stripe_customer_id,
-        return_url: `${origin}/upgrade`,
-      });
-      return NextResponse.json(
-        { url: portal.url, portal: true },
-        { headers: rateLimitHeaders(rl) },
-      );
+      try {
+        const portal = await stripe.billingPortal.sessions.create({
+          customer: existing.stripe_customer_id,
+          return_url: `${origin}/upgrade`,
+        });
+        return NextResponse.json(
+          { url: portal.url, portal: true },
+          { headers: rateLimitHeaders(rl) },
+        );
+      } catch (err) {
+        // Leftover customer id from before a TEST↔LIVE key switch — clear it
+        // and fall through to create a fresh (live) customer + checkout below.
+        if (!isStaleModeCustomerError(err)) throw err;
+        console.warn(
+          '[billing/checkout] Stale-mode customer id, clearing:',
+          existing.stripe_customer_id,
+        );
+        await upsertWebSubscription(admin, {
+          user_id: user.id,
+          stripe_customer_id: null,
+          stripe_subscription_id: null,
+          tier: 'free',
+          status: 'none',
+        });
+        existing = null;
+      }
     }
 
     // Reuse the Stripe customer if we have one; otherwise create it now so
     // the subscription is always attached to a customer we can look up by id.
     let customerId = existing?.stripe_customer_id ?? null;
+    if (customerId) {
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch (err) {
+        // Same TEST↔LIVE leftover-id case as above, but for a customer that
+        // was never actually subscribed (tier already 'free').
+        if (!isStaleModeCustomerError(err)) throw err;
+        console.warn('[billing/checkout] Stale-mode customer id, recreating:', customerId);
+        customerId = null;
+      }
+    }
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,

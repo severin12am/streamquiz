@@ -7,10 +7,10 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, isStaleModeCustomerError } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getUserFromRequest } from '@/lib/server-auth';
-import { getWebSubscription } from '@/lib/web-subscriptions';
+import { getWebSubscription, upsertWebSubscription } from '@/lib/web-subscriptions';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -46,12 +46,34 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '') ||
       new URL(req.url).origin;
 
-    const portal = await getStripe().billingPortal.sessions.create({
-      customer: sub.stripe_customer_id,
-      return_url: `${origin}/upgrade`,
-    });
-
-    return NextResponse.json({ url: portal.url }, { headers: rateLimitHeaders(rl) });
+    try {
+      const portal = await getStripe().billingPortal.sessions.create({
+        customer: sub.stripe_customer_id,
+        return_url: `${origin}/upgrade`,
+      });
+      return NextResponse.json({ url: portal.url }, { headers: rateLimitHeaders(rl) });
+    } catch (err) {
+      // Leftover customer id from before a TEST↔LIVE key switch — self-heal
+      // instead of surfacing a raw 500 (see lib/stripe.ts).
+      if (isStaleModeCustomerError(err)) {
+        console.warn(
+          '[billing/portal] Stale-mode customer id, clearing:',
+          sub.stripe_customer_id,
+        );
+        await upsertWebSubscription(admin, {
+          user_id: user.id,
+          stripe_customer_id: null,
+          stripe_subscription_id: null,
+          tier: 'free',
+          status: 'none',
+        });
+        return NextResponse.json(
+          { error: 'No subscription found for this account.' },
+          { status: 404, headers: rateLimitHeaders(rl) },
+        );
+      }
+      throw err;
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[billing/portal] Error:', message);

@@ -42,3 +42,20 @@ export function getStripe(): Stripe {
 }
 
 export const isStripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY);
+
+/**
+ * True when a Stripe error means the referenced customer/subscription id
+ * doesn't exist under the CURRENT key's mode — typically a customer id that
+ * was created under a TEST key and cached in our DB, then the account
+ * switched STRIPE_SECRET_KEY to LIVE (or vice-versa). Callers should treat
+ * this the same as "no Stripe customer on file" and self-heal (clear the
+ * stale id) instead of surfacing a raw 500.
+ */
+export function isStaleModeCustomerError(err: unknown): boolean {
+  if (!(err instanceof Stripe.errors.StripeError)) return false;
+  return (
+    err.code === 'resource_missing' &&
+    typeof err.message === 'string' &&
+    err.message.includes('a similar object exists in')
+  );
+}
