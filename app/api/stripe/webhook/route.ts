@@ -22,6 +22,7 @@ import { getStripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isPaidPlan, PLANS, type PaidPlan } from '@/lib/billing-plans';
 import { upsertWebSubscription } from '@/lib/web-subscriptions';
+import { sendSubscriptionActivatedEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,6 +126,10 @@ export async function POST(req: NextRequest) {
           sub,
           session.client_reference_id ?? session.metadata?.whosmarter_user_id,
         );
+
+        // Best-effort — never let a broken email fail this webhook.
+        const email = session.customer_details?.email ?? session.customer_email;
+        if (email) await sendSubscriptionActivatedEmail(email);
         break;
       }
 
