@@ -3,12 +3,16 @@
 // Rendered by app/support/page.tsx. Falls back to `en`.
 // ============================================================
 
-// Stripe's permanent Customer Portal "login page" link — same URL works
-// for every customer (they verify by email, no whosmarter.com account
-// needed). Configured via the Billing Portal API; see chat history for
-// context. Update here if the Stripe billing portal configuration is ever
-// recreated (the id would change).
-const MANAGE_SUBSCRIPTION_URL = 'https://billing.stripe.com/p/login/3cI28q1ZX1h24vTcBkeEo00';
+// Stripe's permanent Customer Portal "login page" link (same URL works for
+// every customer — they verify by email, no whosmarter.com account
+// needed): https://billing.stripe.com/p/login/3cI28q1ZX1h24vTcBkeEo00
+//
+// Deliberately NOT surfaced anywhere on the public site — a bare
+// "cancel/manage subscription" link/button visible to signed-out visitors
+// is unusual UX (no mainstream product does this; subscription management
+// belongs behind sign-in via /upgrade, see app/upgrade/page.tsx). Keep this
+// comment as the answer if a payment provider/compliance review ever asks
+// again "describe the cancellation procedure, send a testable link."
 
 export const support = {
   en: {
@@ -21,9 +25,6 @@ export const support = {
     websiteLabel: 'Website',
     websiteHint: 'Play the web version and see the latest updates.',
     websiteUrl: 'https://whosmarter.com/',
-    manageLabel: 'Manage or Cancel Subscription',
-    manageHint: "Open your subscription billing portal (you'll be asked for the email used at checkout).",
-    manageUrl: MANAGE_SUBSCRIPTION_URL,
     footer:
       'For account issues, billing questions, or technical problems with the web app, email us and include as much detail as you can.',
   },
@@ -38,9 +39,6 @@ export const support = {
     websiteLabel: 'Сайт',
     websiteHint: 'Играйте в веб-версии и следите за обновлениями.',
     websiteUrl: 'https://whosmarter.com/',
-    manageLabel: 'Управление подпиской / отмена',
-    manageHint: 'Откроет портал управления подпиской (попросит email, указанный при оплате).',
-    manageUrl: MANAGE_SUBSCRIPTION_URL,
     footer:
       'По вопросам аккаунта, оплаты или технических проблем с веб-приложением напишите нам и укажите как можно больше деталей.',
   },
@@ -55,9 +53,6 @@ export const support = {
     websiteLabel: 'Sitio web',
     websiteHint: 'Juega la versión web y consulta las novedades.',
     websiteUrl: 'https://whosmarter.com/',
-    manageLabel: 'Gestionar o cancelar la suscripción',
-    manageHint: 'Abre el portal de facturación de tu suscripción (te pedirá el email usado al pagar).',
-    manageUrl: MANAGE_SUBSCRIPTION_URL,
     footer:
       'Para problemas de cuenta, facturación o técnicos con la app web, escríbenos e incluye todos los detalles que puedas.',
   },
@@ -72,9 +67,6 @@ export const support = {
     websiteLabel: 'Site web',
     websiteHint: 'Jouez sur la version web et consultez les dernières mises à jour.',
     websiteUrl: 'https://whosmarter.com/',
-    manageLabel: 'Gérer ou annuler l’abonnement',
-    manageHint: 'Ouvre le portail de facturation de votre abonnement (l’e-mail utilisé au paiement vous sera demandé).',
-    manageUrl: MANAGE_SUBSCRIPTION_URL,
     footer:
       'Pour les problèmes de compte, de facturation ou techniques avec l’application web, contactez-nous par e-mail avec un maximum de détails.',
   },
@@ -89,9 +81,6 @@ export const support = {
     websiteLabel: 'Website',
     websiteHint: 'Spiele die Webversion und sieh dir die neuesten Updates an.',
     websiteUrl: 'https://whosmarter.com/',
-    manageLabel: 'Abo verwalten oder kündigen',
-    manageHint: 'Öffnet dein Abrechnungsportal (du wirst nach der beim Bezahlen verwendeten E-Mail gefragt).',
-    manageUrl: MANAGE_SUBSCRIPTION_URL,
     footer:
       'Bei Kontoproblemen, Abrechnungsfragen oder technischen Problemen mit der Web-App schreib uns eine E-Mail mit möglichst vielen Details.',
   },
@@ -106,9 +95,6 @@ export const support = {
     websiteLabel: 'ウェブサイト',
     websiteHint: 'Web版でプレイし、最新情報をご確認ください。',
     websiteUrl: 'https://whosmarter.com/',
-    manageLabel: 'サブスクリプションの管理・解約',
-    manageHint: 'サブスクリプション管理ポータルを開きます（お支払い時のメールアドレスの入力が必要です）。',
-    manageUrl: MANAGE_SUBSCRIPTION_URL,
     footer:
       'アカウント、請求、Webアプリの技術的な問題については、できるだけ詳しくメールでお問い合わせください。',
   },
@@ -123,9 +109,6 @@ export const support = {
     websiteLabel: 'الموقع',
     websiteHint: 'العب النسخة على الويب واطّلع على آخر التحديثات.',
     websiteUrl: 'https://whosmarter.com/',
-    manageLabel: 'إدارة أو إلغاء الاشتراك',
-    manageHint: 'يفتح بوابة إدارة الفوترة لاشتراكك (سيُطلب منك البريد الإلكتروني المستخدم عند الدفع).',
-    manageUrl: MANAGE_SUBSCRIPTION_URL,
     footer:
       'لمشاكل الحساب أو الفوترة أو المشاكل التقنية في تطبيق الويب، راسلنا مع أكبر قدر ممكن من التفاصيل.',
   },

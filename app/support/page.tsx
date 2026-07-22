@@ -55,20 +55,6 @@ export default function SupportPage() {
                 {s.websiteHint}
               </a>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                {s.manageLabel}
-              </span>
-              <a
-                href={s.manageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--accent)] underline"
-              >
-                {s.manageUrl}
-              </a>
-              <span className="text-sm text-[var(--text-muted)]">{s.manageHint}</span>
-            </div>
             <p className="text-sm text-[var(--text-muted)]">{s.footer}</p>
           </div>
         </section>
