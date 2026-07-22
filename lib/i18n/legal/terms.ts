@@ -152,7 +152,7 @@ const enTerms: TermsDoc = {
   ],
   contactTitle: 'Contact',
   contactBody: 'For questions about these Terms, contact us at:',
-  contactEmail: 'support@whosmarter.app',
+  contactEmail: 'support@whosmarter.com',
 };
 
 const ruTerms: TermsDoc = {
@@ -292,7 +292,7 @@ const ruTerms: TermsDoc = {
   ],
   contactTitle: 'Контакты',
   contactBody: 'По вопросам об этих Условиях свяжитесь с нами:',
-  contactEmail: 'support@whosmarter.app',
+  contactEmail: 'support@whosmarter.com',
 };
 
 export const terms: Record<string, TermsDoc> = {
@@ -436,7 +436,7 @@ export const terms: Record<string, TermsDoc> = {
     ],
     contactTitle: 'Contacto',
     contactBody: 'Para preguntas sobre estos Términos, contáctanos en:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   fr: {
@@ -576,7 +576,7 @@ export const terms: Record<string, TermsDoc> = {
     ],
     contactTitle: 'Contact',
     contactBody: 'Pour toute question concernant ces Conditions, contactez-nous à :',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   de: {
@@ -716,7 +716,7 @@ export const terms: Record<string, TermsDoc> = {
     ],
     contactTitle: 'Kontakt',
     contactBody: 'Bei Fragen zu diesen Bedingungen kontaktieren Sie uns unter:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   ja: {
@@ -856,7 +856,7 @@ export const terms: Record<string, TermsDoc> = {
     ],
     contactTitle: 'お問い合わせ',
     contactBody: '本規約に関するご質問は、以下までご連絡ください：',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   ar: {
@@ -996,7 +996,7 @@ export const terms: Record<string, TermsDoc> = {
     ],
     contactTitle: 'التواصل',
     contactBody: 'للأسئلة حول هذه الشروط، تواصل معنا على:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 };
 

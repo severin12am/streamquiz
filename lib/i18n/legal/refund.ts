@@ -49,7 +49,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'How to request a refund',
         paragraphs: [
-          'Email support@whosmarter.app from the address linked to your account (or the email used at checkout). Include your account email, the purchase date, the amount charged, and a brief explanation.',
+          'Email support@whosmarter.com from the address linked to your account (or the email used at checkout). Include your account email, the purchase date, the amount charged, and a brief explanation.',
           'We may ask for additional information to verify the transaction. Approved refunds are processed to the original payment method where possible; timing depends on your bank or payment provider.',
         ],
       },
@@ -63,7 +63,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Chargebacks and disputes',
         paragraphs: [
-          'If you have a billing problem, contact us first at support@whosmarter.app so we can resolve it. Initiating a chargeback or payment dispute without contacting us may result in suspension of paid access while the case is reviewed.',
+          'If you have a billing problem, contact us first at support@whosmarter.com so we can resolve it. Initiating a chargeback or payment dispute without contacting us may result in suspension of paid access while the case is reviewed.',
         ],
       },
       {
@@ -75,7 +75,7 @@ export const refund: Record<string, RefundDoc> = {
     ],
     contactTitle: 'Contact',
     contactBody: 'Questions about billing or refunds:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   ru: {
@@ -107,7 +107,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Как запросить возврат',
         paragraphs: [
-          'Напишите на support@whosmarter.app с адреса, привязанного к аккаунту (или указанного при оплате). Укажите email аккаунта, дату покупки, сумму и краткое описание причины.',
+          'Напишите на support@whosmarter.com с адреса, привязанного к аккаунту (или указанного при оплате). Укажите email аккаунта, дату покупки, сумму и краткое описание причины.',
           'Мы можем запросить дополнительные данные для проверки транзакции. Одобренные возвраты по возможности отправляются на исходный способ оплаты; срок зависит от банка или платёжного провайдера.',
         ],
       },
@@ -121,7 +121,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Чарджбэки и споры',
         paragraphs: [
-          'При проблемах с оплатой сначала свяжитесь с нами на support@whosmarter.app. Инициирование чарджбэка или спора без обращения к нам может привести к приостановке платного доступа на время рассмотрения.',
+          'При проблемах с оплатой сначала свяжитесь с нами на support@whosmarter.com. Инициирование чарджбэка или спора без обращения к нам может привести к приостановке платного доступа на время рассмотрения.',
         ],
       },
       {
@@ -133,7 +133,7 @@ export const refund: Record<string, RefundDoc> = {
     ],
     contactTitle: 'Контакты',
     contactBody: 'Вопросы по оплате и возвратам:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   es: {
@@ -165,7 +165,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Cómo solicitar un reembolso',
         paragraphs: [
-          'Envía un email a support@whosmarter.app desde la dirección vinculada a tu cuenta (o la usada en el pago). Incluye el email de la cuenta, la fecha de compra, el importe y una breve explicación.',
+          'Envía un email a support@whosmarter.com desde la dirección vinculada a tu cuenta (o la usada en el pago). Incluye el email de la cuenta, la fecha de compra, el importe y una breve explicación.',
           'Podemos pedir información adicional para verificar la transacción. Los reembolsos aprobados se procesan al método de pago original cuando sea posible; el plazo depende de tu banco o proveedor de pago.',
         ],
       },
@@ -179,7 +179,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Contracargos y disputas',
         paragraphs: [
-          'Si tienes un problema de facturación, contáctanos primero en support@whosmarter.app. Iniciar un contracargo o disputa de pago sin contactarnos puede suponer la suspensión del acceso de pago mientras se revisa el caso.',
+          'Si tienes un problema de facturación, contáctanos primero en support@whosmarter.com. Iniciar un contracargo o disputa de pago sin contactarnos puede suponer la suspensión del acceso de pago mientras se revisa el caso.',
         ],
       },
       {
@@ -191,7 +191,7 @@ export const refund: Record<string, RefundDoc> = {
     ],
     contactTitle: 'Contacto',
     contactBody: 'Preguntas sobre facturación o reembolsos:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   fr: {
@@ -223,7 +223,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Comment demander un remboursement',
         paragraphs: [
-          'Envoyez un e-mail à support@whosmarter.app depuis l’adresse liée à votre compte (ou celle utilisée lors du paiement). Indiquez l’e-mail du compte, la date d’achat, le montant facturé et une brève explication.',
+          'Envoyez un e-mail à support@whosmarter.com depuis l’adresse liée à votre compte (ou celle utilisée lors du paiement). Indiquez l’e-mail du compte, la date d’achat, le montant facturé et une brève explication.',
           'Nous pouvons demander des informations supplémentaires pour vérifier la transaction. Les remboursements approuvés sont traités vers le moyen de paiement d’origine lorsque c’est possible ; les délais dépendent de votre banque ou prestataire de paiement.',
         ],
       },
@@ -237,7 +237,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Rétrofacturations et litiges',
         paragraphs: [
-          'En cas de problème de facturation, contactez-nous d’abord à support@whosmarter.app. Lancer une rétrofacturation ou un litige de paiement sans nous contacter peut entraîner la suspension de l’accès payant pendant l’examen du dossier.',
+          'En cas de problème de facturation, contactez-nous d’abord à support@whosmarter.com. Lancer une rétrofacturation ou un litige de paiement sans nous contacter peut entraîner la suspension de l’accès payant pendant l’examen du dossier.',
         ],
       },
       {
@@ -249,7 +249,7 @@ export const refund: Record<string, RefundDoc> = {
     ],
     contactTitle: 'Contact',
     contactBody: 'Questions sur la facturation ou les remboursements :',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   de: {
@@ -281,7 +281,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'So beantragst du eine Rückerstattung',
         paragraphs: [
-          'Schreibe an support@whosmarter.app von der mit deinem Konto verknüpften Adresse (oder der beim Checkout verwendeten). Gib Kontoe-Mail, Kaufdatum, Betrag und eine kurze Begründung an.',
+          'Schreibe an support@whosmarter.com von der mit deinem Konto verknüpften Adresse (oder der beim Checkout verwendeten). Gib Kontoe-Mail, Kaufdatum, Betrag und eine kurze Begründung an.',
           'Wir können zusätzliche Informationen zur Verifizierung anfordern. Genehmigte Rückerstattungen werden nach Möglichkeit an die ursprüngliche Zahlungsmethode zurückgebucht; die Dauer hängt von Bank oder Zahlungsanbieter ab.',
         ],
       },
@@ -295,7 +295,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'Rückbuchungen und Streitigkeiten',
         paragraphs: [
-          'Bei Abrechnungsproblemen kontaktiere uns zuerst unter support@whosmarter.app. Eine Rückbuchung oder Zahlungsstreitigkeit ohne vorherige Kontaktaufnahme kann zur Aussetzung des kostenpflichtigen Zugangs während der Prüfung führen.',
+          'Bei Abrechnungsproblemen kontaktiere uns zuerst unter support@whosmarter.com. Eine Rückbuchung oder Zahlungsstreitigkeit ohne vorherige Kontaktaufnahme kann zur Aussetzung des kostenpflichtigen Zugangs während der Prüfung führen.',
         ],
       },
       {
@@ -307,7 +307,7 @@ export const refund: Record<string, RefundDoc> = {
     ],
     contactTitle: 'Kontakt',
     contactBody: 'Fragen zu Abrechnung oder Rückerstattungen:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   ja: {
@@ -339,7 +339,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: '返金の申請方法',
         paragraphs: [
-          'アカウントに紐づくメールアドレス（またはチェックアウト時のメール）から support@whosmarter.app までご連絡ください。アカウントメール、購入日、請求額、簡単な理由を記載してください。',
+          'アカウントに紐づくメールアドレス（またはチェックアウト時のメール）から support@whosmarter.com までご連絡ください。アカウントメール、購入日、請求額、簡単な理由を記載してください。',
           '取引確認のため追加情報をお願いする場合があります。承認された返金は可能な限り元の支払い方法に処理されます。着金時期は銀行または決済事業者により異なります。',
         ],
       },
@@ -353,7 +353,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'チャージバックと紛争',
         paragraphs: [
-          '請求に問題がある場合は、まず support@whosmarter.app までご連絡ください。当社に連絡せずチャージバックや支払い紛争を開始した場合、審査中は有料アクセスを停止することがあります。',
+          '請求に問題がある場合は、まず support@whosmarter.com までご連絡ください。当社に連絡せずチャージバックや支払い紛争を開始した場合、審査中は有料アクセスを停止することがあります。',
         ],
       },
       {
@@ -365,7 +365,7 @@ export const refund: Record<string, RefundDoc> = {
     ],
     contactTitle: 'お問い合わせ',
     contactBody: '請求または返金に関するご質問：',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 
   ar: {
@@ -397,7 +397,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'كيفية طلب الاسترداد',
         paragraphs: [
-          'راسل support@whosmarter.app من البريد المرتبط بحسابك (أو المستخدم عند الدفع). اذكر بريد الحساب وتاريخ الشراء والمبلغ وشرحًا موجزًا.',
+          'راسل support@whosmarter.com من البريد المرتبط بحسابك (أو المستخدم عند الدفع). اذكر بريد الحساب وتاريخ الشراء والمبلغ وشرحًا موجزًا.',
           'قد نطلب معلومات إضافية للتحقق من المعاملة. تُعالَج المبالغ المستردة المعتمدة إلى طريقة الدفع الأصلية حيثما أمكن؛ يعتمد التوقيت على البنك أو مزود الدفع.',
         ],
       },
@@ -411,7 +411,7 @@ export const refund: Record<string, RefundDoc> = {
       {
         title: 'استردادات البنوك والنزاعات',
         paragraphs: [
-          'إذا واجهت مشكلة في الفوترة، تواصل معنا أولًا على support@whosmarter.app. بدء نزاع دفع أو استرداد بنكي دون التواصل معنا قد يؤدي إلى تعليق الوصول المدفوع أثناء المراجعة.',
+          'إذا واجهت مشكلة في الفوترة، تواصل معنا أولًا على support@whosmarter.com. بدء نزاع دفع أو استرداد بنكي دون التواصل معنا قد يؤدي إلى تعليق الوصول المدفوع أثناء المراجعة.',
         ],
       },
       {
@@ -423,7 +423,7 @@ export const refund: Record<string, RefundDoc> = {
     ],
     contactTitle: 'التواصل',
     contactBody: 'أسئلة حول الفوترة أو الاسترداد:',
-    contactEmail: 'support@whosmarter.app',
+    contactEmail: 'support@whosmarter.com',
   },
 };
 
