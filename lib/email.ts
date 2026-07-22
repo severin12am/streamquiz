@@ -23,26 +23,28 @@ export async function sendSubscriptionActivatedEmail(toEmail: string): Promise<v
     return;
   }
 
-  const text = `Здравствуйте!
+  // Always English, regardless of the site locale the customer paid in —
+  // standard practice for transactional emails (see chat history for why).
+  const text = `Hello!
 
-Спасибо за оплату. Ваша подписка успешно активирована.
+Thank you for your payment. Your subscription has been successfully activated.
 
-Управлять подпиской или отменить её можно по этой ссылке:
+You can manage or cancel your subscription here:
 ${MANAGE_SUBSCRIPTION_URL}
 
-Просто перейдите по ссылке, введите свой email — и вы попадёте в личный кабинет управления подпиской.
+Just open the link and enter your email — you'll be taken to your subscription management page.
 
-Если возникнут вопросы — просто ответьте на это письмо.
+If you have any questions, just reply to this email.
 
-С уважением,
-Команда Who's Smarter
+Best regards,
+The Who's Smarter Team
 support@whosmarter.com`;
 
   try {
     const { error } = await resend.emails.send({
       from: FROM,
       to: toEmail,
-      subject: 'Ваша подписка активирована — Who’s Smarter',
+      subject: "Your subscription is active — Who's Smarter",
       text,
     });
     if (error) throw error;
