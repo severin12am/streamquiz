@@ -80,7 +80,14 @@ export async function POST(req: NextRequest) {
 
     // Already subscribed → manage the subscription in the Billing Portal
     // instead of stacking a second subscription on the same customer.
-    if (tierFromSubscription(existing) !== 'free' && existing?.stripe_customer_id) {
+    //
+    // EXCEPTION: the $1 Live Mode verification SKU must ALWAYS reach Stripe
+    // Checkout. The payment provider needs to buy it repeatedly to test the
+    // flow, and after they cancel in the Portal the subscription stays
+    // `active` until period end — which would otherwise bounce them straight
+    // back into the Portal instead of a fresh payment page. Remove together
+    // with TEST_PLAN (see lib/billing-plans.ts).
+    if (!isTestSku && tierFromSubscription(existing) !== 'free' && existing?.stripe_customer_id) {
       try {
         const portal = await stripe.billingPortal.sessions.create({
           customer: existing.stripe_customer_id,

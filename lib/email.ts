@@ -15,20 +15,29 @@ const FROM = "Who's Smarter <support@whosmarter.com>";
 // customer, they verify by email, no whosmarter.com account needed.
 const MANAGE_SUBSCRIPTION_URL = 'https://billing.stripe.com/p/login/3cI28q1ZX1h24vTcBkeEo00';
 
-/** Sent once, right after checkout.session.completed activates a subscription. */
-export async function sendSubscriptionActivatedEmail(toEmail: string): Promise<void> {
+/** Sent once, right after checkout.session.completed activates a subscription.
+ * `productName` (e.g. "WhoSmarter Basic") is shown so the customer — and the
+ * payment provider reviewing the flow — can see exactly what was purchased. */
+export async function sendSubscriptionActivatedEmail(
+  toEmail: string,
+  productName?: string | null,
+): Promise<void> {
   const resend = getResend();
   if (!resend) {
     console.warn('[email] RESEND_API_KEY not set — skipping activation email to', toEmail);
     return;
   }
 
+  const productLine = productName
+    ? `\nPlan purchased: ${productName}\n`
+    : '';
+
   // Always English, regardless of the site locale the customer paid in —
   // standard practice for transactional emails (see chat history for why).
   const text = `Hello!
 
 Thank you for your payment. Your subscription has been successfully activated.
-
+${productLine}
 You can manage or cancel your subscription here:
 ${MANAGE_SUBSCRIPTION_URL}
 

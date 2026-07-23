@@ -129,7 +129,10 @@ export async function POST(req: NextRequest) {
 
         // Best-effort — never let a broken email fail this webhook.
         const email = session.customer_details?.email ?? session.customer_email;
-        if (email) await sendSubscriptionActivatedEmail(email);
+        if (email) {
+          const plan = planFromSubscription(sub);
+          await sendSubscriptionActivatedEmail(email, plan ? PLANS[plan].name : null);
+        }
         break;
       }
 
