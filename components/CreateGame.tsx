@@ -29,6 +29,8 @@ import { extractPdfSource } from '@/lib/extract-pdf-text';
 import {
   displayPdfTopic,
   encodePdfTopic,
+  isPdfTruncated,
+  MAX_PDF_PAGES,
   type PdfSource,
 } from '@/lib/pdf-source';
 
@@ -396,6 +398,11 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
               <span className="block text-xs font-normal text-[var(--text-muted)] mt-0.5 truncate">
                 {displayPdfTopic(encodePdfTopic(pdfSource.fileName))}
               </span>
+              {isPdfTruncated(pdfSource) && (
+                <span className="block text-xs font-normal text-[var(--text-muted)] mt-0.5">
+                  Using first {pdfSource.usedPages} of {pdfSource.totalPages} pages
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -777,8 +784,10 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1.5">
               {pdfSource
-                ? 'Quiz from your PDF — topic and difficulty are off.'
-                : 'Drop a PDF on PDF (or click) to quiz that document.'}
+                ? isPdfTruncated(pdfSource)
+                  ? `Quiz from the first ${pdfSource.usedPages} of ${pdfSource.totalPages} pages — topic and difficulty are off.`
+                  : 'Quiz from your PDF — topic and difficulty are off.'
+                : `Drop a PDF on PDF (or click). Long files use the first ${MAX_PDF_PAGES} pages.`}
             </p>
           </div>
 

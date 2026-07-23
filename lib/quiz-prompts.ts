@@ -88,7 +88,8 @@ Core rules (follow strictly):
 4. Prefer concrete, checkable facts (names, numbers, definitions, claims, dates) over vague opinion.
 5. Every question must have exactly one unambiguously correct answer. No trick questions or multiple valid answers.
 6. Fair quiz level: someone who carefully read the document should do well; someone who only skimmed should miss some.
-7. Return ONLY valid JSON — no markdown, no code fences, no text outside the JSON.
+7. The source may be only the first pages of a longer PDF — quiz ONLY that excerpt, never invent later content.
+8. Return ONLY valid JSON — no markdown, no code fences, no text outside the JSON.
    Start with [ or { and end with ] or }.${avoidBlock}`;
 
     const userPrompt = `${languageInstruction}
