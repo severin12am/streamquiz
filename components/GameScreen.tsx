@@ -35,6 +35,7 @@ import { mergePreviousQuestions, rememberQuestions, filterUnseenQuestions } from
 import { sendTelemetry } from '@/lib/telemetry';
 import { roundTelemetryBytes } from '@/lib/telemetry-shared';
 import { parseGeographyTopic } from '@/lib/geography/types';
+import { isPdfTopic } from '@/lib/pdf-source';
 
 interface GameScreenProps {
   gameId: string;
@@ -381,6 +382,7 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     try {
       const currentTexts = (game.questions ?? []).map((q) => q.question);
       const geography = parseGeographyTopic(game.topic);
+      const pdfQuiz = isPdfTopic(game.topic);
       const payload: CreateGamePayload = {
         topic: game.topic,
         difficulty: game.difficulty,
@@ -392,6 +394,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         ...(geography
           ? { geography: { types: geography.types, regions: geography.regions } }
           : {}),
+        // Server loads stored PDF text for a fresh question set.
+        ...(pdfQuiz ? { game_id: game.id } : {}),
       };
       // Rematch consumes one create from the host's quota, so identify the
       // web host with their Supabase JWT (iOS sends X-Quota-Key instead).

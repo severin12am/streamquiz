@@ -17,6 +17,7 @@ import { consumeCreateQuota } from '@/lib/creator-quota';
 import { fetchTierForWebUser, webQuotaKey } from '@/lib/web-subscriptions';
 import { getUserFromRequest } from '@/lib/server-auth';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
+import { isPdfTopic } from '@/lib/pdf-source';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,39 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const body = (await req.json()) as Record<string, unknown>;
+
+    // PDF rematch: client sends game_id; load stored source_text server-side
+    // so we can regenerate without keeping the document in client state.
+    const gameId =
+      typeof body.game_id === 'string' ? body.game_id.trim() : '';
+    if (gameId && !body.source_text) {
+      const admin = getSupabaseAdmin();
+      const { data: row } = await admin
+        .from('games')
+        .select('source_text, topic')
+        .eq('id', gameId)
+        .maybeSingle();
+      const stored =
+        row && typeof (row as { source_text?: unknown }).source_text === 'string'
+          ? String((row as { source_text: string }).source_text).trim()
+          : '';
+      const rowTopic =
+        row && typeof (row as { topic?: unknown }).topic === 'string'
+          ? String((row as { topic: string }).topic)
+          : '';
+      if (stored) {
+        body.source_text = stored;
+        if (typeof body.topic !== 'string' || !body.topic.trim()) {
+          body.topic = rowTopic || body.topic;
+        }
+      } else if (isPdfTopic(String(body.topic ?? rowTopic))) {
+        return NextResponse.json(
+          { error: 'PDF source unavailable for rematch.' },
+          { status: 409, headers: rateLimitHeaders(rl) },
+        );
+      }
+    }
 
     const validation = validateConfig(body);
     if (!validation.ok) {

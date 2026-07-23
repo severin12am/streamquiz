@@ -124,6 +124,7 @@ export async function POST(req: NextRequest) {
     // "Invite only" is turned off under More.
     const isPublic = Boolean((body as Record<string, unknown>).is_public);
     const numQuestions = questions.length;
+    const sourceText = validation.config.sourceText ?? null;
 
     const { data, error } = await admin
       .from('games')
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
         status: 'waiting',
         phase: 'waiting',
         host_user_id: hostUserId,
+        source_text: sourceText,
       })
       .select('id')
       .single();

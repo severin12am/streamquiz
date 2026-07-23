@@ -21,6 +21,12 @@ import {
   type GeographyRegion,
   type GeographyType,
 } from './geography/types';
+import {
+  encodePdfTopic,
+  isPdfTopic,
+  MAX_PDF_TEXT_CHARS,
+  truncatePdfText,
+} from './pdf-source';
 
 const MAX_PREVIOUS_QUESTIONS = 20;
 const MAX_QUESTION_TEXT_LEN = 300;
@@ -34,6 +40,10 @@ const LANGUAGE_INSTRUCTION =
   `switch languages. For example: a Russian topic must produce Russian ` +
   `questions and options; an English topic must produce English questions ` +
   `and options.`;
+
+const PDF_LANGUAGE_INSTRUCTION =
+  `Detect the language of the SOURCE DOCUMENT and write ALL question text and ` +
+  `answer options in that SAME language. Do not translate or switch languages.`;
 
 export function sanitizePreviousQuestions(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -52,6 +62,8 @@ export interface ValidatedConfig {
   previousQuestions: string[];
   /** When set, questions come from curated geography data (no LLM). */
   geography?: GeographyConfig;
+  /** When set, LLM questions are grounded in this PDF/document text. */
+  sourceText?: string;
 }
 
 export type ValidationResult =
@@ -91,6 +103,21 @@ function parseGeographyPayload(raw: unknown): GeographyConfig | { error: string 
   return { types: normalized, regions };
 }
 
+function parseSourceText(raw: unknown): string | { error: string } | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw !== 'string') {
+    return { error: 'Invalid PDF source text.' };
+  }
+  const text = truncatePdfText(raw);
+  if (text.length < 40) {
+    return { error: 'PDF text is too short to build a quiz.' };
+  }
+  if (text.length > MAX_PDF_TEXT_CHARS + 80) {
+    return { error: 'PDF text is too long.' };
+  }
+  return text;
+}
+
 /**
  * Validate the raw request body. Returns either a clean config or an error
  * string suitable for a 400 response.
@@ -99,8 +126,14 @@ function parseGeographyPayload(raw: unknown): GeographyConfig | { error: string 
 export function validateConfig(body: unknown): ValidationResult {
   const b = (body ?? {}) as Record<string, unknown>;
 
+  const sourceParsed = parseSourceText(b.source_text);
+  if (sourceParsed && typeof sourceParsed === 'object' && 'error' in sourceParsed) {
+    return { ok: false, error: sourceParsed.error };
+  }
+  const sourceText = typeof sourceParsed === 'string' ? sourceParsed : undefined;
+
   let geography: GeographyConfig | undefined;
-  if (b.geography != null) {
+  if (!sourceText && b.geography != null) {
     const parsed = parseGeographyPayload(b.geography);
     if ('error' in parsed) {
       return { ok: false, error: parsed.error };
@@ -108,18 +141,29 @@ export function validateConfig(body: unknown): ValidationResult {
     geography = parsed;
   }
 
-  const topic = geography
-    ? encodeGeographyTopic(geography)
-    : typeof b.topic === 'string'
-      ? b.topic.trim()
-      : '';
+  let topic: string;
+  if (sourceText) {
+    const fileHint =
+      typeof b.topic === 'string' && b.topic.trim()
+        ? b.topic.trim()
+        : 'document.pdf';
+    topic = encodePdfTopic(
+      isPdfTopic(fileHint)
+        ? fileHint.slice(4).trim() || 'document.pdf'
+        : fileHint,
+    );
+  } else if (geography) {
+    topic = encodeGeographyTopic(geography);
+  } else {
+    topic = typeof b.topic === 'string' ? b.topic.trim() : '';
+  }
 
   if (!topic || topic.length > 200) {
     return { ok: false, error: 'Invalid topic.' };
   }
 
-  // Geography ignores difficulty in the UI; still store a valid DB value.
-  const difficulty = geography
+  // Geography / PDF ignore difficulty in the UI; still store a valid DB value.
+  const difficulty = geography || sourceText
     ? 'medium'
     : b.difficulty;
   if (difficulty !== 'easy' && difficulty !== 'medium' && difficulty !== 'hard') {
@@ -140,6 +184,7 @@ export function validateConfig(body: unknown): ValidationResult {
       mcMode: Boolean(b.mc_mode),
       previousQuestions: sanitizePreviousQuestions(b.previous_questions),
       geography,
+      sourceText,
     },
   };
 }
@@ -157,8 +202,15 @@ export interface GenerateResult {
 export async function generateQuestions(
   config: ValidatedConfig,
 ): Promise<GenerateResult> {
-  const { topic, difficulty, count, mcMode, previousQuestions, geography } =
-    config;
+  const {
+    topic,
+    difficulty,
+    count,
+    mcMode,
+    previousQuestions,
+    geography,
+    sourceText,
+  } = config;
 
   if (geography) {
     let questions = generateGeographyQuestions(
@@ -185,8 +237,11 @@ export async function generateQuestions(
     difficulty,
     count,
     mcMode,
-    languageInstruction: LANGUAGE_INSTRUCTION,
+    languageInstruction: sourceText
+      ? PDF_LANGUAGE_INSTRUCTION
+      : LANGUAGE_INSTRUCTION,
     previousQuestions,
+    sourceText,
   });
 
   const { content, provider, model } = await chatWithFallback(
@@ -195,7 +250,11 @@ export async function generateQuestions(
       { role: 'user', content: userPrompt },
     ],
     difficulty,
-    { temperature: 0.8, maxTokens: 3000 },
+    {
+      temperature: 0.8,
+      // PDF source adds a large user prompt; leave room for the JSON quiz.
+      maxTokens: sourceText ? 4000 : 3000,
+    },
   );
 
   // Strip accidental markdown code fences if the model adds them.

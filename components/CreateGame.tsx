@@ -25,6 +25,12 @@ import { playSound } from '@/lib/sounds';
 import SoundToggle from '@/components/SoundToggle';
 import type { GeographyConfig } from '@/lib/geography/types';
 import { displayGeographyTopic, encodeGeographyTopic } from '@/lib/geography/types';
+import { extractPdfSource } from '@/lib/extract-pdf-text';
+import {
+  displayPdfTopic,
+  encodePdfTopic,
+  type PdfSource,
+} from '@/lib/pdf-source';
 
 const PENDING_CREATE_KEY = 'whosmarter-pending-create';
 
@@ -41,6 +47,8 @@ interface PendingCreateForm {
   inviteOnly: boolean;
   locale: Locale;
   geography: GeographyConfig | null;
+  /** Extracted PDF text + filename when quiz is from a document. */
+  pdfSource: PdfSource | null;
 }
 
 interface CreateGameProps {
@@ -86,6 +94,10 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   const [inviteOnly, setInviteOnly] = useState(true);
   const [geography, setGeography] = useState<GeographyConfig | null>(null);
   const [geoModalOpen, setGeoModalOpen] = useState(false);
+  const [pdfSource, setPdfSource] = useState<PdfSource | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfDragOver, setPdfDragOver] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   // ---- UI state ----
   const [showAdjust,    setShowAdjust]    = useState(false);
@@ -138,7 +150,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     void panel.offsetHeight;
     panel.classList.remove('adjust-panel--warm');
     panel.style.removeProperty('--warm-width');
-  }, [measureAdjustPanel, locale, gameMode, answerSeconds, inviteOnly, geography]);
+  }, [measureAdjustPanel, locale, gameMode, answerSeconds, inviteOnly, geography, pdfSource]);
 
   useEffect(() => {
     const panel = adjustPanelRef.current;
@@ -192,6 +204,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
       inviteOnly,
       locale,
       geography,
+      pdfSource,
     };
   }
 
@@ -210,7 +223,25 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     setCamerasEnabled(form.camerasEnabled);
     setInviteOnly(form.inviteOnly !== false);
     setGeography(form.geography ?? null);
+    setPdfSource(form.pdfSource ?? null);
   }
+
+  const applyPdfFile = useCallback(async (file: File | null | undefined) => {
+    if (!file) return;
+    setError(null);
+    setPdfBusy(true);
+    try {
+      const source = await extractPdfSource(file);
+      setPdfSource(source);
+      setGeography(null);
+      setTopic('');
+      playSound('click');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('create.errorGeneric'));
+    } finally {
+      setPdfBusy(false);
+    }
+  }, [t]);
 
   const submitCreate = useCallback(
     async (accessToken: string, form: PendingCreateForm) => {
@@ -219,12 +250,14 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
       setLoading(true);
 
       try {
-        const topicForApi = form.geography
-          ? encodeGeographyTopic(form.geography)
-          : form.topic;
+        const topicForApi = form.pdfSource
+          ? encodePdfTopic(form.pdfSource.fileName)
+          : form.geography
+            ? encodeGeographyTopic(form.geography)
+            : form.topic;
         const payload: CreateGamePayload & { cameras_enabled: boolean } = {
           topic: topicForApi,
-          difficulty: form.geography ? 'medium' : form.difficulty,
+          difficulty: form.geography || form.pdfSource ? 'medium' : form.difficulty,
           num_questions: form.numQuestions,
           mc_mode: form.mcMode,
           game_mode: form.gameMode,
@@ -233,7 +266,10 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
           is_public: !form.inviteOnly,
           locale: form.locale,
           previous_questions: getPreviousQuestions(topicForApi),
-          ...(form.geography
+          ...(form.pdfSource
+            ? { source_text: form.pdfSource.text }
+            : {}),
+          ...(form.geography && !form.pdfSource
             ? {
                 geography: {
                   types: form.geography.types,
@@ -296,7 +332,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
   // -------------------------------------------------------
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!geography && !topic.trim()) {
+    if (!geography && !pdfSource && !topic.trim()) {
       setError(t('create.errorEmptyTopic'));
       return;
     }
@@ -347,7 +383,32 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
           {t('create.topic')}
         </label>
-        {geography ? (
+        {pdfSource ? (
+          <div className="flex items-center gap-2">
+            <div
+              className="flex-1 rounded-xl px-4 py-3 text-sm font-medium text-[var(--text-primary)] min-w-0"
+              style={{
+                background: 'rgba(47,125,119,0.10)',
+                border: '1px solid var(--accent)',
+              }}
+            >
+              PDF quiz
+              <span className="block text-xs font-normal text-[var(--text-muted)] mt-0.5 truncate">
+                {displayPdfTopic(encodePdfTopic(pdfSource.fileName))}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                playSound('click');
+                setPdfSource(null);
+              }}
+              className="keycap keycap-secondary px-3 py-3 rounded-xl text-sm flex-shrink-0"
+            >
+              Clear
+            </button>
+          </div>
+        ) : geography ? (
           <div className="flex items-center gap-2">
             <div
               className="flex-1 rounded-xl px-4 py-3 text-sm font-medium text-[var(--text-primary)]"
@@ -489,8 +550,8 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
         {...(!showAdjust ? { inert: true } : {})}
       >
         <div ref={adjustInnerRef} className="adjust-panel-inner flex flex-col gap-6 pt-1 pb-3">
-          {/* ---- Difficulty (hidden for Geography — region filters instead) ---- */}
-          {!geography && (
+          {/* ---- Difficulty (hidden for Geography / PDF) ---- */}
+          {!geography && !pdfSource && (
             <div>
               <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
                 {t('create.difficulty')}
@@ -644,14 +705,25 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
             <label className="block text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
               Specific types of quiz
             </label>
-            <div className="flex gap-2">
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                void applyPdfFile(file);
+              }}
+            />
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => {
                   playSound('click');
                   setGeoModalOpen(true);
                 }}
-                className={`keycap flex-1 py-3 px-3 rounded-xl text-sm font-medium ${
+                className={`keycap py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-medium leading-tight ${
                   geography ? 'keycap-primary' : 'keycap-secondary'
                 }`}
               >
@@ -661,11 +733,53 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
                 type="button"
                 disabled
                 title="Coming soon"
-                className="keycap flex-1 py-3 px-3 rounded-xl text-sm font-medium keycap-secondary opacity-50 cursor-not-allowed"
+                className="keycap py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-medium leading-tight keycap-secondary opacity-50 cursor-not-allowed"
               >
                 IQ testing
               </button>
+              <button
+                type="button"
+                disabled={pdfBusy}
+                title="Drop a PDF or click to choose"
+                onClick={() => {
+                  if (pdfBusy) return;
+                  playSound('click');
+                  pdfInputRef.current?.click();
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setPdfDragOver(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setPdfDragOver(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setPdfDragOver(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setPdfDragOver(false);
+                  const file = e.dataTransfer.files?.[0];
+                  void applyPdfFile(file);
+                }}
+                className={`keycap py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-medium leading-tight ${
+                  pdfSource || pdfDragOver ? 'keycap-primary' : 'keycap-secondary'
+                } ${pdfBusy ? 'opacity-70' : ''}`}
+              >
+                {pdfBusy ? 'Reading…' : pdfSource ? 'PDF ✓' : 'PDF'}
+              </button>
             </div>
+            <p className="text-xs text-[var(--text-muted)] mt-1.5">
+              {pdfSource
+                ? 'Quiz from your PDF — topic and difficulty are off.'
+                : 'Drop a PDF on PDF (or click) to quiz that document.'}
+            </p>
           </div>
 
           {/* ---- Browse open games (after invite only / specific types) ---- */}
@@ -733,6 +847,7 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
       onClose={() => setGeoModalOpen(false)}
       onConfirm={(cfg) => {
         setGeography(cfg);
+        setPdfSource(null);
         setTopic('');
         setGeoModalOpen(false);
         playSound('click');

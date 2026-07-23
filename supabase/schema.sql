@@ -135,7 +135,11 @@ CREATE TABLE IF NOT EXISTS games (
   -- ---- v15: global rooms ----
   -- Discoverable in Browse while status=waiting. Default false (invite only).
   -- Host Start may only set true → false (cannot re-list).
-  is_public              BOOLEAN NOT NULL DEFAULT FALSE
+  is_public              BOOLEAN NOT NULL DEFAULT FALSE,
+
+  -- ---- v19: PDF-sourced quizzes ----
+  -- Extracted document text for rematch regeneration. NULL otherwise.
+  source_text            TEXT DEFAULT NULL
 );
 
 -- -------------------------------------------------------
@@ -176,6 +180,7 @@ BEGIN
    OR NEW.cameras_enabled IS DISTINCT FROM OLD.cameras_enabled
    OR NEW.host_user_id    IS DISTINCT FROM OLD.host_user_id
    OR NEW.answer_seconds  IS DISTINCT FROM OLD.answer_seconds
+   OR NEW.source_text     IS DISTINCT FROM OLD.source_text
   THEN
     RAISE EXCEPTION 'Cannot modify immutable game setup columns';
   END IF;

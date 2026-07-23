@@ -28,6 +28,8 @@ export interface BuildPromptsParams {
   languageInstruction: string;
   /** Question texts to avoid repeating (optional). */
   previousQuestions?: string[];
+  /** When set, generate questions grounded in this document text (PDF). */
+  sourceText?: string;
 }
 
 export function buildQuestionPrompts(params: BuildPromptsParams): {
@@ -41,28 +43,13 @@ export function buildQuestionPrompts(params: BuildPromptsParams): {
     mcMode,
     languageInstruction,
     previousQuestions = [],
+    sourceText,
   } = params;
-
-  const difficultyGuide = DIFFICULTY_GUIDE[difficulty];
 
   const avoidBlock =
     previousQuestions.length > 0
       ? `\nIMPORTANT: Do NOT repeat or closely paraphrase any of these previously used questions:\n${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
       : '';
-
-  const systemPrompt = `You are an expert quiz writer for a live TV quiz show.
-
-Core rules (follow strictly):
-1. Follow the difficulty guide EXACTLY. Never make easy or medium questions accidentally hard, or hard questions too easy.
-2. Never reuse the same famous fact at the wrong difficulty. Easy = only the greatest hits. Medium = one level deeper. Hard = expert or obscure.
-3. Cover a wide spread of subtopics within "${topic}" (different eras, fields, regions, aspects, etc.). Do not focus on one narrow area.
-4. Prioritize fresh, less-used angles. Avoid common quiz clichés and the most obvious fact about the topic.
-5. Every question must have exactly one unambiguously correct answer. No trick questions, opinion questions, or multiple valid answers.
-6. Return ONLY valid JSON — no markdown, no code fences, no text outside the JSON.
-   Start with [ or { and end with ] or }.
-
-Difficulty guide for this request (${difficulty}):
-${difficultyGuide}${avoidBlock}`;
 
   const mcInstructions = mcMode
     ? `Each question must include:
@@ -90,6 +77,52 @@ Example:
 
 Example:
 {"question":"What is the largest ocean on Earth?","correct_answer":"Pacific Ocean","accepted_answers":["pacific","the pacific","pacific ocean"]}`;
+
+  if (sourceText) {
+    const systemPrompt = `You are an expert quiz writer for a live TV quiz show.
+
+Core rules (follow strictly):
+1. Base EVERY question and answer ONLY on the SOURCE DOCUMENT provided by the user. Do not use outside knowledge.
+2. If a fact is not clearly supported by the document, do not ask about it.
+3. Cover a wide spread of sections / ideas from the document. Do not focus on only the opening paragraphs.
+4. Prefer concrete, checkable facts (names, numbers, definitions, claims, dates) over vague opinion.
+5. Every question must have exactly one unambiguously correct answer. No trick questions or multiple valid answers.
+6. Fair quiz level: someone who carefully read the document should do well; someone who only skimmed should miss some.
+7. Return ONLY valid JSON — no markdown, no code fences, no text outside the JSON.
+   Start with [ or { and end with ] or }.${avoidBlock}`;
+
+    const userPrompt = `${languageInstruction}
+
+Generate exactly ${count} quiz questions about the following document (${topic}).
+
+${mcInstructions}
+
+Return a JSON array where each item has this shape:
+${formatExample}
+
+SOURCE DOCUMENT:
+"""
+${sourceText}
+"""`;
+
+    return { systemPrompt, userPrompt };
+  }
+
+  const difficultyGuide = DIFFICULTY_GUIDE[difficulty];
+
+  const systemPrompt = `You are an expert quiz writer for a live TV quiz show.
+
+Core rules (follow strictly):
+1. Follow the difficulty guide EXACTLY. Never make easy or medium questions accidentally hard, or hard questions too easy.
+2. Never reuse the same famous fact at the wrong difficulty. Easy = only the greatest hits. Medium = one level deeper. Hard = expert or obscure.
+3. Cover a wide spread of subtopics within "${topic}" (different eras, fields, regions, aspects, etc.). Do not focus on one narrow area.
+4. Prioritize fresh, less-used angles. Avoid common quiz clichés and the most obvious fact about the topic.
+5. Every question must have exactly one unambiguously correct answer. No trick questions, opinion questions, or multiple valid answers.
+6. Return ONLY valid JSON — no markdown, no code fences, no text outside the JSON.
+   Start with [ or { and end with ] or }.
+
+Difficulty guide for this request (${difficulty}):
+${difficultyGuide}${avoidBlock}`;
 
   const userPrompt = `${languageInstruction}
 

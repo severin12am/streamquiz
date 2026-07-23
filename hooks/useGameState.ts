@@ -133,8 +133,12 @@ function channelHealthFromStatus(status: string): ChannelHealth {
 function mergeGameUpdate(prev: Game | null, updated: Game): Game {
   const incomingQuestions = updated.questions;
   const hasQuestions = Array.isArray(incomingQuestions) && incomingQuestions.length > 0;
-  if (hasQuestions || !prev) return updated;
-  return { ...updated, questions: prev.questions };
+  const next = hasQuestions || !prev ? updated : { ...updated, questions: prev.questions };
+  // Never keep PDF source text in client state (realtime may include it).
+  if (next && typeof next === 'object' && 'source_text' in next) {
+    delete (next as { source_text?: unknown }).source_text;
+  }
+  return next;
 }
 
 // Helper: an ISO timestamp `seconds` from now (server time).

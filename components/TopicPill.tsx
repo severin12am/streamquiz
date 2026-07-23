@@ -11,6 +11,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocale } from '@/context/LocaleProvider';
 import { displayGeographyTopic, isGeographyTopic } from '@/lib/geography/types';
+import { displayPdfTopic, isPdfTopic } from '@/lib/pdf-source';
 
 interface TopicPillProps {
   topic:       string;
@@ -31,7 +32,11 @@ export default function TopicPill({
   const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const label = isGeographyTopic(topic) ? displayGeographyTopic(topic) : topic;
+  const label = isGeographyTopic(topic)
+    ? displayGeographyTopic(topic)
+    : isPdfTopic(topic)
+      ? displayPdfTopic(topic)
+      : topic;
 
   // Close the popover on any outside tap.
   useEffect(() => {

@@ -235,6 +235,11 @@ export async function fetchGame(gameId: string): Promise<Game | null> {
     console.error('[WhoSmarter] fetchGame error:', error.message);
     return null;
   }
+  // Drop PDF source text from the client row (large; rematch loads it
+  // server-side via /api/generate-questions + game_id).
+  if (data && typeof data === 'object' && 'source_text' in data) {
+    delete (data as { source_text?: unknown }).source_text;
+  }
   return data as Game;
 }
 

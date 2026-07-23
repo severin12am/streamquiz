@@ -185,6 +185,10 @@ export interface CreateGamePayload {
   is_public?: boolean;
   /** When set, build curated geography questions instead of calling the LLM. */
   geography?: GeographyPayload;
+  /** Extracted PDF text — quiz is grounded in this document (topic/difficulty ignored). */
+  source_text?: string;
+  /** Rematch only — server loads stored PDF source_text for this game. */
+  game_id?: string;
 }
 
 // -------------------------------------------------------
