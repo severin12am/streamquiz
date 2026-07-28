@@ -31,7 +31,7 @@ export const onboarding = {
       },
       {
         title: 'Special categories',
-        body: 'Beyond free-text topics, special categories like Geography are available — with their own setup, filters, and question styles.',
+        body: 'Beyond free-text topics, you can also drop a PDF under More — the quiz is built from that document, with topic and difficulty turned off.',
       },
       {
         title: 'Open games',
@@ -65,7 +65,7 @@ export const onboarding = {
       },
       {
         title: 'Особые категории',
-        body: 'Кроме свободной темы есть особые категории вроде Географии — со своей настройкой, фильтрами и типами вопросов.',
+        body: 'Кроме свободной темы в «Ещё» можно загрузить PDF — викторина строится по документу, тема и сложность отключаются.',
       },
       {
         title: 'Открытые игры',
@@ -99,7 +99,7 @@ export const onboarding = {
       },
       {
         title: 'Categorías especiales',
-        body: 'Además de temas libres, hay categorías especiales como Geografía — con su propia configuración, filtros y estilos de pregunta.',
+        body: 'Además de temas libres, en Más puedes soltar un PDF — el concurso se crea a partir del documento, con tema y dificultad desactivados.',
       },
       {
         title: 'Partidas abiertas',
@@ -133,7 +133,7 @@ export const onboarding = {
       },
       {
         title: 'Catégories spéciales',
-        body: 'Au-delà des sujets libres, des catégories spéciales comme Géographie existent — avec leur propre configuration, filtres et styles de questions.',
+        body: 'Au-delà des sujets libres, vous pouvez aussi déposer un PDF dans Plus — le quiz est généré à partir du document, sans sujet ni difficulté.',
       },
       {
         title: 'Parties ouvertes',
@@ -167,7 +167,7 @@ export const onboarding = {
       },
       {
         title: 'Spezialkategorien',
-        body: 'Neben freien Themen gibt es Spezialkategorien wie Geografie — mit eigener Einrichtung, Filtern und Fragetypen.',
+        body: 'Neben freien Themen kannst du unter Mehr auch ein PDF ablegen — das Quiz entsteht aus dem Dokument, Thema und Schwierigkeit sind aus.',
       },
       {
         title: 'Offene Spiele',
@@ -201,7 +201,7 @@ export const onboarding = {
       },
       {
         title: '特別カテゴリ',
-        body: '自由入力のトピック以外に、地理などの特別カテゴリもあります — 専用の設定、フィルター、問題形式があります。',
+        body: '自由入力のトピック以外に、「もっと」からPDFをドロップできます — その文書からクイズが作られ、トピックと難易度はオフになります。',
       },
       {
         title: 'オープンゲーム',
@@ -235,7 +235,7 @@ export const onboarding = {
       },
       {
         title: 'فئات خاصة',
-        body: 'إلى جانب المواضيع الحرة، توجد فئات خاصة مثل الجغرافيا — بإعداداتها ومرشحاتها وأنماط أسئلتها الخاصة.',
+        body: 'إلى جانب المواضيع الحرة، يمكنك أيضًا إسقاط ملف PDF ضمن «المزيد» — تُبنى المسابقة من المستند مع إيقاف الموضوع والصعوبة.',
       },
       {
         title: 'الألعاب المفتوحة',

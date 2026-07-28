@@ -726,13 +726,9 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  playSound('click');
-                  setGeoModalOpen(true);
-                }}
-                className={`keycap py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-medium leading-tight ${
-                  geography ? 'keycap-primary' : 'keycap-secondary'
-                }`}
+                disabled
+                title="Coming soon"
+                className="keycap py-2.5 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-medium leading-tight keycap-secondary opacity-50 cursor-not-allowed"
               >
                 Geography
               </button>
