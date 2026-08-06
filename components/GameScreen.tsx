@@ -148,15 +148,26 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     collectMeshTelemetry,
   ]);
 
-  // Start the camera as soon as we've taken a seat (so the mesh can form
-  // while we're still in the lobby). Keyed on `me?.id` (a stable primitive),
-  // NOT the `me` object — otherwise every realtime/poll refresh of `players`
-  // hands back a new object reference and re-fires this effect, hammering
-  // startCamera (and flooding the console when the device is busy).
+  // ----------------------------------------------------------
+  // End-of-game DISCUSSION window state (declared early so the media
+  // effect can respect feedsCut and not reopen after the privacy cut).
+  // ----------------------------------------------------------
+  const DISCUSSION_SECONDS = 60;
+  const [discussLeft, setDiscussLeft] = useState(DISCUSSION_SECONDS);
+  const [feedsCut, setFeedsCut] = useState(false);
+
+  // Media mesh only matters with 2+ players. Solo / practice skips
+  // getUserMedia (no mic/camera prompt, no TURN) — voice answers still work
+  // via SpeechRecognition's own capture. When a second seat appears (lobby
+  // or late join), acquire media; if the room drops back to one, release it.
+  // Keyed on player count (stable), NOT the `me` object — otherwise every
+  // realtime/poll refresh re-fires this effect.
   const seated = !!me;
+  const needsMediaMesh = seated && players.length >= 2 && !feedsCut;
   useEffect(() => {
-    if (seated) startCamera();
-  }, [seated, startCamera]);
+    if (needsMediaMesh) startCamera();
+    else if (players.length < 2) stopCamera();
+  }, [needsMediaMesh, players.length, startCamera, stopCamera]);
 
   // ----------------------------------------------------------
   // Mic policy + answering model:
@@ -192,9 +203,6 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
   // (mic + video) automatically. A rematch re-acquires the camera via the
   // startCamera effect below. The countdown is shown in the winner sheet.
   // ----------------------------------------------------------
-  const DISCUSSION_SECONDS = 60;
-  const [discussLeft, setDiscussLeft] = useState(DISCUSSION_SECONDS);
-  const [feedsCut, setFeedsCut] = useState(false);
 
   // Countdown + auto-cut when the discussion window elapses.
   useEffect(() => {
@@ -213,13 +221,14 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     return () => clearInterval(id);
   }, [game?.phase, feedsCut, stopCamera]);
 
-  // Re-acquire the camera if a rematch starts after we cut the feeds.
+  // Re-acquire the camera if a rematch starts after we cut the feeds
+  // (multiplayer only — solo never needs the mesh).
   useEffect(() => {
     if (game && game.phase !== 'ended' && feedsCut) {
       setFeedsCut(false);
-      startCamera({ force: true }); // deliberate rematch re-acquire — retry now
+      if (players.length >= 2) startCamera({ force: true });
     }
-  }, [game?.phase, feedsCut, startCamera]);
+  }, [game?.phase, feedsCut, startCamera, players.length]);
 
   // ----------------------------------------------------------
   // 3. Speech recognition (voice answering)

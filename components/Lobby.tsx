@@ -43,7 +43,9 @@ export default function Lobby({
 
   const seated   = !!me;
   const isHost   = me ? me.role === 'host' : asHost;
-  const canStart = players.length >= 2;
+  // Host may start alone (solo / practice). Guests can still join the lobby
+  // before start, or late-join after the match begins.
+  const canStart = seated && isHost;
   const emptySlots = Math.max(0, MAX_PLAYERS - players.length);
 
   useEffect(() => {
@@ -218,18 +220,13 @@ export default function Lobby({
               />
             </div>
             {isHost ? (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={() => { playSound('click'); onStart(); }}
-                  disabled={!canStart}
-                  className="keycap keycap-primary w-full py-3.5 rounded-xl font-semibold text-base text-white"
-                >
-                  {t('lobby.start')}
-                </button>
-                {!canStart && (
-                  <p className="text-xs text-[var(--text-muted)]">{t('lobby.needMore')}</p>
-                )}
-              </div>
+              <button
+                onClick={() => { playSound('click'); onStart(); }}
+                disabled={!canStart}
+                className="keycap keycap-primary w-full py-3.5 rounded-xl font-semibold text-base text-white"
+              >
+                {t('lobby.start')}
+              </button>
             ) : (
               <div className="flex items-center justify-center gap-3 py-2">
                 <span className="w-5 h-5 rounded-full border-2 border-[var(--border-strong)] border-t-[var(--accent)] animate-spin" />
