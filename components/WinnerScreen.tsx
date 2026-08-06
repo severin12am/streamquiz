@@ -4,7 +4,8 @@
 //
 // Shown when game.phase === 'ended'. Ranks every player by score and
 // crowns the top scorer (or declares a tie). Everyone can vote to
-// rematch; the match restarts once the host + at least one other vote.
+// rematch; the match restarts once the host + at least one other vote
+// (or immediately when the host is alone).
 // ============================================================
 
 import React from 'react';
@@ -193,10 +194,10 @@ export default function WinnerScreen({
               disabled={myVote || rematchLoading}
               className="keycap keycap-primary flex items-center justify-center gap-2 px-5 sm:px-7 py-2.5 rounded-xl font-semibold text-white w-full sm:w-auto"
             >
-              {rematchLoading && (
+              {(rematchLoading || (myVote && players.length <= 1)) && (
                 <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
               )}
-              {rematchLoading
+              {rematchLoading || (myVote && players.length <= 1)
                 ? t('create.generating')
                 : myVote
                 ? t('winner.rematchWaiting')

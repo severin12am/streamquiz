@@ -444,7 +444,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     }
   }, [game, rematchLoading, locale, rematch, session]);
 
-  // Host drives the rematch once they AND at least one other player voted.
+  // Host drives the rematch once they vote and either another player voted
+  // or the room is solo (no one else to wait for).
   useEffect(() => {
     if (!game || !me) return;
     if (game.phase !== 'ended') {
@@ -457,7 +458,8 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
     }
     const hostVoted  = players.find((p) => p.role === 'host')?.rematch ?? false;
     const otherVoted = players.some((p) => p.role !== 'host' && p.rematch);
-    if (me.role === 'host' && hostVoted && otherVoted && !rematchTriggeredRef.current) {
+    const solo = players.length <= 1;
+    if (me.role === 'host' && hostVoted && (otherVoted || solo) && !rematchTriggeredRef.current) {
       rematchTriggeredRef.current = true;
       handleRematch();
     }
