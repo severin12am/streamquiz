@@ -25,6 +25,8 @@ export const messages = {
       refunds: 'Refunds',
       support: 'Support',
       pricing: 'Pricing',
+      x: 'X',
+      instagram: 'Instagram',
     },
     billing: {
       title: 'Plans & billing',
@@ -294,6 +296,8 @@ export const messages = {
       refunds: 'Возвраты',
       support: 'Поддержка',
       pricing: 'Тарифы',
+      x: 'X',
+      instagram: 'Instagram',
     },
     billing: {
       title: 'Тарифы и оплата',

@@ -11,6 +11,8 @@ export const ja = {
     refunds: '返金',
     support: 'サポート',
     pricing: '料金',
+    x: 'X',
+    instagram: 'Instagram',
   },
   billing: {
     title: 'プランと請求',

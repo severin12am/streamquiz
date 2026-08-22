@@ -9,6 +9,7 @@
 //   - Terms (→ /terms)
 //   - Refunds (→ /refund-policy)
 //   - Support (→ /support)
+//   - X / Instagram (external)
 //
 // Text is localized via the current UI locale, falling back to
 // English for the legal copy.
@@ -63,6 +64,22 @@ export default function SiteFooter() {
           >
             {t('footer.support')}
           </Link>
+          <a
+            href="https://x.com/whosmarterapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-[var(--text-secondary)]"
+          >
+            {t('footer.x')}
+          </a>
+          <a
+            href="https://www.instagram.com/whosmarter"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-[var(--text-secondary)]"
+          >
+            {t('footer.instagram')}
+          </a>
         </div>
       </div>
     </footer>

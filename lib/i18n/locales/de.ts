@@ -11,6 +11,8 @@ export const de = {
     refunds: 'Rückerstattungen',
     support: 'Support',
     pricing: 'Preise',
+    x: 'X',
+    instagram: 'Instagram',
   },
   billing: {
     title: 'Tarife & Abrechnung',

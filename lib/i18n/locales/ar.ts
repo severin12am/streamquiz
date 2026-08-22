@@ -11,6 +11,8 @@ export const ar = {
     refunds: 'الاسترداد',
     support: 'الدعم',
     pricing: 'الأسعار',
+    x: 'X',
+    instagram: 'Instagram',
   },
   billing: {
     title: 'الخطط والفوترة',
