@@ -6,6 +6,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { LegalList, LegalSection } from '@/components/legal/LegalSection';
 import type { RefundDoc } from '@/lib/i18n/legal/refund';
 import type { TermsDoc } from '@/lib/i18n/legal/terms';
+import { PageHit } from '@/components/PageHit';
 
 type LegalDoc = TermsDoc | RefundDoc;
 
@@ -14,6 +15,7 @@ export function LegalDocumentPage({ doc }: { doc: LegalDoc }) {
 
   return (
     <main className="min-h-dvh px-4 py-8 sm:px-6 sm:py-12">
+      <PageHit path="legal" />
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
         <div className="flex items-center justify-between gap-3">
           <Link

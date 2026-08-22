@@ -23,8 +23,8 @@ export default function SiteFooter() {
   const { t, locale } = useLocale();
   const pathname = usePathname();
 
-  // No footer during an active game (full-screen immersive layout).
-  if (pathname?.startsWith('/game/')) return null;
+  // No footer during an active game or the full-screen ops maps.
+  if (pathname?.startsWith('/game/') || pathname?.startsWith('/ops')) return null;
 
   const text = disclaimer[locale] ?? disclaimer.en;
 

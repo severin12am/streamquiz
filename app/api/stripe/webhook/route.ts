@@ -23,6 +23,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isPaidPlan, PLANS, type PaidPlan } from '@/lib/billing-plans';
 import { upsertWebSubscription } from '@/lib/web-subscriptions';
 import { sendSubscriptionActivatedEmail } from '@/lib/email';
+import { insertTelemetryEvent } from '@/lib/telemetry-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,12 +134,27 @@ export async function POST(req: NextRequest) {
           const plan = planFromSubscription(sub);
           await sendSubscriptionActivatedEmail(email, plan ? PLANS[plan].name : null);
         }
+        const paidPlan = planFromSubscription(sub);
+        void insertTelemetryEvent({
+          event: 'checkout_completed',
+          platform: 'web',
+          status: paidPlan ?? 'unknown',
+        });
         break;
       }
 
-      case 'customer.subscription.updated':
+      case 'customer.subscription.updated': {
+        await applySubscription(admin, event.data.object);
+        break;
+      }
+
       case 'customer.subscription.deleted': {
         await applySubscription(admin, event.data.object);
+        void insertTelemetryEvent({
+          event: 'billing_canceled',
+          platform: 'web',
+          status: 'canceled',
+        });
         break;
       }
 
@@ -158,6 +174,11 @@ export async function POST(req: NextRequest) {
           .update({ status: 'past_due', updated_at: new Date().toISOString() })
           .eq('user_id', userId);
         if (error) throw error;
+        void insertTelemetryEvent({
+          event: 'billing_failed',
+          platform: 'web',
+          status: 'past_due',
+        });
         break;
       }
 

@@ -25,6 +25,7 @@ import {
   upsertWebSubscription,
 } from '@/lib/web-subscriptions';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
+import { insertTelemetryEvent } from '@/lib/telemetry-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -175,6 +176,11 @@ export async function POST(req: NextRequest) {
     });
 
     if (!session.url) throw new Error('Stripe did not return a checkout URL.');
+    void insertTelemetryEvent({
+      event: 'checkout_started',
+      platform: 'web',
+      status: isTestSku ? 'test' : grantedTier,
+    });
     return NextResponse.json({ url: session.url }, { headers: rateLimitHeaders(rl) });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

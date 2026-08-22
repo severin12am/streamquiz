@@ -2,9 +2,23 @@
 
 Design for **operational metrics** you need (quiz usage, platforms, video path, rough bandwidth) **without** collecting personal data that creates heavy privacy/legal burden.
 
-**Status:** Implemented (web). View data in **Supabase → SQL Editor** (no in-app dashboard).  
+**Status:** Implemented (web). Local ops at `/ops/telemetry` (session map + numbers) and `/ops/studio` (architecture), both secret-gated.  
 **Ship checklist:** run `supabase/migration-v14-telemetry.sql` once on your Supabase project (creates table only — no data deletes).  
-**Related:** `telemetry_events` table, `POST /api/telemetry`, `game_created` in create-game, host `game_finished` + `webrtc_summary` on end, sampled `ice_config_served`.
+**Related:** `telemetry_events` table, `POST /api/telemetry`, create/start/finish + page hits, quota/checkout, guest sit-down, sampled `ice_config_served`.
+
+### Local dashboard
+
+1. Set in `.env.local` (do **not** put this on Netlify unless you want it reachable in prod):
+   - `OPS_DASHBOARD_SECRET` — long random string
+   - `SUPABASE_SERVICE_ROLE_KEY` + `NEXT_PUBLIC_SUPABASE_URL` — same project that receives telemetry
+2. `npm run dev` then:
+   - **Session map** (visual, inspectable packets): `http://localhost:3000/ops/telemetry`
+   - **How the app works** (scripted flows): `http://localhost:3000/ops/studio`
+   - **Numbers** (KPI charts): `http://localhost:3000/ops/telemetry?view=numbers`
+   Enter the secret (or `?key=YOUR_SECRET` once; stored in sessionStorage).
+3. API: `GET /api/ops/telemetry?range=7|30|90` with header `X-Ops-Dashboard-Secret`.
+
+The map is not a user tracker. Dots are anonymous `telemetry_events` (or demo packets in Studio). Click a dot to read the payload — no names, emails, IPs, or topics.
 
 | Hand-off file | Use |
 |---------------|-----|
@@ -242,6 +256,25 @@ Increment counters only (or sample 10%):
 
 No game id required. Answers “how often is coturn healthy vs Metered fallback?”
 
+#### E. Extra anonymous counters (still no PII)
+
+All reuse `telemetry_events`. No cookies, no client id, no emails, no Stripe ids, no topics.
+
+| Event | Who writes | What `status` means |
+|-------|------------|---------------------|
+| `page_hit` | web client, once per tab session per path | `home` \| `upgrade` \| `game` \| `legal` |
+| `player_joined` | web client on a **new** seat | `host` \| `guest` |
+| `game_rematch` | host after rematch runs | `fresh` \| `replay` |
+| `media_permission` | web client, first getUserMedia failure | `permission` \| `insecure` \| `notfound` \| `busy` \| `unknown` |
+| `create_failed` | server | `rate_limit` \| `validation` \| `generate` \| `insert` |
+| `quota_exceeded` | server (402) | `create` \| `rematch` |
+| `checkout_started` | server when Stripe Checkout URL is created | `basic` \| `premium` \| `test` |
+| `checkout_completed` | Stripe webhook | plan name |
+| `billing_failed` | Stripe webhook (invoice.payment_failed) | `past_due` |
+| `billing_canceled` | Stripe webhook (subscription.deleted) | `canceled` |
+
+Ops dashboard also **reads** existing `auth.users`, `creator_quota`, and `web_subscriptions` for signup / returning-host / paid-tier **counts only**. That is not new collection.
+
 ---
 
 ## 6. API: `POST /api/telemetry`
@@ -377,13 +410,18 @@ Not a full Privacy Policy, but sets expectations. Add a real Privacy Policy if y
 - [x] `game_created` from create-game (platform header)  
 - [x] Sampled `ice_config_served` (always on Metered fallback)  
 - [x] `collectMeshTelemetry` in `useMeshWebRTC`  
-- [x] Host `game_finished` + `webrtc_summary` on end  
+- [x] Host `game_finished` + `webrtc_summary` on end
+- [x] Host `game_started` when Start is pressed (funnel step)  
+- [x] Page hits, guest sit-down, rematch, media permission, create failures, quota wall, checkout started/completed  
 
 ### Still open
 
 - [ ] Run migration on production Supabase  
 - [ ] iOS client parity (same POST + platform `ios`)  
-- [ ] Optional private `/admin/stats` (not planned — use Supabase SQL + AI viz)  
+
+### Done (ops UI)
+
+- [x] Local secret-gated `/ops/telemetry` usage funnel (create → guest sat → start → finish) + traffic/pay/friction + numbers + isometric map  
 
 ---
 

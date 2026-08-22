@@ -33,6 +33,7 @@ import { detectSpeechLang } from '@/lib/i18n';
 import type { PlayerRole, CreateGamePayload, Question } from '@/lib/types';
 import { mergePreviousQuestions, rememberQuestions, filterUnseenQuestions } from '@/lib/question-history';
 import { sendTelemetry } from '@/lib/telemetry';
+import { usePageHit } from '@/components/PageHit';
 import { roundTelemetryBytes } from '@/lib/telemetry-shared';
 import { parseGeographyTopic } from '@/lib/geography/types';
 import { isPdfTopic } from '@/lib/pdf-source';
@@ -45,6 +46,7 @@ interface GameScreenProps {
 export default function GameScreen({ gameId, role }: GameScreenProps) {
   const { t, locale, speechLang } = useLocale();
   const { user, session } = useAuth();
+  usePageHit('game');
 
   // Stable per-browser id (set after mount to avoid an SSR mismatch).
   const [clientId, setClientId] = useState('');
@@ -427,6 +429,13 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           const finalQuestions = unseen.length > 0 ? unseen : questions;
           rememberQuestions(game.topic, finalQuestions);
           await rematch(finalQuestions);
+          sendTelemetry({
+            event: 'game_rematch',
+            game_ref: game.id,
+            platform: 'web',
+            status: 'fresh',
+            player_count: Math.min(6, Math.max(1, players.length)),
+          });
           return;
         }
       } else if (res.status === 402) {
@@ -436,13 +445,20 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
         setRematchQuotaExceeded(true);
       }
       await rematch();
+      sendTelemetry({
+        event: 'game_rematch',
+        game_ref: game.id,
+        platform: 'web',
+        status: 'replay',
+        player_count: Math.min(6, Math.max(1, players.length)),
+      });
     } catch (err) {
       console.error('[GameScreen] rematch generation failed:', err);
       await rematch();
     } finally {
       setRematchLoading(false);
     }
-  }, [game, rematchLoading, locale, rematch, session]);
+  }, [game, rematchLoading, locale, rematch, session, players.length]);
 
   // Host drives the rematch once they vote and either another player voted
   // or the room is solo (no one else to wait for).
@@ -577,7 +593,23 @@ export default function GameScreen({ gameId, role }: GameScreenProps) {
           shareLink={shareLink}
           full={joinFull}
           isPublic={!!game.is_public}
-          onStart={startGame}
+          onStart={() => {
+            void startGame();
+            const g = game;
+            if (!g) return;
+            sendTelemetry({
+              event: 'game_started',
+              game_ref: gameId,
+              platform: 'web',
+              difficulty: g.difficulty,
+              game_mode: g.game_mode,
+              mc_mode: g.mc_mode,
+              cameras_on: g.cameras_enabled,
+              num_questions: g.num_questions,
+              player_count: Math.min(6, Math.max(1, players.length)),
+              is_public: g.is_public,
+            });
+          }}
           onJoin={handleJoin}
           onKick={handleKick}
         />

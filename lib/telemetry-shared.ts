@@ -7,9 +7,75 @@ export type TelemetryPlatform = 'web' | 'ios' | 'unknown';
 
 export type TelemetryEventName =
   | 'game_created'
+  | 'game_started'
   | 'game_finished'
   | 'webrtc_summary'
-  | 'ice_config_served';
+  | 'ice_config_served'
+  | 'page_hit'
+  | 'player_joined'
+  | 'game_rematch'
+  | 'media_permission'
+  | 'create_failed'
+  | 'quota_exceeded'
+  | 'checkout_started'
+  | 'checkout_completed'
+  | 'billing_failed'
+  | 'billing_canceled';
+
+/** Allowlisted page_hit.status values. No URLs, no query strings. */
+export type PageHitPath = 'home' | 'upgrade' | 'game' | 'legal';
+
+export const PAGE_HIT_PATHS = new Set<PageHitPath>(['home', 'upgrade', 'game', 'legal']);
+
+/** Short status tokens allowed on client-posted events. */
+export const TELEMETRY_STATUSES = new Set([
+  'ended',
+  'abandoned',
+  'home',
+  'upgrade',
+  'game',
+  'legal',
+  'host',
+  'guest',
+  'permission',
+  'insecure',
+  'notfound',
+  'busy',
+  'unknown',
+  'fresh',
+  'replay',
+  'rate_limit',
+  'validation',
+  'generate',
+  'insert',
+  'create',
+  'rematch',
+  'basic',
+  'premium',
+  'test',
+]);
+
+/** Events the browser/app must not invent — server writes these. */
+export const SERVER_ONLY_TELEMETRY_EVENTS = new Set<TelemetryEventName>([
+  'game_created',
+  'ice_config_served',
+  'create_failed',
+  'quota_exceeded',
+  'checkout_started',
+  'checkout_completed',
+  'billing_failed',
+  'billing_canceled',
+]);
+
+export const GAME_REF_REQUIRED_EVENTS = new Set<TelemetryEventName>([
+  'game_created',
+  'game_started',
+  'game_finished',
+  'webrtc_summary',
+  'player_joined',
+  'game_rematch',
+  'media_permission',
+]);
 
 export type RelayPool = 'coturn' | 'metered' | 'stun_only' | 'unknown';
 

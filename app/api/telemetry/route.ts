@@ -9,9 +9,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 import { insertTelemetryEvent } from '@/lib/telemetry-server';
 import {
+  GAME_REF_REQUIRED_EVENTS,
+  PAGE_HIT_PATHS,
+  SERVER_ONLY_TELEMETRY_EVENTS,
+  TELEMETRY_STATUSES,
   isUuid,
   platformFromClientHeader,
   roundTelemetryBytes,
+  type PageHitPath,
   type TelemetryEventName,
   type TelemetryEventRow,
   type TelemetryPlatform,
@@ -24,9 +29,20 @@ const WINDOW_MS = Number(process.env.RL_TELEMETRY_WINDOW_MS) || 60_000;
 
 const EVENTS = new Set<TelemetryEventName>([
   'game_created',
+  'game_started',
   'game_finished',
   'webrtc_summary',
   'ice_config_served',
+  'page_hit',
+  'player_joined',
+  'game_rematch',
+  'media_permission',
+  'create_failed',
+  'quota_exceeded',
+  'checkout_started',
+  'checkout_completed',
+  'billing_failed',
+  'billing_canceled',
 ]);
 
 const FORBIDDEN_KEYS = new Set([
@@ -84,11 +100,7 @@ function sanitizeBody(
   const game_ref =
     typeof raw.game_ref === 'string' && isUuid(raw.game_ref) ? raw.game_ref : null;
 
-  // Lifecycle events need a game_ref.
-  if (
-    (event === 'game_created' || event === 'game_finished' || event === 'webrtc_summary') &&
-    !game_ref
-  ) {
+  if (GAME_REF_REQUIRED_EVENTS.has(event as TelemetryEventName) && !game_ref) {
     return null;
   }
 
@@ -128,7 +140,12 @@ function sanitizeBody(
   }
 
   let status: string | null = null;
-  if (raw.status === 'ended' || raw.status === 'abandoned') status = raw.status;
+  if (typeof raw.status === 'string' && TELEMETRY_STATUSES.has(raw.status)) {
+    status = raw.status;
+  }
+  if (event === 'page_hit') {
+    if (!status || !PAGE_HIT_PATHS.has(status as PageHitPath)) return null;
+  }
 
   // meta: only allow small non-nested scalar map for ice_config_served
   let meta: Record<string, unknown> = {};
@@ -210,8 +227,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid event' }, { status: 400, headers: rateLimitHeaders(rl) });
   }
 
-  // Clients must not invent game_created (server emits that).
-  if (row.event === 'game_created') {
+  if (SERVER_ONLY_TELEMETRY_EVENTS.has(row.event)) {
     return NextResponse.json({ error: 'Forbidden event' }, { status: 403, headers: rateLimitHeaders(rl) });
   }
 

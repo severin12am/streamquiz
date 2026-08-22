@@ -18,6 +18,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useLocale } from '@/context/LocaleProvider';
 import { PLANS, FREE_TRIAL_CREATES, TEST_PLAN, type PaidPlan } from '@/lib/billing-plans';
 import { playSound } from '@/lib/sounds';
+import { usePageHit } from '@/components/PageHit';
 
 interface QuotaInfo {
   used: number;
@@ -41,6 +42,7 @@ function priceLabel(cents: number): string {
 export default function UpgradePage() {
   const { user, session, loading: authLoading, signInWithGoogle } = useAuth();
   const { t } = useLocale();
+  usePageHit('upgrade');
 
   const accessToken = session?.access_token ?? null;
 

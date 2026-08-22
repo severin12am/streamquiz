@@ -117,6 +117,21 @@ const round = (n: number) => Math.round(n / 100_000) * 100_000;
 |-------|-----|
 | `game_created` | Server-only (403 if client tries) |
 | `ice_config_served` | Server-only from `/api/ice-servers` |
+| `create_failed` / `quota_exceeded` / `checkout_*` / `billing_*` | Server-only |
+| `page_hit` | Web tab sessions only |
+
+### 3.4 Optional iOS parity (same privacy rules)
+
+Web already sends these. Add them on iOS if you want the funnel to include the app:
+
+| Event | When | `status` |
+|-------|------|----------|
+| `game_started` | Host taps Start | omit or `ended` |
+| `player_joined` | A **new** seat is claimed (not reconnect) | `host` or `guest` |
+| `game_rematch` | Rematch actually starts | `fresh` or `replay` |
+| `media_permission` | First camera/mic capture failure | `permission` / `notfound` / `busy` / `unknown` |
+
+Still never send names, emails, quota keys, or RevenueCat ids.
 
 ---
 

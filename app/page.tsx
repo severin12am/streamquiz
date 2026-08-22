@@ -17,6 +17,7 @@ import {
   hasCompletedOnboarding,
   markOnboardingCompleted,
 } from '@/lib/onboarding';
+import { PageHit } from '@/components/PageHit';
 
 export default function HomePage() {
   const [homeView, setHomeView] = useState<'create' | 'browse'>('create');
@@ -38,6 +39,7 @@ export default function HomePage() {
 
   return (
     <main className="relative flex flex-col items-center justify-center min-h-dvh px-4 sm:px-6 py-8 sm:py-12">
+      <PageHit path="home" />
       <HomeDotTexture />
       <div className="relative z-10 flex w-full flex-col items-center">
         {homeView === 'create' ? (

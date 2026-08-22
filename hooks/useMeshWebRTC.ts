@@ -28,6 +28,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { WebRTCSignal } from '@/lib/types';
+import { sendTelemetry } from '@/lib/telemetry';
 
 // Flip to true to print verbose WebRTC/signaling logs while debugging.
 const WEBRTC_DEBUG = false;
@@ -387,17 +388,25 @@ export function useMeshWebRTC(
         })),
       });
     } catch (err) {
-      setCameraError(cameraErrorCode(err));
+      const code = cameraErrorCode(err);
+      setCameraError(code);
       // Log only on the first failure of a cooldown window — not on every
       // retry — so a persistently-busy device doesn't spam the console.
       if (!cameraFailedAtRef.current) {
         console.error('[Camera] getUserMedia failed', { camerasEnabled, error: err });
+        sendTelemetry({
+          event: 'media_permission',
+          game_ref: gameId,
+          platform: 'web',
+          status: code,
+          cameras_on: camerasEnabled,
+        });
       }
       cameraFailedAtRef.current = Date.now();
     } finally {
       cameraStartingRef.current = false;
     }
-  }, [camerasEnabled]);
+  }, [camerasEnabled, gameId]);
 
   // -------------------------------------------------------
   // setMicEnabled — toggle whether our mic reaches the other players.

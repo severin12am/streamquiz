@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useLocale } from '@/context/LocaleProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { privacy } from '@/lib/i18n/legal';
+import { PageHit } from '@/components/PageHit';
 
 export default function PrivacyPage() {
   const { t, locale } = useLocale();
@@ -17,6 +18,7 @@ export default function PrivacyPage() {
 
   return (
     <main className="min-h-dvh px-4 py-8 sm:px-6 sm:py-12">
+      <PageHit path="legal" />
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">

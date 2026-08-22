@@ -13,6 +13,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Game, Player, PlayerRole } from './types';
 import { MAX_PLAYERS } from './types';
+import { sendTelemetry } from '@/lib/telemetry';
 
 const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '';
 const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -403,7 +404,17 @@ export async function joinGame(
       .select('*')
       .single();
 
-    if (!error && data) return { ok: true, player: data as Player };
+    if (!error && data) {
+      const seated = data as Player;
+      sendTelemetry({
+        event: 'player_joined',
+        game_ref: gameId,
+        platform: 'web',
+        status: seated.role === 'host' ? 'host' : 'guest',
+        player_count: Math.min(6, Math.max(1, taken.size + 1)),
+      });
+      return { ok: true, player: seated };
+    }
 
     // Banned by host (trigger players_reject_banned) or other insert failure.
     if (error && /banned_from_game|P0001|banned/i.test(error.message)) {

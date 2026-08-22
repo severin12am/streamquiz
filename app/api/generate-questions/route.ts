@@ -18,6 +18,8 @@ import { fetchTierForWebUser, webQuotaKey } from '@/lib/web-subscriptions';
 import { getUserFromRequest } from '@/lib/server-auth';
 import { enforce, rateLimitHeaders } from '@/lib/rate-limit';
 import { isPdfTopic } from '@/lib/pdf-source';
+import { insertTelemetryEvent } from '@/lib/telemetry-server';
+import { platformFromClientHeader } from '@/lib/telemetry-shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +28,10 @@ const WINDOW_MS = Number(process.env.RL_GENERATE_WINDOW_MS) || 60_000;
 
 export async function POST(req: NextRequest) {
   const rl = enforce(req, { name: 'generate-questions', limit: LIMIT, windowMs: WINDOW_MS });
+  const platform = platformFromClientHeader(req.headers.get('x-whosmarter-client'));
+
   if (!rl.ok) {
+    void insertTelemetryEvent({ event: 'create_failed', platform, status: 'rate_limit' });
     return NextResponse.json(
       { error: 'Too many requests. Please wait a moment and try again.' },
       { status: 429, headers: rateLimitHeaders(rl) },
@@ -70,6 +75,7 @@ export async function POST(req: NextRequest) {
 
     const validation = validateConfig(body);
     if (!validation.ok) {
+      void insertTelemetryEvent({ event: 'create_failed', platform, status: 'validation' });
       return NextResponse.json({ error: validation.error }, { status: 400, headers: rateLimitHeaders(rl) });
     }
 
@@ -83,6 +89,7 @@ export async function POST(req: NextRequest) {
     if (quotaKey) {
       quota = await consumeCreateQuota(getSupabaseAdmin(), quotaKey);
       if (!quota) {
+        void insertTelemetryEvent({ event: 'quota_exceeded', platform, status: 'rematch' });
         return NextResponse.json(
           { error: 'Create quota exceeded', code: 'quota_exceeded' },
           { status: 402, headers: rateLimitHeaders(rl) },
@@ -95,6 +102,7 @@ export async function POST(req: NextRequest) {
         const tier = await fetchTierForWebUser(admin, user.id);
         quota = await consumeCreateQuota(admin, webQuotaKey(user.id), tier);
         if (!quota) {
+          void insertTelemetryEvent({ event: 'quota_exceeded', platform, status: 'rematch' });
           return NextResponse.json(
             { error: 'Create quota exceeded', code: 'quota_exceeded' },
             { status: 402, headers: rateLimitHeaders(rl) },
@@ -111,6 +119,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[generate-questions] Error:', message);
+    void insertTelemetryEvent({ event: 'create_failed', platform, status: 'generate' });
     return NextResponse.json({ error: message }, { status: 500, headers: rateLimitHeaders(rl) });
   }
 }

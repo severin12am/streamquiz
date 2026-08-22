@@ -47,6 +47,11 @@ export async function POST(req: NextRequest) {
   // ---- 1. Rate limit ----
   const rl = enforce(req, { name: 'create-game', limit: LIMIT, windowMs: WINDOW_MS });
   if (!rl.ok) {
+    void insertTelemetryEvent({
+      event: 'create_failed',
+      platform: platformFromClientHeader(req.headers.get('x-whosmarter-client')),
+      status: 'rate_limit',
+    });
     return NextResponse.json(
       { error: 'Too many games created. Please wait a moment and try again.' },
       { status: 429, headers: rateLimitHeaders(rl) },
@@ -64,6 +69,7 @@ export async function POST(req: NextRequest) {
     : '';
   const clientPlatform = req.headers.get('x-whosmarter-client')?.trim().toLowerCase();
   const isIosClient = clientPlatform === 'ios';
+  const platform = platformFromClientHeader(clientPlatform);
 
   let hostUserId: string | null = null;
 
@@ -89,6 +95,7 @@ export async function POST(req: NextRequest) {
     // ---- 3. Validate + generate ----
     const validation = validateConfig(body);
     if (!validation.ok) {
+      void insertTelemetryEvent({ event: 'create_failed', platform, status: 'validation' });
       return NextResponse.json({ error: validation.error }, { status: 400, headers: rateLimitHeaders(rl) });
     }
 
@@ -108,13 +115,25 @@ export async function POST(req: NextRequest) {
       quota = await consumeCreateQuota(admin, webQuotaKey(hostUserId), tier);
     }
     if ((quotaKey || hostUserId) && !quota) {
+      void insertTelemetryEvent({
+        event: 'quota_exceeded',
+        platform,
+        status: 'create',
+      });
       return NextResponse.json(
         { error: 'Create quota exceeded', code: 'quota_exceeded' },
         { status: 402, headers: rateLimitHeaders(rl) },
       );
     }
 
-    const { questions, provider } = await generateQuestions(validation.config);
+    let questions;
+    let provider;
+    try {
+      ({ questions, provider } = await generateQuestions(validation.config));
+    } catch (genErr) {
+      void insertTelemetryEvent({ event: 'create_failed', platform, status: 'generate' });
+      throw genErr;
+    }
 
     // ---- 4. Insert the game (service role bypasses RLS) ----
     const camerasEnabled = Boolean((body as Record<string, unknown>).cameras_enabled);
@@ -147,6 +166,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error || !data) {
+      void insertTelemetryEvent({ event: 'create_failed', platform, status: 'insert' });
       throw new Error(error?.message ?? 'Failed to create the game.');
     }
 
@@ -160,7 +180,7 @@ export async function POST(req: NextRequest) {
     void insertTelemetryEvent({
       event: 'game_created',
       game_ref: gameId,
-      platform: platformFromClientHeader(clientPlatform),
+      platform,
       locale: bodyLocale || null,
       difficulty: validation.config.difficulty,
       game_mode: gameMode,

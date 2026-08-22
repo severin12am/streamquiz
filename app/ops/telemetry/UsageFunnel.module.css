@@ -1,0 +1,149 @@
+.wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.15rem 1.2rem 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.header p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+
+.web { color: var(--accent); font-weight: 650; }
+.ios { color: var(--secondary-strong); font-weight: 650; }
+
+.steps {
+  list-style: none;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.drop {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem 0.95rem;
+  background: var(--bg-base);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.cardTop h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.cardTop strong {
+  font-size: 1.6rem;
+  letter-spacing: -0.04em;
+}
+
+.blurb {
+  margin: 0.2rem 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.barTrack {
+  height: 18px;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar {
+  height: 100%;
+  display: flex;
+  min-width: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.segWeb { background: var(--accent); }
+.segIos { background: var(--secondary-strong); }
+.segUnk { background: var(--text-muted); }
+
+.meta {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.meta b { color: var(--text-primary); }
+
+.video {
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.video h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.video p {
+  margin: 0.25rem 0 0.7rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.videoBars { display: grid; gap: 0.45rem; }
+
+.videoRow {
+  display: grid;
+  grid-template-columns: 8.6rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.videoTrack {
+  height: 8px;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.videoTrack i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.ok { background: var(--accent); }
+.warn { background: var(--gold); }
+.bad { background: var(--wrong); }
+
+.videoMeta {
+  margin: 0.75rem 0 0 !important;
+  color: var(--text-muted) !important;
+}
