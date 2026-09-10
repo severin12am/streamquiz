@@ -3,7 +3,7 @@
 // Shown once on the home page for signed-out visitors.
 // ============================================================
 
-const ONBOARDING_KEY = 'whosmarter-onboarding-done';
+const ONBOARDING_KEY = 'whosmarter-onboarding-done-v3';
 
 export function hasCompletedOnboarding(): boolean {
   if (typeof window === 'undefined') return true;

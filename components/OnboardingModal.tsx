@@ -3,20 +3,35 @@
 import { useEffect, useState } from 'react';
 import { onboarding } from '@/lib/i18n/onboarding';
 import type { Locale } from '@/lib/i18n';
+import { useLocale } from '@/context/LocaleProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 interface OnboardingModalProps {
   locale: Locale;
   onComplete: () => void;
+  /** Close the intro and open More with Player cameras off. */
+  onOpenCameraSetting?: () => void;
 }
 
-export default function OnboardingModal({ locale, onComplete }: OnboardingModalProps) {
+export default function OnboardingModal({
+  locale,
+  onComplete,
+  onOpenCameraSetting,
+}: OnboardingModalProps) {
+  const { t } = useLocale();
   const copy = onboarding[locale as keyof typeof onboarding] ?? onboarding.en;
   const steps = copy.steps;
   const [step, setStep] = useState(0);
+  const [previewCamerasOn, setPreviewCamerasOn] = useState(true);
   const isFirst = step <= 0;
   const isLast = step >= steps.length - 1;
   const current = steps[step];
+
+  function handleCameraSettingClick() {
+    setPreviewCamerasOn(false);
+    if (onOpenCameraSetting) onOpenCameraSetting();
+    else onComplete();
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -73,9 +88,45 @@ export default function OnboardingModal({ locale, onComplete }: OnboardingModalP
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
             {current.title}
           </h3>
-          <p className="text-[13px] leading-relaxed text-[var(--text-muted)]">
-            {current.body}
-          </p>
+          <div className="flex flex-col gap-2.5">
+            {current.body.split('\n\n').map((paragraph) => (
+              <p
+                key={paragraph}
+                className="text-[13px] leading-relaxed text-[var(--text-muted)]"
+              >
+                {paragraph}
+              </p>
+            ))}
+          </div>
+
+          {isFirst && (
+            <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    {t('create.cameraTitle')}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    {t('create.adjustShow')} → {t('create.cameraTitle')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={previewCamerasOn}
+                  aria-label={copy.cameraSettingCta}
+                  onClick={handleCameraSettingClick}
+                  className="toggle flex-shrink-0"
+                >
+                  <span className="toggle-well" aria-hidden />
+                  <span className="toggle-thumb" aria-hidden />
+                </button>
+              </div>
+              <p className="text-[11px] leading-snug text-[var(--text-muted)] mt-2.5">
+                {copy.cameraSettingCta}
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-1.5 mt-6" aria-hidden>
             {steps.map((_, i) => (

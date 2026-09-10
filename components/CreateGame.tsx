@@ -56,6 +56,8 @@ interface PendingCreateForm {
 interface CreateGameProps {
   /** Opens the full-page public room browser on home. */
   onBrowseOpen?: () => void;
+  /** Increment to open More, turn Player cameras off, and highlight the row. */
+  revealCameraSetting?: number;
 }
 
 function savePendingCreate(form: PendingCreateForm) {
@@ -76,7 +78,7 @@ function clearPendingCreate() {
   sessionStorage.removeItem(PENDING_CREATE_KEY);
 }
 
-export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
+export default function CreateGame({ onBrowseOpen, revealCameraSetting = 0 }: CreateGameProps) {
   const router = useRouter();
   const { t, locale } = useLocale();
   const { user, session, loading: authLoading, signInWithGoogle, signOut } = useAuth();
@@ -103,6 +105,8 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
 
   // ---- UI state ----
   const [showAdjust,    setShowAdjust]    = useState(false);
+  const [cameraSettingHighlight, setCameraSettingHighlight] = useState(false);
+  const cameraSettingRef = useRef<HTMLDivElement>(null);
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState<string | null>(null);
   /** Server said 402: create quota exhausted → offer the upgrade page. */
@@ -193,6 +197,22 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
     if (!showAdjust) measureAdjustPanel();
     setShowAdjust((v) => !v);
   }
+
+  useEffect(() => {
+    if (!revealCameraSetting) return;
+    setCamerasEnabled(false);
+    measureAdjustPanel();
+    setShowAdjust(true);
+    const reveal = window.setTimeout(() => {
+      cameraSettingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setCameraSettingHighlight(true);
+    }, 360);
+    const clear = window.setTimeout(() => setCameraSettingHighlight(false), 4200);
+    return () => {
+      window.clearTimeout(reveal);
+      window.clearTimeout(clear);
+    };
+  }, [revealCameraSetting, measureAdjustPanel]);
 
   function currentFormSnapshot(): PendingCreateForm {
     return {
@@ -664,7 +684,13 @@ export default function CreateGame({ onBrowseOpen }: CreateGameProps) {
           </div>
 
           {/* ---- Cameras toggle ---- */}
-          <div className="flex items-center justify-between">
+          <div
+            ref={cameraSettingRef}
+            id="create-camera-setting"
+            className={`flex items-center justify-between${
+              cameraSettingHighlight ? ' create-camera-setting--highlight' : ''
+            }`}
+          >
             <div>
               <p className="text-sm font-medium text-[var(--text-primary)]">
                 {t('create.cameraTitle')}

@@ -734,6 +734,13 @@ a.keycap {
   }
 }
 
+/* Pulse the Player cameras row after the intro “turn video off” control. */
+.create-camera-setting--highlight {
+  border-radius: 12px;
+  outline: 2px solid var(--accent);
+  outline-offset: 8px;
+}
+
 /* ------------------------------------------------------------
    Segmented slider — number pill thumb on a thin track
    ------------------------------------------------------------ */

@@ -12,10 +12,11 @@ export const onboarding = {
     back: 'Back',
     next: 'Next',
     done: 'Got it',
+    cameraSettingCta: 'Tap this switch to turn video off in More',
     steps: [
       {
-        title: 'Create a quiz',
-        body: 'Type in your topic — AI generates the questions. You’ll sign in with Google when you’re ready to create.',
+        title: 'What is WhoSmarter?',
+        body: 'WhoSmarter is a live quiz for up to 6 players. Type a topic, AI writes the questions, and everyone answers together from a phone or computer. You’ll sign in with Google when you’re ready to create.\n\nIf you don’t want video, open More and turn off Player cameras — the switch looks like this:',
       },
       {
         title: 'Invite friends',
@@ -27,7 +28,7 @@ export const onboarding = {
       },
       {
         title: 'Adjust settings',
-        body: 'Open More to tune anything: difficulty, number of questions, answer time, game mode, multiple choice, cameras, and whether the quiz is invite-only.',
+        body: 'Open More to change difficulty, number of questions, answer time, game mode, multiple choice, and invite-only. If you don’t want video, turn off Player cameras there.',
       },
       {
         title: 'Special categories',
@@ -46,10 +47,11 @@ export const onboarding = {
     back: 'Назад',
     next: 'Далее',
     done: 'Понятно',
+    cameraSettingCta: 'Нажмите переключатель, чтобы выключить видео в «Ещё»',
     steps: [
       {
-        title: 'Создайте викторину',
-        body: 'Введите свою тему — ИИ сгенерирует вопросы. Войдите через Google, когда будете готовы создать игру.',
+        title: 'Что такое WhoSmarter?',
+        body: 'WhoSmarter — живая викторина до 6 игроков. Введите тему, ИИ напишет вопросы, и все отвечают вместе с телефона или компьютера. Войдите через Google, когда будете готовы создать игру.\n\nЕсли видео не нужно, откройте «Ещё» и выключите «Камеры игроков» — переключатель выглядит так:',
       },
       {
         title: 'Пригласите друзей',
@@ -61,7 +63,7 @@ export const onboarding = {
       },
       {
         title: 'Настройте параметры',
-        body: 'В разделе «Ещё» можно изменить что угодно: сложность, число вопросов, время на ответ, режим игры, варианты ответов, камеры и приватность (только по ссылке).',
+        body: 'В разделе «Ещё» можно изменить сложность, число вопросов, время на ответ, режим игры, варианты ответов и приватность. Если видео не нужно, выключите «Камеры игроков».',
       },
       {
         title: 'Особые категории',
@@ -80,10 +82,11 @@ export const onboarding = {
     back: 'Atrás',
     next: 'Siguiente',
     done: 'Entendido',
+    cameraSettingCta: 'Toca este interruptor para apagar el vídeo en Más',
     steps: [
       {
-        title: 'Crea un concurso',
-        body: 'Escribe tu tema: la IA genera las preguntas. Iniciarás sesión con Google cuando quieras crear la partida.',
+        title: '¿Qué es WhoSmarter?',
+        body: 'WhoSmarter es un concurso en directo para hasta 6 jugadores. Escribe un tema, la IA genera las preguntas y todos responden juntos desde el móvil o el ordenador. Iniciarás sesión con Google cuando quieras crear la partida.\n\nSi no quieres vídeo, abre Más y desactiva Cámaras de jugadores — el interruptor se ve así:',
       },
       {
         title: 'Invita a amigos',
@@ -95,7 +98,7 @@ export const onboarding = {
       },
       {
         title: 'Ajusta los ajustes',
-        body: 'Abre Más para cambiar lo que quieras: dificultad, número de preguntas, tiempo de respuesta, modo de juego, opción múltiple, cámaras y si el concurso es solo por invitación.',
+        body: 'Abre Más para cambiar dificultad, número de preguntas, tiempo, modo de juego, opción múltiple y si es solo por invitación. Si no quieres vídeo, desactiva Cámaras de jugadores ahí.',
       },
       {
         title: 'Categorías especiales',
@@ -114,10 +117,11 @@ export const onboarding = {
     back: 'Retour',
     next: 'Suivant',
     done: 'Compris',
+    cameraSettingCta: 'Touchez ce bouton pour couper la vidéo dans Plus',
     steps: [
       {
-        title: 'Créez un quiz',
-        body: 'Saisissez votre sujet — l’IA génère les questions. Vous vous connecterez avec Google quand vous serez prêt à créer.',
+        title: 'Qu’est-ce que WhoSmarter\u00a0?',
+        body: 'WhoSmarter est un quiz en direct jusqu’à 6 joueurs. Saisissez un sujet, l’IA rédige les questions, et tout le monde répond ensemble depuis un téléphone ou un ordinateur. Vous vous connecterez avec Google quand vous serez prêt à créer.\n\nSi vous ne voulez pas de vidéo, ouvrez Plus et désactivez Caméras des joueurs — le bouton ressemble à ceci\u00a0:',
       },
       {
         title: 'Invitez vos amis',
@@ -129,7 +133,7 @@ export const onboarding = {
       },
       {
         title: 'Ajustez les réglages',
-        body: 'Ouvrez Plus pour tout régler : difficulté, nombre de questions, temps de réponse, mode de jeu, QCM, caméras, et si le quiz est sur invitation uniquement.',
+        body: 'Ouvrez Plus pour régler difficulté, nombre de questions, temps, mode de jeu, QCM et invitation uniquement. Si vous ne voulez pas de vidéo, désactivez Caméras des joueurs.',
       },
       {
         title: 'Catégories spéciales',
@@ -148,10 +152,11 @@ export const onboarding = {
     back: 'Zurück',
     next: 'Weiter',
     done: 'Verstanden',
+    cameraSettingCta: 'Tippe diesen Schalter, um Video unter Mehr auszuschalten',
     steps: [
       {
-        title: 'Quiz erstellen',
-        body: 'Gib dein Thema ein — KI erzeugt die Fragen. Mit Google anmelden, wenn du bereit bist zu erstellen.',
+        title: 'Was ist WhoSmarter?',
+        body: 'WhoSmarter ist ein Live-Quiz für bis zu 6 Spieler. Gib ein Thema ein, die KI schreibt die Fragen, und alle antworten gemeinsam am Handy oder Computer. Mit Google anmelden, wenn du bereit bist zu erstellen.\n\nWenn du kein Video willst, öffne Mehr und schalte Spieler-Kameras aus — der Schalter sieht so aus:',
       },
       {
         title: 'Freunde einladen',
@@ -163,7 +168,7 @@ export const onboarding = {
       },
       {
         title: 'Einstellungen anpassen',
-        body: 'Unter Mehr kannst du alles einstellen: Schwierigkeit, Fragenanzahl, Antwortzeit, Spielmodus, Multiple Choice, Kameras und ob das Quiz nur per Einladung ist.',
+        body: 'Unter Mehr stellst du Schwierigkeit, Fragenanzahl, Antwortzeit, Spielmodus, Multiple Choice und Einladung ein. Wenn du kein Video willst, schalte Spieler-Kameras aus.',
       },
       {
         title: 'Spezialkategorien',
@@ -182,10 +187,11 @@ export const onboarding = {
     back: '戻る',
     next: '次へ',
     done: 'わかった',
+    cameraSettingCta: 'このスイッチをタップすると「その他」で映像がオフになります',
     steps: [
       {
-        title: 'クイズを作成',
-        body: 'トピックを入力すると、AIが問題を生成します。作成するときにGoogleでサインインします。',
+        title: 'WhoSmarterとは',
+        body: 'WhoSmarterは最大6人のライブクイズです。トピックを入力するとAIが問題を作り、スマホやPCから一緒に答えます。作成するときにGoogleでサインインします。\n\n映像が不要なら「その他」を開いて「プレイヤーカメラ」をオフにしてください。スイッチはこんな見た目です：',
       },
       {
         title: '友達を招待',
@@ -197,7 +203,7 @@ export const onboarding = {
       },
       {
         title: '設定を調整',
-        body: '「もっと」から難易度、問題数、回答時間、ゲームモード、選択式、カメラ、招待のみかどうかを自由に変更できます。',
+        body: '「その他」から難易度、問題数、回答時間、ゲームモード、選択式、招待のみを変更できます。映像が不要なら「プレイヤーカメラ」をオフにしてください。',
       },
       {
         title: '特別カテゴリ',
@@ -216,10 +222,11 @@ export const onboarding = {
     back: 'رجوع',
     next: 'التالي',
     done: 'حسنًا',
+    cameraSettingCta: 'المس هذا المفتاح لإيقاف الفيديو من «المزيد»',
     steps: [
       {
-        title: 'أنشئ مسابقة',
-        body: 'اكتب موضوعك — يُولّد الذكاء الاصطناعي الأسئلة. ستسجّل الدخول عبر Google عندما تكون جاهزًا للإنشاء.',
+        title: 'ما هو WhoSmarter؟',
+        body: 'WhoSmarter مسابقة مباشرة لما يصل إلى 6 لاعبين. اكتب موضوعًا، يكتب الذكاء الاصطناعي الأسئلة، ويجيب الجميع معًا من الهاتف أو الكمبيوتر. ستسجّل الدخول عبر Google عندما تكون جاهزًا للإنشاء.\n\nإذا لا تريد فيديو، افتح «المزيد» وأوقف «كاميرات اللاعبين» — المفتاح يبدو هكذا:',
       },
       {
         title: 'ادعُ الأصدقاء',
@@ -231,7 +238,7 @@ export const onboarding = {
       },
       {
         title: 'اضبط الإعدادات',
-        body: 'افتح «المزيد» لتعديل أي شيء: الصعوبة، عدد الأسئلة، وقت الإجابة، وضع اللعب، الاختيار من متعدد، الكاميرات، وما إذا كانت المسابقة بدعوة فقط.',
+        body: 'افتح «المزيد» لتعديل الصعوبة وعدد الأسئلة ووقت الإجابة ووضع اللعب والاختيار من متعدد والدعوة فقط. إذا لا تريد فيديو، أوقف «كاميرات اللاعبين» هناك.',
       },
       {
         title: 'فئات خاصة',

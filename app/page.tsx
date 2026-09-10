@@ -22,20 +22,26 @@ import { PageHit } from '@/components/PageHit';
 export default function HomePage() {
   const [homeView, setHomeView] = useState<'create' | 'browse'>('create');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const { user, loading: authLoading } = useAuth();
+  const [revealCameraSetting, setRevealCameraSetting] = useState(0);
+  const { loading: authLoading } = useAuth();
   const { locale } = useLocale();
 
   useEffect(() => {
     if (authLoading) return;
-    if (user) return;
     if (hasCompletedOnboarding()) return;
     setShowOnboarding(true);
-  }, [authLoading, user]);
+  }, [authLoading]);
 
   const finishOnboarding = useCallback(() => {
     markOnboardingCompleted();
     setShowOnboarding(false);
   }, []);
+
+  const openCameraSetting = useCallback(() => {
+    finishOnboarding();
+    setHomeView('create');
+    setRevealCameraSetting((n) => n + 1);
+  }, [finishOnboarding]);
 
   return (
     <main className="relative flex flex-col items-center justify-center min-h-dvh px-4 sm:px-6 py-8 sm:py-12">
@@ -46,7 +52,10 @@ export default function HomePage() {
           <>
             <SetupBanner />
             <HomeHeader />
-            <CreateGame onBrowseOpen={() => setHomeView('browse')} />
+            <CreateGame
+              onBrowseOpen={() => setHomeView('browse')}
+              revealCameraSetting={revealCameraSetting}
+            />
           </>
         ) : (
           <PublicGamesBrowser onBack={() => setHomeView('create')} />
@@ -54,7 +63,11 @@ export default function HomePage() {
       </div>
 
       {showOnboarding && (
-        <OnboardingModal locale={locale} onComplete={finishOnboarding} />
+        <OnboardingModal
+          locale={locale}
+          onComplete={finishOnboarding}
+          onOpenCameraSetting={openCameraSetting}
+        />
       )}
     </main>
   );

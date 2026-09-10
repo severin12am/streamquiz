@@ -29,6 +29,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { WebRTCSignal } from '@/lib/types';
 import { sendTelemetry } from '@/lib/telemetry';
+import {
+  clearMediaPermissionDenied,
+  hasDeniedMediaPermission,
+  markMediaPermissionDenied,
+} from '@/lib/media-permission';
 
 // Flip to true to print verbose WebRTC/signaling logs while debugging.
 const WEBRTC_DEBUG = false;
@@ -247,7 +252,7 @@ export interface UseMeshWebRTCReturn {
   connected:     Record<string, boolean>;
   /** Short error code for the local camera/mic tile (`permission`, `insecure`, …). */
   cameraError:   string | null;
-  startCamera:   (opts?: { force?: boolean }) => Promise<void>;
+  startCamera:   (opts?: { force?: boolean; retryDenied?: boolean }) => Promise<void>;
   /** Tear down all peer connections + stop local tracks (cut every feed).
    *  Used at the end of a game's discussion window. `startCamera()` will
    *  re-acquire everything if the players rematch. */
@@ -286,7 +291,9 @@ export function useMeshWebRTC(
   const [localStream,   setLocalStream]   = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [connected,     setConnected]     = useState<Record<string, boolean>>({});
-  const [cameraError,   setCameraError]   = useState<string | null>(null);
+  const [cameraError,   setCameraError]   = useState<string | null>(() =>
+    hasDeniedMediaPermission() ? 'permission' : null
+  );
   // Mic starts MUTED: others only hear you during the answer phase or while
   // you hold the push-to-talk button (see setMicEnabled below).
   const [micEnabled,    setMicEnabledState] = useState(false);
@@ -300,11 +307,16 @@ export function useMeshWebRTC(
   // etc.). Without these, a failing getUserMedia (e.g. NotReadableError: the
   // device is held by another tab/app) gets retried on every render — flooding
   // the console and spinning the CPU. We therefore:
-  //   • skip while an attempt is already in flight, and
+  //   • skip while an attempt is already in flight,
   //   • back off for a cooldown after a failure (unless an explicit recovery
-  //     forces an immediate retry).
+  //     forces an immediate retry), and
+  //   • never auto-retry after the player declined camera/mic (Chrome’s “X”
+  //     and Block both throw NotAllowedError; focus/visibility + the 5s
+  //     cooldown used to re-prompt forever). Only an explicit tile tap
+  //     (`retryDenied`) may ask again.
   const cameraStartingRef = useRef(false);
   const cameraFailedAtRef = useRef(0);
+  const permissionDeniedRef = useRef(hasDeniedMediaPermission());
   const CAMERA_RETRY_COOLDOWN_MS = 5000;
 
   // Map getUserMedia failures to short UI codes (CameraPanel translates them).
@@ -330,17 +342,30 @@ export function useMeshWebRTC(
   // -------------------------------------------------------
   // startCamera — request the webcam + mic once
   // -------------------------------------------------------
-  const startCamera = useCallback(async (opts?: { force?: boolean }) => {
+  const startCamera = useCallback(async (opts?: { force?: boolean; retryDenied?: boolean }) => {
     if (localStreamRef.current) {
       // Idempotent: already capturing. (Intentionally not logged — this is
       // called on nearly every render and would drown the useful logs.)
       return;
     }
     if (cameraStartingRef.current) return; // an attempt is already running
+    // Player already said no. Rematch / tab-focus `force` must not re-prompt.
+    // Only the camera-tile tap passes retryDenied. Re-read sessionStorage so
+    // a remount after Block / dismiss does not ask again in this tab.
+    if (!opts?.retryDenied && (permissionDeniedRef.current || hasDeniedMediaPermission())) {
+      permissionDeniedRef.current = true;
+      markMediaPermissionDenied();
+      setCameraError((prev) => prev ?? 'permission');
+      return;
+    }
+    if (opts?.retryDenied) {
+      permissionDeniedRef.current = false;
+      clearMediaPermissionDenied();
+    }
     // After a failure, don't hammer getUserMedia on every re-render. Genuine
-    // recovery events (tab refocus / network back / tap-to-retry) pass
-    // force:true to retry now.
-    if (!opts?.force && cameraFailedAtRef.current &&
+    // recovery events (tab refocus / network back) pass force:true to retry
+    // now — unless the failure was a permission deny (handled above).
+    if (!opts?.force && !opts?.retryDenied && cameraFailedAtRef.current &&
         Date.now() - cameraFailedAtRef.current < CAMERA_RETRY_COOLDOWN_MS) {
       return;
     }
@@ -375,6 +400,8 @@ export function useMeshWebRTC(
       stream.getAudioTracks().forEach((track) => { track.enabled = false; });
       localStreamRef.current = stream;
       cameraFailedAtRef.current = 0;
+      permissionDeniedRef.current = false;
+      clearMediaPermissionDenied();
       setCameraError(null);
       setLocalStream(stream);
       logWebRTC('[Camera] getUserMedia success', {
@@ -390,6 +417,10 @@ export function useMeshWebRTC(
     } catch (err) {
       const code = cameraErrorCode(err);
       setCameraError(code);
+      if (code === 'permission' || code === 'insecure') {
+        permissionDeniedRef.current = true;
+        markMediaPermissionDenied();
+      }
       // Log only on the first failure of a cooldown window — not on every
       // retry — so a persistently-busy device doesn't spam the console.
       if (!cameraFailedAtRef.current) {
